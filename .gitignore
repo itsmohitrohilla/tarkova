@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+.env
+.env.*
+
+# Raw design sources (large; the site ships optimized copies in public/)
+tarkova-assets/
+products-assests/
+Crowkis_Final_Identity_*.pdf
+tarkova-bg.png
+tarkova-music-trimmed.mp3

@@ -1,0 +1,25 @@
+@font-face {
+  font-family: 'Funnel Sans';
+  src: url('/FunnelSans.ttf') format('truetype');
+  font-weight: 300 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/InstrumentSerif-Italic.woff2') format('woff2');
+  font-style: italic;
+  font-display: swap;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+  background: #0b1208;
+  color: #fff;
+  font-family: 'Funnel Sans', system-ui, sans-serif;
+}
+
+html { scroll-behavior: smooth; }

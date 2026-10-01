@@ -1,0 +1,56 @@
+/* scene: finale — "Go deeper" posts on paper, then the red closing stage. */
+.ck-finale { background: var(--ck-paper); color: var(--ck-ink); font-family: var(--ck-sans); }
+
+/* A word inside its mask; the padding keeps serif descenders and italic overhang out of the clip. */
+.ck-finale .ck-fin-w { display: inline-block; overflow: clip; padding: 0 0.08em 0.12em 0; margin: 0 -0.08em -0.12em 0; vertical-align: top; }
+.ck-finale .ck-fin-w > span { display: inline-block; will-change: transform; }
+.ck-finale h2 em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
+
+/* Posts */
+.ck-fin-posts { padding: clamp(96px, 13vw, 200px) var(--ck-gutter) clamp(72px, 9vw, 140px); }
+.ck-fin-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px 32px; margin-bottom: clamp(36px, 5vw, 72px); }
+.ck-fin-kicker { grid-column: 1 / -1; margin: 0; font: 500 12px/1 var(--ck-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ck-red); }
+.ck-fin-head h2 { margin: 0; font-size: clamp(64px, 12vw, 200px); font-weight: 600; line-height: 0.9; letter-spacing: -0.05em; }
+.ck-fin-all {
+  display: inline-flex; align-items: center; gap: 10px; margin-bottom: 1.2em;
+  font-weight: 600; font-size: 16px; color: var(--ck-ink); text-decoration: none;
+  border-bottom: 1px solid currentColor; padding-bottom: 4px;
+}
+.ck-fin-all span { transition: transform 0.4s var(--ck-ease); }
+.ck-fin-all:hover span { transform: translateX(6px); }
+.ck-finale .grid > li { will-change: transform; }
+
+/* Closing stage: opens from the crow icon card to full bleed (clip-path on the stage). */
+.ck-fin-stage {
+  min-height: 100vh; min-height: 100svh; padding: 96px var(--ck-gutter);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(28px, 4vw, 48px);
+  text-align: center; color: var(--ck-white);
+  background: radial-gradient(130% 80% at 50% 115%, var(--ck-red-deep), var(--ck-red) 62%);
+}
+.ck-fin-mark { width: clamp(72px, 7.5vw, 116px); height: auto; display: block; }
+.ck-fin-stage h2 {
+  margin: 0; max-width: 14ch; font-size: clamp(46px, 8vw, 132px); font-weight: 600;
+  line-height: 0.95; letter-spacing: -0.045em; text-wrap: balance;
+}
+.ck-fin-links { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.ck-fin-btn {
+  display: inline-flex; align-items: center; padding: 18px 30px; border-radius: 999px;
+  font-weight: 600; font-size: 16px; white-space: nowrap; text-decoration: none;
+  color: var(--ck-white); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  transition: background 0.3s, color 0.3s, box-shadow 0.3s; /* transform belongs to the magnet */
+}
+.ck-fin-btn > span { display: inline-block; }
+.ck-fin-btn:hover { background: var(--ck-white); color: var(--ck-red); box-shadow: inset 0 0 0 1px var(--ck-white); }
+.ck-fin-btn.is-main { background: var(--ck-white); color: var(--ck-red); box-shadow: none; }
+.ck-fin-btn.is-main:hover { background: var(--ck-ink); color: var(--ck-white); }
+.ck-fin-btn:focus-visible { outline: 2px solid var(--ck-white); outline-offset: 4px; }
+
+@media (max-width: 600px) {
+  .ck-fin-head { grid-template-columns: 1fr; }
+  .ck-fin-head h2 { font-size: 21vw; }
+  .ck-fin-all { justify-self: start; margin-bottom: 0; }
+  .ck-fin-stage { padding: 88px 20px; }
+  .ck-fin-stage h2 { font-size: 15vw; }
+  .ck-fin-links { flex-direction: column; align-items: stretch; width: 100%; max-width: 340px; }
+  .ck-fin-btn { width: 100%; justify-content: center; }
+}

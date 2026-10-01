@@ -1,0 +1,146 @@
+/* scene: problem. Ink ground, red accents. Motion-only states live under html.ck-motion. */
+.ck-problem {
+  background: var(--ck-ink); color: var(--ck-white);
+  padding: clamp(96px, 16vh, 180px) 0 0;
+}
+.ck-problem :is(h2, h3, p, dl, dd, ol, ul) { margin: 0; }
+.ck-problem em { color: var(--ck-red); }
+
+/* ---------- 1. head ---------- */
+.ckp-head { padding: 0 var(--ck-gutter) clamp(72px, 14vh, 160px); display: grid; gap: clamp(28px, 4vw, 56px); }
+.ckp-kicker, .ckp-label, .ckp-meter dt, .ckp-ask-meta {
+  font: 500 12px/1 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ck-dim);
+}
+.ckp-kicker { display: flex; align-items: center; gap: 12px; }
+.ckp-kicker::before { content: ''; width: 8px; height: 8px; background: var(--ck-red); }
+.ckp-title {
+  font: 600 clamp(52px, 10.4vw, 188px)/0.9 var(--ck-sans); letter-spacing: -0.045em;
+  max-width: 11ch; text-wrap: balance;
+}
+.ckp-title em { letter-spacing: -0.01em; padding-right: 0.04em; }
+.ckp-intro {
+  justify-self: end; max-width: 34ch;
+  font-size: clamp(19px, 1.9vw, 28px); line-height: 1.35; letter-spacing: -0.01em; color: #c9ccd1;
+}
+/* SplitText line masks: a little bottom room so italic descenders (the j in déjà) aren't shaved. */
+.ckp-line-mask { padding-bottom: 0.08em; margin-bottom: -0.08em; }
+
+/* ---------- 2. echo: one question, fifty times ---------- */
+.ckp-echo {
+  display: grid; grid-template-rows: auto 1fr auto; gap: clamp(20px, 3vh, 36px);
+  padding: clamp(84px, 11vh, 110px) var(--ck-gutter) clamp(24px, 4vh, 44px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ckp-story { display: grid; grid-template-columns: 1fr minmax(0, 30ch); gap: 24px; align-items: start; }
+.ckp-lede { font-size: clamp(17px, 1.4vw, 21px); line-height: 1.4; color: #c9ccd1; }
+
+.ckp-cloud { position: relative; }
+.ckp-asks { list-style: none; padding: 0; position: relative; height: clamp(360px, 52vh, 620px); }
+.ckp-ask { position: absolute; left: var(--x); top: var(--y); white-space: nowrap; }
+.ckp-ask-in {
+  display: grid; gap: 8px;
+  font: 500 calc(clamp(17px, 1.9vw, 32px) * var(--d)) / 1.05 var(--ck-sans); letter-spacing: -0.02em;
+  /* cursor parallax (set from JS), scaled by depth; transform stays free for the scroll timeline */
+  translate: calc(var(--mx, 0) * var(--d) * 1px) calc(var(--my, 0) * var(--d) * 1px);
+}
+.ckp-ask-meta { font-size: 11px; color: var(--ck-red); letter-spacing: 0.08em; }
+.ckp-ask:first-child .ckp-ask-in { color: var(--ck-white); }
+
+.ckp-dot {
+  display: none; position: absolute; left: 50%; top: 30%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border-radius: 50%; background: var(--ck-red);
+}
+.ckp-dot::before { /* ambient pulse: the one meaning, alive */
+  content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--ck-red);
+  animation: ckpPulse 2.4s var(--ck-ease) infinite;
+}
+@keyframes ckpPulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(4.5); opacity: 0; } }
+
+.ckp-verdict { display: grid; gap: 18px; margin-top: 28px; }
+.ckp-verdict > .ckp-v:first-child { max-width: 20ch; }
+.ckp-v { display: block; overflow: clip; padding-bottom: 0.1em; }
+.ckp-v > span { display: block; }
+.ckp-verdict > .ckp-v:first-child { font: 500 clamp(30px, 4.2vw, 68px)/1.02 var(--ck-sans); letter-spacing: -0.035em; text-wrap: balance; }
+.ckp-v-sub { font-size: clamp(16px, 1.3vw, 19px); line-height: 1.4; color: var(--ck-dim); }
+
+.ckp-meter {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+.ckp-meter dd { margin-top: 10px; font: 500 clamp(24px, 3vw, 48px)/1 var(--ck-mono); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ckp-meter dd.ckp-zero { color: var(--ck-red); }
+
+/* ---------- 3. rail: the five problems ---------- */
+.ckp-rail { position: relative; overflow: clip; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.ckp-track { list-style: none; padding: 0 var(--ck-gutter); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.ckp-panel {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: clamp(28px, 4vw, 48px) clamp(20px, 2.4vw, 40px) clamp(40px, 6vw, 72px) 0;
+}
+.ckp-num {
+  --f: 1; position: relative; display: block; width: max-content;
+  font: 600 clamp(110px, 11vw, 190px)/0.82 var(--ck-sans); letter-spacing: -0.06em;
+  color: transparent; -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.35); margin-bottom: auto; padding-bottom: 0.04em;
+}
+.ckp-num::after { /* the red fill, wiped up from the bottom as --f goes 0 → 1 */
+  content: attr(data-n); position: absolute; inset: 0; color: var(--ck-red); -webkit-text-stroke-color: var(--ck-red);
+  /* glyph ink overhangs the tight line box, so the clip reaches 0.2em past every edge */
+  clip-path: inset(calc((1 - var(--f)) * (100% + 0.4em) - 0.2em) -0.2em -0.2em);
+}
+.ckp-panel h3 { font: 600 clamp(26px, 2.4vw, 40px)/1.05 var(--ck-sans); letter-spacing: -0.03em; }
+.ckp-panel p { color: var(--ck-dim); font-size: clamp(16px, 1.2vw, 19px); line-height: 1.5; max-width: 34ch; }
+.ckp-bar { display: none; }
+.ckp-rail-cap {
+  padding: clamp(56px, 9vh, 96px) var(--ck-gutter) 0; max-width: 16ch; box-sizing: content-box;
+  font: 500 clamp(30px, 3.4vw, 56px)/1.02 var(--ck-sans); letter-spacing: -0.035em;
+}
+
+/* Horizontal track (desktop, set by JS while it's pinned). Panels enter from the right. */
+.ckp-rail.is-h { height: 100vh; }
+.ckp-rail.is-h .ckp-track {
+  display: flex; width: max-content; height: 100%;
+  padding: clamp(84px, 12vh, 120px) var(--ck-gutter) clamp(64px, 10vh, 100px) 38vw;
+}
+.ckp-rail.is-h .ckp-rail-cap { position: absolute; left: 0; top: 50%; transform: translateY(-50%); padding-top: 0; max-width: min(12ch, 30vw); }
+.ckp-rail.is-h .ckp-panel {
+  position: relative; background: var(--ck-ink); /* panels slide over the caption */
+  width: clamp(340px, 34vw, 560px); padding: 0 clamp(28px, 3vw, 56px);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+.ckp-rail.is-h .ckp-num { font-size: clamp(120px, 17vw, 300px); }
+.ckp-rail.is-h .ckp-bar {
+  display: block; position: absolute; left: var(--ck-gutter); right: var(--ck-gutter); bottom: clamp(28px, 5vh, 48px);
+  height: 2px; background: rgba(255, 255, 255, 0.12);
+}
+.ckp-bar span { display: block; height: 100%; background: var(--ck-red); transform: scaleX(0); transform-origin: left; }
+
+/* ---------- motion-only states ---------- */
+html.ck-motion .ckp-echo { height: 100vh; min-height: 560px; overflow: clip; }
+html.ck-motion .ckp-asks { position: absolute; inset: 0; height: auto; }
+html.ck-motion .ckp-dot { display: block; transform: scale(0); }
+html.ck-motion .ckp-verdict {
+  position: absolute; left: 50%; top: calc(30% + 44px); transform: translateX(-50%);
+  width: min(900px, 100%); margin: 0; text-align: center;
+}
+html.ck-motion .ckp-verdict > .ckp-v:first-child { margin-inline: auto; }
+html.ck-motion .ckp-num { --f: 0; }
+
+/* ---------- small screens: a flowing cloud, stacked problems, no horizontal pin ---------- */
+@media (max-width: 768px) {
+  .ckp-story { grid-template-columns: 1fr; gap: 14px; }
+  .ckp-asks, html.ck-motion .ckp-asks { position: static; height: auto; display: flex; flex-wrap: wrap; gap: 12px 16px; align-content: flex-start; }
+  .ckp-ask { position: relative; left: auto; top: auto; }
+  .ckp-ask-in { font-size: calc(11px + 5px * var(--d)); gap: 4px; }
+  .ckp-ask-meta { font-size: 8.5px; letter-spacing: 0.04em; }
+  .ckp-meter { grid-template-columns: repeat(2, 1fr); gap: 14px 16px; }
+  .ckp-meter dd { font-size: 26px; margin-top: 6px; }
+  .ckp-dot { top: 22%; }
+  html.ck-motion .ckp-verdict { top: calc(22% + 40px); }
+  html.ck-motion .ckp-echo { min-height: 0; }
+  .ckp-panel { border-top: 1px solid rgba(255, 255, 255, 0.12); padding-right: 0; }
+  .ckp-num { font-size: clamp(110px, 34vw, 160px); }
+}
+/* short phones: fewer asks so the meter still fits the pinned stage */
+@media (max-width: 768px) and (max-height: 720px) {
+  .ckp-ask:nth-child(n + 9) { display: none; }
+}

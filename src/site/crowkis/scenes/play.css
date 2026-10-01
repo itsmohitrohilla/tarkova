@@ -1,0 +1,94 @@
+/* scene: play — the crow shooter on ink. Game chrome (HUD, card) uses the original game's blocky language. */
+.ck-play {
+  background: var(--ck-ink); color: var(--ck-white); font-family: var(--ck-sans);
+  padding: clamp(96px, 12vw, 180px) var(--ck-gutter) clamp(96px, 11vw, 170px);
+}
+.ck-play [hidden] { display: none !important; }
+
+/* Head: kicker + title left, copy right */
+.ck-play-head {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: end;
+  gap: clamp(24px, 3vw, 48px) clamp(32px, 5vw, 96px); margin-bottom: clamp(40px, 5vw, 72px);
+}
+.ck-play-kicker {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 0;
+  font: 500 12px/1 var(--ck-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ck-dim);
+}
+.ck-play-kicker::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ck-red); }
+.ck-play h2 { margin: 0; font: 600 clamp(44px, 7.4vw, 124px)/0.92 var(--ck-sans); letter-spacing: -0.045em; text-wrap: balance; }
+.ck-play h2 em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--ck-red); }
+.ck-play-copy p { margin: 0; max-width: 44ch; font-size: clamp(16px, 1.25vw, 19px); line-height: 1.55; color: rgba(255, 255, 255, 0.72); }
+.ck-play-copy .ck-play-rules { margin-top: 1.1em; font: 500 13px/1.6 var(--ck-mono); color: var(--ck-dim); }
+
+/* Stage: a framed sky. The gradient is the static (no-JS / reduced-motion) picture; the canvas covers it. */
+.ck-play-stage {
+  position: relative; overflow: hidden; isolation: isolate;
+  height: clamp(420px, 66vh, 640px); border-radius: 16px;
+  background: linear-gradient(#bfe0ef, #eaf5ee 80%, #5fa8c9 80%);
+  box-shadow: 8px 8px 0 var(--ck-red); cursor: crosshair; outline: none;
+}
+.ck-play-stage canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  image-rendering: pixelated; touch-action: manipulation; /* taps shoot, swipes still scroll, no double-tap zoom */
+}
+
+/* HUD: chunky boxes over the sky; clicks pass through to the canvas */
+.ck-play-hud {
+  position: absolute; inset: 0 0 auto; z-index: 1; pointer-events: none;
+  display: flex; gap: 10px; padding: clamp(12px, 1.6vw, 20px);
+}
+.ck-play-box {
+  margin: 0; min-width: 64px; padding: 7px 12px 8px; border: 2px solid #16130e; border-radius: 10px;
+  background: rgba(255, 253, 249, 0.95); box-shadow: 3px 3px 0 #16130e; color: #16130e;
+}
+.ck-play-box span { display: block; font: 500 10px/1 var(--ck-mono); letter-spacing: 0.18em; text-transform: uppercase; color: #6b645a; }
+.ck-play-box b { display: block; margin-top: 5px; font: 700 clamp(22px, 2.2vw, 30px)/1 var(--ck-sans); font-variant-numeric: tabular-nums; }
+.ck-play-box.is-combo { box-shadow: 3px 3px 0 #d62221; }
+.ck-play-box.is-combo span, .ck-play-box.is-combo b { color: #d62221; }
+.ck-play-box.is-time { margin-left: auto; text-align: center; }
+.ck-play-stage.is-late .is-time b { color: #d62221; }
+
+/* Card: idle and round-over screens; it steps aside while a round runs */
+.ck-play-card {
+  position: absolute; left: 50%; top: 50%; z-index: 2; translate: -50% -46%;
+  width: min(360px, calc(100% - 32px)); box-sizing: border-box; padding: 26px 24px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; cursor: auto;
+  background: #fffdf9; color: #16130e; border: 2px solid #16130e; border-radius: 14px; box-shadow: 6px 6px 0 #16130e;
+  transition: opacity 0.3s var(--ck-ease), visibility 0.3s, translate 0.4s var(--ck-ease);
+}
+.ck-play-stage[data-state='play'] .ck-play-card { opacity: 0; visibility: hidden; translate: -50% -40%; pointer-events: none; }
+.ck-play-emblem { width: 126px; height: auto; }
+.ck-play-eyebrow { margin: 0; font: 500 11px/1.4 var(--ck-mono); letter-spacing: 0.16em; text-transform: uppercase; color: #6b645a; }
+.ck-play-result { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ck-play-result:empty { display: none; }
+.ck-play-result b { font: 700 64px/0.95 var(--ck-sans); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ck-play-result span:last-child { font: 600 14px/1.3 var(--ck-mono); color: #d62221; }
+.ck-play-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ck-play-start {
+  width: 100%; margin-top: 4px; padding: 14px 20px; cursor: pointer;
+  font: 700 17px/1 var(--ck-sans); color: var(--ck-white); background: var(--ck-red);
+  border: 2px solid #16130e; border-radius: 10px; box-shadow: 3px 3px 0 #16130e;
+  transition: translate 0.15s, box-shadow 0.15s;
+}
+.ck-play-start:hover { translate: -1px -2px; box-shadow: 4px 5px 0 #16130e; }
+.ck-play-start:active { translate: 2px 2px; box-shadow: 1px 1px 0 #16130e; }
+.ck-play-start:focus-visible, .ck-play-full:focus-visible { outline: 2px solid var(--ck-red); outline-offset: 3px; }
+.ck-play-keys { margin: 0; font: 500 11px/1.4 var(--ck-mono); color: #6b645a; }
+.ck-play-full {
+  font-weight: 600; font-size: 14px; color: #16130e; text-decoration: underline; text-underline-offset: 3px;
+}
+.ck-play-full:hover { color: var(--ck-red); }
+
+@media (max-width: 900px) {
+  .ck-play-head { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .ck-play h2 { font-size: clamp(40px, 12.5vw, 64px); }
+  .ck-play-stage { height: min(560px, 68svh); min-height: 420px; border-radius: 12px; box-shadow: 5px 5px 0 var(--ck-red); }
+  .ck-play-hud { gap: 6px; padding: 10px; }
+  .ck-play-box { min-width: 0; padding: 5px 8px 6px; border-radius: 8px; box-shadow: 2px 2px 0 #16130e; }
+  .ck-play-box span { font-size: 9px; letter-spacing: 0.12em; }
+  .ck-play-box b { font-size: 20px; margin-top: 4px; }
+  .ck-play-card { padding: 20px 18px 16px; gap: 10px; }
+  .ck-play-result b { font-size: 52px; }
+}

@@ -1,0 +1,161 @@
+/* scene: voice (red chapter). Static layout is the finished story; html.ck-motion adds the pinned frame. */
+.ck-voice {
+  --v-line: rgba(255, 255, 255, 0.3);
+  --v-soft: rgba(255, 255, 255, 0.8);
+  background: var(--ck-red); color: var(--ck-white);
+  padding: clamp(96px, 16vh, 200px) var(--ck-gutter) clamp(96px, 14vh, 180px);
+}
+.ckv-head, .ckv-beats, .ckv-promise, .ckv-proof, .ckv-note { max-width: min(1400px, 170vh); margin-inline: auto; }
+.ckv-head { margin-bottom: clamp(48px, 9vh, 112px); }
+.ckv-kicker { display: flex; align-items: center; gap: 12px; margin: 0; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.14em; text-transform: uppercase; }
+.ckv-kicker::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25); }
+.ckv-title { margin: 22px 0 0; max-width: 12ch; font: 600 clamp(44px, 7.6vw, 128px)/0.94 var(--ck-sans); letter-spacing: -0.04em; }
+.ckv-title em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--ck-ink); padding-right: 0.06em; }
+.ckv-intro { margin: clamp(20px, 3vh, 32px) 0 0; max-width: 46ch; font-size: clamp(17px, 1.35vw, 22px); line-height: 1.45; color: var(--v-soft); }
+
+/* Beats: copy column + figure column, one row per beat. Sizes are in em so the whole frame scales with the viewport. */
+.ckv-beats {
+  list-style: none; margin-block: 0; padding: 0;
+  font-size: clamp(11px, min(1.05vw, 1.6vh), 16px);
+  display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); column-gap: 4em; row-gap: 1.5em;
+}
+.ckv-beat { display: contents; }
+.ckv-copy, .ckv-fig { border-top: 1px solid var(--v-line); padding-top: 1.1em; }
+.ckv-copy { grid-column: 1; }
+.ckv-fig { grid-column: 2; margin: 0; display: grid; gap: 0.75em; align-content: start; }
+.ckv-num { display: block; font: 500 0.8em/1 var(--ck-mono); letter-spacing: 0.12em; }
+.ckv-copy h3 { margin: 0.6em 0 0.45em; font: 600 1.8em/1.05 var(--ck-sans); letter-spacing: -0.025em; max-width: 21ch; }
+.ckv-copy p { margin: 0; font-size: 1em; line-height: 1.5; color: var(--v-soft); max-width: 42ch; }
+
+/* Rows, lanes, wires */
+.ckv-row { display: flex; align-items: center; gap: 0.8em; min-width: 0; }
+.ckv-lane {
+  display: flex; align-items: center; gap: 0.9em; flex: none; max-width: 100%;
+  padding: 0.55em 1.1em 0.55em 0.6em; border-radius: 999px; background: var(--ck-ink);
+}
+.ckv-lane.is-agent { background: var(--ck-white); color: var(--ck-ink); }
+.ckv-who { display: inline-flex; align-items: center; gap: 0.5em; flex: none; padding: 0.45em 0.7em; border-radius: 999px; background: rgba(255, 255, 255, 0.1); font: 500 0.72em/1 var(--ck-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.ckv-who i { width: 0.6em; height: 0.6em; border-radius: 50%; background: var(--ck-red); }
+.ckv-who.is-agent { background: rgba(17, 17, 17, 0.08); }
+.ckv-wave { display: flex; align-items: center; gap: 0.16em; height: 1.9em; flex: none; }
+.ckv-wave i { width: 0.2em; height: 100%; border-radius: 1px; background: currentColor; transform: scaleY(var(--h)); }
+.ckv-lane.is-agent .ckv-wave i { background: var(--ck-red); }
+.ckv-q { font-size: 1.05em; white-space: nowrap; }
+.ckv-wire { position: relative; flex: 1 1 2em; min-width: 2em; height: 2px; background: var(--v-line); }
+.ckv-wire i { position: absolute; inset: 0; background: var(--ck-white); transform-origin: 0 50%; }
+.ckv-wire.is-back { margin-right: 4.75em; }
+.ckv-wire.is-back i { transform-origin: 100% 50%; }
+.ckv-wire.is-back::after { content: ''; position: absolute; right: 0; bottom: 0; width: 2px; height: 1.6em; background: var(--v-line); }
+.ckv-wire.is-off { background: none; border-top: 2px dashed rgba(255, 255, 255, 0.28); height: 0; }
+.ckv-model {
+  position: relative; flex: none; width: 9.5em; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 0.5em;
+  padding: 0.85em 0; border: 1.5px solid var(--ck-white); border-radius: 0.6em;
+  font: 500 0.78em/1 var(--ck-mono); letter-spacing: 0.1em; text-transform: uppercase;
+}
+.ckv-model.is-off { border-style: dashed; border-color: rgba(255, 255, 255, 0.45); color: rgba(255, 255, 255, 0.55); }
+.ckv-model .ckv-stamp { position: absolute; left: 50%; top: 100%; margin: -0.5em 0 0 -4.5em; width: 9em; text-align: center; font-size: 0.95em; }
+/* Out of flow, so the label centres the same with or without the dots (they sit under it, in the bottom padding). */
+.ckv-think { position: absolute; left: 50%; bottom: 3px; margin-left: -9px; display: inline-flex; gap: 3px; opacity: 0; }
+.ckv-think b { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+html.ck-motion .ckv-think b { animation: ckv-think 0.9s var(--ck-ease) infinite; }
+.ckv-think b:nth-child(2) { animation-delay: 0.15s; }
+.ckv-think b:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ckv-think { 50% { transform: translateY(-3px); } }
+.ckv-ans { font-size: 1em; white-space: nowrap; color: var(--v-soft); }
+.ckv-from { margin-right: 0.8em; font: 500 0.72em/1 var(--ck-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ck-white); }
+.ckv-ans b, .ckv-drop s {
+  font-weight: 600; color: var(--ck-white); text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) 0 55% / var(--k, 100%) 1.5px no-repeat;
+}
+
+/* The shape card: white, ink type, red slots that glow. */
+.ckv-shape { flex: none; display: grid; gap: 0.5em; padding: 0.85em 1.1em 1em; border-radius: 0.7em; background: var(--ck-white); color: var(--ck-ink); box-shadow: 0 0.6em 2em rgba(90, 0, 0, 0.3); }
+.ckv-tag { font: 500 0.7em/1 var(--ck-mono); letter-spacing: 0.1em; text-transform: uppercase; color: #6a6d72; }
+.ckv-shape-t { font: 600 1.35em/1.3 var(--ck-sans); letter-spacing: -0.015em; white-space: nowrap; }
+.ckv-slot {
+  position: relative; display: inline-block; padding: 0 0.3em; border-radius: 0.3em;
+  font: 500 0.85em/1.5 var(--ck-mono); letter-spacing: 0; color: var(--ck-red); background: rgba(213, 0, 0, 0.08); outline: 1.5px dashed var(--ck-red);
+}
+.ckv-slot::after { content: ''; position: absolute; inset: -3px; border-radius: 0.4em; box-shadow: 0 0 0.9em rgba(213, 0, 0, 0.55); opacity: 0.5; pointer-events: none; }
+html.ck-motion .ckv-slot::after { animation: ckv-glow 1.8s ease-in-out infinite alternate; }
+@keyframes ckv-glow { from { opacity: 0.15; } to { opacity: 0.9; } }
+.ckv-slot.is-fill { display: inline-grid; overflow: hidden; vertical-align: bottom; outline-style: solid; background: var(--ck-red); color: var(--ck-white); font: 600 1em/1.3 var(--ck-sans); }
+.ckv-slot.is-fill::after { display: none; }
+.ckv-slot.is-fill > span { grid-area: 1 / 1; text-align: center; }
+.ckv-slot.is-fill > :first-child { font: 500 0.85em/1.5 var(--ck-mono); transform: translateY(-110%); }
+.ckv-drop { display: flex; align-items: center; gap: 0.7em; font-size: 0.95em; }
+.ckv-drop s { opacity: 0.55; }
+
+/* Stamps: rubber-stamp labels, pressed in by the timeline. */
+.ckv-stamp {
+  display: inline-block; flex: none; rotate: -4deg; padding: 0.45em 0.65em; border: 1.5px solid currentColor; border-radius: 0.3em;
+  font: 600 0.7em/1 var(--ck-mono); font-style: normal; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ck-white);
+}
+.ckv-stamp.is-ink { background: var(--ck-ink); border-color: var(--ck-ink); color: var(--ck-white); }
+.ckv-ms { font-size: 1.3em; letter-spacing: 0.02em; rotate: 3deg; background: var(--ck-white); border-color: var(--ck-white); color: var(--ck-red); margin-left: 0.4em; }
+
+/* Beat 3: one spoken turn on a 1,000 ms budget. */
+.ckv-turn-head { display: flex; justify-content: space-between; font: 500 0.72em/1 var(--ck-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--v-soft); }
+.ckv-bar { position: relative; height: 2.4em; margin: 3.4em 0 0; border-radius: 0.3em; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px var(--v-line); }
+.ckv-seg { position: absolute; left: 9%; right: 0; top: 0; bottom: 0; border-radius: 0 0.3em 0.3em 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: repeating-linear-gradient(135deg, rgba(17, 17, 17, 0.28) 0 2px, transparent 2px 9px); }
+.ckv-seg-fill { position: absolute; inset: 0; background: var(--ck-ink); opacity: 0; transform-origin: 0 50%; }
+.ckv-strike { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: var(--ck-ink); transform-origin: 0 50%; }
+.ckv-seg em { position: relative; padding: 0.3em 0.7em; border-radius: 0.3em; background: var(--ck-red); font: 500 0.72em/1 var(--ck-mono); font-style: normal; letter-spacing: 0.1em; text-transform: uppercase; }
+.ckv-hit { position: absolute; left: 0; top: -0.5em; bottom: -0.5em; width: 4px; border-radius: 2px; background: var(--ck-white); box-shadow: 0 0 1em rgba(255, 255, 255, 0.9); transform-origin: 50% 100%; }
+.ckv-mark { position: absolute; bottom: 100%; white-space: nowrap; padding-left: 0.6em; font: 500 0.72em/1 var(--ck-mono); letter-spacing: 0.06em; color: var(--v-soft); border-left: 1.5px solid var(--ck-white); }
+.ckv-mark b { font-weight: 600; font-size: 1.25em; color: var(--ck-white); margin-right: 0.3em; }
+.ckv-mark.is-p50 { left: 0; padding-bottom: 2.6em; }
+.ckv-mark.is-p99 { left: 6.396%; padding-bottom: 0.7em; border-left-style: dashed; }
+.ckv-ticks { display: flex; justify-content: space-between; margin-top: 0.6em; font: 0.68em/1 var(--ck-mono); color: var(--v-soft); }
+.ckv-flow { list-style: none; margin: 1.1em 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5em 1.6em; }
+.ckv-flow li { position: relative; font: 500 0.78em/1 var(--ck-mono); letter-spacing: 0.04em; }
+.ckv-flow li:not(:last-child)::after { content: '→'; position: absolute; right: -1.35em; color: var(--v-soft); }
+.ckv-flow small { font-size: 0.9em; color: var(--v-soft); }
+.ckv-flow s { text-decoration-thickness: 1.5px; }
+.ckv-bill { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7em; margin: 0.9em 0 0; }
+.ckv-bill > span { font: 0.72em/1 var(--ck-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--v-soft); }
+
+/* Promise + proof */
+.ckv-promise { margin-top: clamp(80px, 14vh, 180px); }
+.ckv-promise-t { margin: 0; max-width: 16ch; font: 600 clamp(34px, 4.6vw, 80px)/1 var(--ck-sans); letter-spacing: -0.035em; }
+.ckv-promise-t em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; color: var(--ck-ink); }
+.ckv-promise-s { margin: clamp(16px, 2.4vh, 28px) 0 0; max-width: 54ch; font-size: clamp(16px, 1.2vw, 19px); line-height: 1.5; color: var(--v-soft); }
+.ckv-proof { list-style: none; padding: 0; margin-top: clamp(56px, 10vh, 120px); margin-bottom: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); }
+.ckv-proof li { display: grid; gap: 12px; padding-top: 18px; border-top: 1px solid var(--v-line); }
+.ckv-big { display: block; overflow: hidden; white-space: nowrap; font: 500 clamp(40px, 4.6vw, 84px)/1 var(--ck-mono); letter-spacing: -0.05em; }
+.ckv-big > span { display: block; padding-bottom: 0.06em; }
+.ckv-big small { font-size: 0.36em; letter-spacing: 0; }
+.ckv-lbl { font: 12px/1.4 var(--ck-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--v-soft); }
+.ckv-note { margin-top: clamp(24px, 4vh, 40px); margin-bottom: 0; font: 12px/1.5 var(--ck-mono); color: rgba(255, 255, 255, 0.7); }
+
+/* Ambient loops only run while the scene is on screen. */
+html.ck-motion .ck-voice:not(.is-live) * { animation-play-state: paused; }
+
+/* Pinned frame (≥1024px): the three rows fill one screen, clear of the floating nav. */
+@media (min-width: 1024px) {
+  html.ck-motion .ckv-stage { height: 100vh; display: flex; align-items: center; padding-top: 64px; box-sizing: border-box; }
+  html.ck-motion .ckv-beats { width: 100%; }
+}
+
+/* Below 1024px: a vertical sequence, copy then figure, each beat scrubbed as it scrolls through. */
+@media (max-width: 1023px) {
+  .ckv-beats { display: block; font-size: clamp(13px, 1.9vw, 16px); }
+  .ckv-beat { display: block; }
+  .ckv-beat + .ckv-beat { margin-top: 3.5em; }
+  .ckv-fig { margin-top: 1.6em; border-top: 0; padding-top: 0; }
+  .ckv-copy h3 { font-size: 1.9em; }
+}
+@media (max-width: 640px) {
+  .ckv-row { flex-wrap: wrap; }
+  .ckv-lane { flex: 1 1 100%; display: grid; grid-template-columns: auto 1fr; border-radius: 1.2em; padding: 0.7em 0.9em; row-gap: 0.6em; }
+  .ckv-lane .ckv-wave { justify-self: end; }
+  .ckv-q { grid-column: 1 / -1; white-space: normal; }
+  .ckv-ans, .ckv-shape-t { white-space: normal; }
+  .ckv-back .ckv-wire { display: none; }
+  .ckv-shape { flex: 1 1 100%; }
+  .ckv-model .ckv-stamp { margin-top: -0.4em; }
+  .ckv-f2 .ckv-row:first-child { padding-bottom: 1.8em; }
+  .ckv-proof { grid-template-columns: 1fr; }
+  .ckv-big { font-size: clamp(44px, 14vw, 64px); }
+}

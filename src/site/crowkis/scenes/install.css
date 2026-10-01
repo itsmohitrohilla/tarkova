@@ -1,0 +1,123 @@
+/* scene: install (Get started). Paper ground, ink type, dark terminals. Static layout is the finished state. */
+.ck-install {
+  --in-line: rgba(17, 17, 17, 0.16);
+  --in-soft: #4a4d52;
+  background: var(--ck-paper); color: var(--ck-ink);
+  padding: clamp(96px, 14vh, 180px) var(--ck-gutter);
+}
+.ck-in-head, .ck-in-flow { max-width: 1320px; margin-inline: auto; }
+
+/* Header */
+.ck-in-kicker { display: flex; align-items: center; gap: 12px; margin: 0; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ck-red); }
+.ck-in-kicker::before { content: ''; width: 8px; height: 8px; background: currentColor; }
+.ck-in-head h2 { margin: 22px 0 0; max-width: 12ch; font: 600 clamp(44px, 7.6vw, 128px)/0.94 var(--ck-sans); letter-spacing: -0.04em; }
+.ck-install em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--ck-red); padding-right: 0.06em; }
+.ck-in-lede { margin: clamp(20px, 3vw, 32px) 0 0; font-size: clamp(18px, 1.5vw, 22px); line-height: 1.5; color: var(--in-soft); }
+.ck-in-logo { display: inline-flex; flex: none; }
+.ck-in-logo svg { display: block; }
+
+/* Registry row: three package cards, logo + name + package id */
+.ck-in-reg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: clamp(40px, 6vw, 72px) 0 0; padding: 0; list-style: none; }
+.ck-in-reg a {
+  display: flex; align-items: center; gap: 16px; height: 100%; box-sizing: border-box;
+  padding: 18px 20px; border: 1px solid var(--in-line); border-radius: 14px; background: var(--ck-white);
+  color: inherit; text-decoration: none; transition: border-color 0.3s var(--ck-ease), box-shadow 0.3s var(--ck-ease);
+}
+.ck-in-reg a:hover { border-color: var(--ck-ink); box-shadow: 0 18px 40px -24px rgba(17, 17, 17, 0.45); }
+.ck-in-reg a > span:not([class]) { display: grid; gap: 6px; min-width: 0; }
+.ck-in-reg b { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.ck-in-reg code { font: 13px/1.2 var(--ck-mono); color: var(--in-soft); overflow-wrap: anywhere; }
+.ck-in-arrow { margin-left: auto; color: var(--in-soft); transition: color 0.3s, translate 0.3s var(--ck-ease); }
+.ck-in-reg a:hover .ck-in-arrow { color: var(--ck-red); translate: 3px -3px; }
+
+/* Steps on a rail: the grey track is ::before, the red rail draws over it */
+.ck-in-flow { position: relative; margin-top: clamp(80px, 12vh, 150px); }
+.ck-in-flow::before, .ck-in-rail { content: ''; position: absolute; left: 8px; top: 8px; bottom: 0; width: 1px; background: var(--in-line); }
+.ck-in-rail { width: 2px; left: 7.5px; background: var(--ck-red); transform-origin: top; }
+.ck-in-steps { list-style: none; margin: 0; padding: 0; }
+.ck-in-step {
+  position: relative; display: grid; grid-template-columns: 5fr 7fr; gap: clamp(24px, 4vw, 72px); align-items: start;
+  padding: 0 0 clamp(72px, 11vh, 128px) clamp(40px, 5vw, 72px);
+}
+.ck-in-step.is-last { padding-bottom: 0; }
+.ck-in-dot { position: absolute; left: 0; top: 0; z-index: 1; display: grid; place-items: center; width: 17px; height: 17px; box-sizing: border-box; border: 1.5px solid rgba(17, 17, 17, 0.45); border-radius: 50%; background: var(--ck-paper); }
+.ck-in-dot i { width: 9px; height: 9px; border-radius: 50%; background: var(--ck-red); }
+html.ck-motion .ck-in-rail { transform: scaleY(0); }
+html.ck-motion .ck-in-dot i { transform: scale(0); }
+
+.ck-in-num { display: block; font: 500 12px/1 var(--ck-mono); letter-spacing: 0.1em; color: var(--ck-red); }
+.ck-in-info h3 { margin: 14px 0 12px; font: 600 clamp(26px, 2.6vw, 40px)/1.05 var(--ck-sans); letter-spacing: -0.03em; }
+.ck-in-info h3 .ck-in-logo { vertical-align: -0.12em; margin-right: 0.35em; }
+.ck-in-info p { margin: 0; max-width: 40ch; font-size: clamp(15px, 1.1vw, 17px); line-height: 1.55; color: var(--in-soft); }
+
+.ck-in-ports { margin: 18px 0 0; border-top: 1px solid var(--in-line); }
+.ck-in-ports div { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--in-line); }
+.ck-in-ports dt { font: 600 15px/1 var(--ck-mono); color: var(--ck-ink); }
+.ck-in-ports dd { margin: 0; font-size: 14px; line-height: 1.4; color: var(--in-soft); }
+
+.ck-in-links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px !important; }
+.ck-in-links a { font: 500 14px/1 var(--ck-mono); color: var(--ck-ink); text-decoration: none; border-bottom: 1px solid var(--ck-red); padding-bottom: 4px; transition: color 0.2s; }
+.ck-in-links a:hover { color: var(--ck-red); }
+
+/* Dark panels (reuse the site's .code block; restyled here) */
+.ck-install .ck-in-panel { position: relative; isolation: isolate; margin: 0; min-width: 0; border-radius: 14px; background: var(--ck-ink); box-shadow: 0 30px 60px -36px rgba(17, 17, 17, 0.6); }
+.ck-install .ck-in-panel figcaption { gap: 12px; justify-content: flex-start; min-height: 26px; }
+.ck-in-panel figcaption .copy { margin-left: auto; }
+.ck-in-dots { display: flex; gap: 6px; }
+.ck-in-dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
+.ck-in-dots i:first-child { background: var(--ck-red); }
+.ck-install .ck-in-panel pre { font-size: 13.5px; }
+.ck-in-panel .ln { display: inline-block; }
+.ck-in-panel .cm { color: var(--ck-dim); }
+.ck-in-panel .st { color: #ff8a80; }
+
+/* A command row: caption, the command (prompt drawn by CSS), its own Copy */
+.ck-in-cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 16px; align-items: start; padding: 16px 16px 16px 20px; }
+.ck-in-cmd + .ck-in-cmd { border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.ck-in-cap { grid-column: 1 / -1; margin-bottom: 8px; font: 12px/1 var(--ck-mono); color: var(--ck-dim); }
+.ck-install .ck-in-cmd pre { padding: 0; }
+.ck-in-cmd .ln:first-child::before { content: '$ '; color: var(--ck-red); }
+
+/* Pointer spotlight (position from --mx/--my, set in JS) */
+@media (hover: hover) and (pointer: fine) {
+  .ck-in-panel::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.4s var(--ck-ease);
+    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(213, 0, 0, 0.22), transparent 65%);
+  }
+  .ck-in-panel:hover::before { opacity: 1; }
+}
+
+/* SDK tabs: CSS-only radios. Panes stack in one grid cell (no height jump) and cross-fade. */
+.ck-in-sdk { min-width: 0; }
+.ck-in-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.ck-in-tab {
+  position: relative; display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px 10px 14px; cursor: pointer;
+  border: 1px solid var(--in-line); border-radius: 999px; font-weight: 600; font-size: 15px; color: var(--in-soft);
+  transition: background 0.3s var(--ck-ease), border-color 0.3s var(--ck-ease), color 0.3s;
+}
+.ck-in-tab input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.ck-in-tab:hover { border-color: rgba(17, 17, 17, 0.4); color: var(--ck-ink); }
+.ck-in-tab:has(:checked) { background: var(--ck-white); border-color: var(--ck-ink); color: var(--ck-ink); }
+.ck-in-tab:has(:focus-visible) { outline: 2px solid var(--ck-red); outline-offset: 3px; }
+.ck-in-panes { display: grid; }
+.ck-in-pane { grid-area: 1 / 1; display: grid; gap: 12px; align-content: start; min-width: 0; transition: opacity 0.45s var(--ck-ease) 0.1s, visibility 0s; }
+.ck-in-sdk:has([value='py']:checked) [data-lang='node'],
+.ck-in-sdk:has([value='node']:checked) [data-lang='py'] { opacity: 0; visibility: hidden; transition: opacity 0.3s var(--ck-ease), visibility 0s 0.3s; }
+.ck-in-pane .ck-in-links { margin-top: 6px !important; }
+
+@media (min-width: 961px) {
+  .ck-in-info { position: sticky; top: 120px; } /* the copy rides along beside tall panels */
+}
+@media (max-width: 960px) {
+  .ck-in-step { grid-template-columns: 1fr; }
+  .ck-in-reg { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .ck-in-head h2 { font-size: clamp(40px, 12.5vw, 60px); }
+  .ck-in-step { padding-left: 36px; gap: 24px; }
+  .ck-in-reg a { padding: 14px 16px; }
+  /* Long commands and code wrap inside their panel instead of scrolling the page. */
+  .ck-install .ck-in-panel pre { font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ck-in-cmd { padding: 14px 12px 14px 16px; }
+  .ck-in-tab { flex: 1; justify-content: center; }
+}

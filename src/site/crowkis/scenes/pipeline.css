@@ -1,0 +1,169 @@
+/* scene: pipeline (How it works). Paper ground, ink type, one red signal. Motion is a single pinned stage whose
+   canvas reads its geometry from the step art below; static (reduced motion) shows the same art as a sequence. */
+.ck-pipeline {
+  --pl-line: rgba(17, 17, 17, 0.14);
+  --pl-soft: #4a4d52;
+  background: var(--ck-paper); color: var(--ck-ink);
+  padding: clamp(96px, 16vh, 200px) var(--ck-gutter) clamp(96px, 16vh, 200px);
+}
+.ck-pl-head { max-width: min(1400px, 160vh); margin: 0 auto clamp(48px, 9vh, 112px); }
+.ck-pl-kicker { display: flex; align-items: center; gap: 12px; margin: 0; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ck-red); }
+.ck-pl-kicker::before { content: ''; width: 8px; height: 8px; background: currentColor; }
+.ck-pl-head h2 {
+  margin: 22px 0 0; max-width: 11ch;
+  font: 600 clamp(44px, 7.6vw, 128px)/0.94 var(--ck-sans); letter-spacing: -0.04em;
+}
+.ck-pl-head h2 em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--ck-red); padding-right: 0.06em; }
+
+/* ---------- Steps + their art. Static: a typographic sequence, copy beside art. ---------- */
+.ck-pl-stage { max-width: min(1400px, 160vh); margin-inline: auto; }
+.ck-pl-cv, .ck-pl-count { display: none; }
+.ck-pl-steps { list-style: none; margin: 0; padding: 0; }
+.ck-pl-step { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: clamp(32px, 5vw, 96px); align-items: center; }
+.ck-pl-step + .ck-pl-step { margin-top: clamp(64px, 12vh, 140px); }
+.ck-pl-step :is(p, ol) { margin: 0; }
+.ck-pl-num { display: block; font: italic 400 clamp(56px, 6vw, 96px)/1 var(--ck-serif); color: var(--ck-red); }
+.ck-pl-copy h3 { margin: 10px 0 12px; font: 600 clamp(28px, 3vw, 48px)/1 var(--ck-sans); letter-spacing: -0.035em; }
+.ck-pl-copy p { font-size: clamp(15px, 1.15vw, 18px); line-height: 1.55; color: var(--pl-soft); max-width: 36ch; }
+.ck-pl-lbl, .ck-pl-q small, .ck-pl-served, .ck-pl-miss, .ck-pl-why {
+  font: 500 12px/1 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase;
+}
+
+/* 01 Ask: the question, set huge. */
+.ck-pl-q { font: 600 clamp(40px, 6vw, 104px)/0.92 var(--ck-sans); letter-spacing: -0.045em; overflow-wrap: anywhere; }
+.ck-pl-q small { display: flex; align-items: center; gap: 10px; margin-bottom: 0.5em; color: var(--ck-red); font-size: 13px; }
+.ck-pl-q small::before { content: ''; width: 8px; height: 8px; background: currentColor; }
+.ck-pl-line { display: block; }
+
+/* 02 Understand: a 32 × 12 embedding, its intent row in red. */
+.ck-pl-grid {
+  position: relative; display: block; aspect-ratio: 32 / 12;
+  background: radial-gradient(circle, var(--ck-ink) 0 1.5px, transparent 2px) 0 0 / calc(100% / 32) calc(100% / 12);
+}
+.ck-pl-grid::after {
+  content: ''; position: absolute; left: 0; right: 0; top: calc(100% / 12 * 5); height: calc(100% / 12);
+  background: radial-gradient(circle, var(--ck-red) 0 3.5px, var(--ck-paper) 4px 5px, transparent 5.5px) 0 0 / calc(100% / 32) 100%;
+}
+.ck-pl-lbl { margin-top: 20px !important; color: var(--pl-soft); }
+.ck-pl-lbl b { color: var(--ck-red); font-weight: 600; }
+
+/* 03 Check: five tall, thin gates in a row, a stream of dots running through them, ink turning red. A passed gate is red. */
+.ck-pl-check { position: relative; }
+.ck-pl-gates { position: relative; display: flex; list-style: none; padding: 0; height: 280px; margin-bottom: 64px !important; }
+.ck-pl-gates::before { /* static only: the stream, a dot band that reddens left → right */
+  content: ''; position: absolute; left: 0; right: 0; top: 28%; bottom: 28%;
+  background: linear-gradient(90deg, var(--ck-ink) 5%, var(--ck-red) 70%);
+  -webkit-mask: radial-gradient(circle, #000 0 1.6px, transparent 2px) 0 0 / 11px 11px;
+  mask: radial-gradient(circle, #000 0 1.6px, transparent 2px) 0 0 / 11px 11px;
+}
+.ck-pl-gates li { position: relative; flex: 1; }
+.ck-pl-gates i { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ck-red); transition: background-color 0.3s; }
+.ck-pl-gates i::before, .ck-pl-gates i::after { content: ''; position: absolute; left: -4px; right: -4px; height: 2px; background: inherit; } /* the slit's end caps */
+.ck-pl-gates i::before { top: 0; }
+.ck-pl-gates i::after { bottom: 0; }
+.ck-pl-gates span { position: absolute; left: 50%; top: calc(100% + 18px); transform: translateX(-50%); font: 500 clamp(18px, 1.6vw, 26px)/1 var(--ck-sans); letter-spacing: -0.01em; color: var(--ck-red); white-space: nowrap; transition: color 0.3s; }
+.ck-pl-why { margin-top: 20px !important; text-align: center; color: var(--pl-soft); text-transform: none; letter-spacing: 0.02em; }
+.ck-pl-why code { font: inherit; color: var(--ck-ink); }
+
+/* 04 Answer: one red dot, and the time it took. */
+.ck-pl-ans { display: flex; align-items: baseline; gap: clamp(18px, 2.4vw, 36px); }
+.ck-pl-dot { flex: none; width: clamp(16px, 1.6vw, 24px); aspect-ratio: 1; border-radius: 50%; background: var(--ck-red); }
+.ck-pl-ms { font: 600 clamp(72px, 11vw, 200px)/0.9 var(--ck-sans); letter-spacing: -0.055em; white-space: nowrap; }
+.ck-pl-ms em { font: italic 400 1em/1 var(--ck-serif); letter-spacing: -0.02em; color: var(--ck-red); }
+.ck-pl-served { margin-top: 18px !important; color: var(--ck-red); font-weight: 600; }
+.ck-pl-miss { display: flex; align-items: center; gap: 10px; margin-top: 12px !important; color: var(--ck-dim); text-transform: none; letter-spacing: 0.02em; }
+.ck-pl-miss::before { content: ''; width: 28px; border-top: 1px dashed currentColor; }
+
+/* ---------- Motion: one pinned full-viewport stage. Everything is placed on the stage; the canvas sits on top. ---------- */
+html.ck-motion .ck-pl-stage { position: relative; max-width: none; width: 100vw; height: 100vh; margin-left: calc(50% - 50vw); overflow: hidden; }
+html.ck-motion .ck-pl-cv { display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+html.ck-motion .ck-pl-steps, html.ck-motion .ck-pl-step { position: absolute; inset: 0; margin: 0; display: block; }
+html.ck-motion .ck-pl-num { display: none; } /* the rolling counter carries the number */
+html.ck-motion .ck-pl-copy { position: absolute; left: var(--ck-gutter); bottom: clamp(28px, 7vh, 72px); max-width: 34ch; }
+html.ck-motion .ck-pl-copy h3 { margin-top: 0; }
+html.ck-motion .ck-pl-count { display: flex; align-items: flex-start; gap: 12px; position: absolute; right: var(--ck-gutter); top: clamp(76px, 12vh, 120px); }
+.ck-pl-roll { display: block; height: 1em; overflow: hidden; font: italic 400 clamp(88px, min(11vw, 20vh), 190px)/1 var(--ck-serif); color: var(--ck-red); letter-spacing: -0.02em; }
+.ck-pl-roll > span { display: block; }
+.ck-pl-roll b { display: block; height: 1em; font-weight: 400; padding-right: 0.08em; }
+.ck-pl-count small { padding-top: 0.9em; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.1em; color: var(--pl-soft); }
+
+html.ck-motion .ck-pl-q { position: absolute; left: var(--ck-gutter); right: var(--ck-gutter); top: 50%; transform: translateY(-50%); font-size: clamp(56px, 9.6vw, 184px); }
+html.ck-motion .ck-pl-embed { position: absolute; left: 50%; top: 48%; width: min(58vw, 900px); transform: translate(-50%, -50%); }
+html.ck-motion .ck-pl-grid { background: none; }
+html.ck-motion .ck-pl-grid::after { display: none; }
+/* 03 + 04 share one row: --gl/--gw place the gates, --gy/--gh their centre line and height; the dot sits --gd past them. */
+html.ck-motion .ck-pl-stage { --gl: 14vw; --gw: 44vw; --gd: 3.5vw; --gy: 44%; --gh: min(40vh, 400px); }
+html.ck-motion .ck-pl-check { position: absolute; left: var(--gl); top: var(--gy); width: var(--gw); height: var(--gh); transform: translateY(-50%); }
+html.ck-motion .ck-pl-gates { height: 100%; margin: 0 !important; }
+html.ck-motion .ck-pl-gates::before { display: none; }
+html.ck-motion .ck-pl-gates i { background: rgba(17, 17, 17, 0.42); }
+html.ck-motion .ck-pl-gates span { color: var(--pl-soft); }
+html.ck-motion .ck-pl-gates li.is-on i { background: var(--ck-red); }
+html.ck-motion .ck-pl-gates li.is-on span { color: var(--ck-red); }
+html.ck-motion .ck-pl-why { position: absolute; left: 0; bottom: calc(100% + 28px); margin: 0 !important; text-align: left; white-space: nowrap; }
+/* The dot sits just past the last gate, where the stream converges; the readout hangs to its right. */
+html.ck-motion .ck-pl-ans { position: absolute; left: calc(var(--gl) + var(--gw) + var(--gd)); top: var(--gy); align-items: center; transform: translate(calc(clamp(16px, 1.6vw, 24px) / -2), -50%); }
+html.ck-motion .ck-pl-read { position: relative; }
+html.ck-motion .ck-pl-served, html.ck-motion .ck-pl-miss { position: absolute; left: 0.3em; white-space: nowrap; }
+html.ck-motion .ck-pl-served { top: 100%; }
+html.ck-motion .ck-pl-miss { top: calc(100% + 30px); }
+
+/* Code */
+/* Try-it panel: heading row, then one full-width terminal whose rows carry their plain-words notes. */
+.ck-pl-code { max-width: 1120px; margin: clamp(64px, 10vh, 120px) auto 0; padding: 0 var(--ck-gutter); }
+.ck-pl-try { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr); gap: clamp(20px, 4vw, 64px); align-items: end; margin-bottom: clamp(24px, 4vh, 40px); }
+.ck-pl-try h3 { font-size: clamp(32px, 3.6vw, 52px); font-weight: 700; letter-spacing: -0.035em; line-height: 1; margin: 10px 0 0; }
+.ck-pl-try h3 em { font-family: var(--ck-serif); font-weight: 400; color: var(--ck-red); letter-spacing: 0; }
+.ck-pl-try > p { margin: 0; font-size: 17px; line-height: 1.55; color: #52555a; max-width: 34em; }
+.ck-pl-term { position: relative; margin: 0; border-radius: 20px; background: var(--ck-ink); color: #eeeeea; box-shadow: 0 40px 80px -40px rgba(17, 17, 17, 0.6); overflow: hidden; }
+.ck-pl-term figcaption { display: flex; align-items: center; gap: 14px; margin: 0; padding: 14px 18px; font: 12px/1 var(--ck-mono); color: var(--ck-dim); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.ck-pl-term .copy { margin-left: auto; }
+.ck-pl-dots { display: flex; gap: 6px; }
+.ck-pl-dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
+.ck-pl-dots i:first-child { background: var(--ck-red); }
+.ck-pl-rows { list-style: none; margin: 0; padding: 12px 0 18px; counter-reset: row; }
+.ck-pl-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 22px; counter-increment: row; }
+.ck-pl-row + .ck-pl-row { border-top: 1px dashed rgba(255, 255, 255, 0.08); }
+.ck-pl-row::before { content: '›'; color: var(--ck-red); font: 600 16px/1 var(--ck-mono); }
+.ck-pl-row code { font: 15px/1.6 var(--ck-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: rgba(255, 255, 255, 0.7); }
+.ck-pl-row b { color: var(--ck-red); font-weight: 700; letter-spacing: 0.04em; }
+.ck-pl-row q { quotes: none; color: #fff; }
+.ck-pl-row i { font-style: normal; color: #6f7278; }
+.ck-pl-note { justify-self: end; white-space: nowrap; font: 500 12px/1 var(--ck-mono); letter-spacing: 0.06em; text-transform: uppercase; color: #fff; background: rgba(213, 0, 0, 0.9); padding: 8px 12px; border-radius: 999px; }
+.ck-pl-row:nth-child(2) .ck-pl-note { background: #fff; color: var(--ck-red); } /* the hit is the point */
+.ck-pl-caret { display: block; width: 9px; height: 18px; margin: 0 0 18px 64px; background: var(--ck-red); animation: ck-pl-blink 1.1s steps(1) infinite; }
+@keyframes ck-pl-blink { 50% { opacity: 0; } }
+
+
+/* ≤1100px: five names side by side would crowd, so each runs down its gate, read bottom to top. */
+@media (max-width: 1100px) {
+  .ck-pl-gates { margin-bottom: 120px !important; }
+  .ck-pl-gates span { top: calc(100% + 14px); writing-mode: vertical-rl; transform: translateX(-50%) rotate(180deg); font-size: 17px; }
+  html.ck-motion .ck-pl-stage { --gy: 42%; --gh: min(32vh, 340px); } /* room for the upright names above the copy */
+}
+
+/* ≤900px: static stacks copy over art; motion keeps the same stage, re-laid for a narrow screen. */
+@media (max-width: 900px) {
+  .ck-pl-step { display: block; }
+  .ck-pl-copy { margin-bottom: 28px; }
+  .ck-pl-copy p { font-size: 16px; }
+  html.ck-motion .ck-pl-copy { right: var(--ck-gutter); bottom: clamp(24px, 5vh, 48px); margin: 0; max-width: none; }
+  html.ck-motion .ck-pl-copy h3 { font-size: 28px; margin-bottom: 8px; }
+  html.ck-motion .ck-pl-copy p { font-size: 14px; line-height: 1.5; }
+  html.ck-motion .ck-pl-count { top: 76px; }
+  .ck-pl-roll { font-size: 72px; }
+  html.ck-motion .ck-pl-q { top: 44%; font-size: 15vw; }
+  html.ck-motion .ck-pl-embed { top: 42%; width: calc(100vw - 2 * var(--ck-gutter)); }
+  html.ck-motion .ck-pl-stage { --gl: 24vw; --gw: 54vw; --gy: 37%; --gh: 24vh; }
+  html.ck-motion .ck-pl-why { bottom: auto; top: calc(100% + 118px); left: calc(var(--ck-gutter) - var(--gl)); white-space: normal; max-width: 30ch; }
+  /* Narrow: the dot ends the row at the right edge; the readout drops beneath it, right-aligned. */
+  html.ck-motion .ck-pl-ans { left: auto; right: var(--ck-gutter); flex-direction: column; align-items: flex-end; gap: 22px; transform: translateY(calc(clamp(16px, 1.6vw, 24px) / -2)); text-align: right; }
+  html.ck-motion .ck-pl-read { display: flex; flex-direction: column; align-items: flex-end; }
+  html.ck-motion .ck-pl-ms { font-size: 26vw; }
+  html.ck-motion :is(.ck-pl-served, .ck-pl-miss) { position: static; }
+  .ck-pl-try { grid-template-columns: 1fr; }
+  .ck-pl-row { grid-template-columns: 20px minmax(0, 1fr); padding: 12px 16px; }
+  .ck-pl-row code { font-size: 13px; }
+  .ck-pl-note { grid-column: 2; justify-self: start; }
+  .ck-pl-caret { margin-left: 52px; }
+}

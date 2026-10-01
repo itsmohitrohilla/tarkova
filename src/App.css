@@ -1,0 +1,146 @@
+/* Hero fills the first screen; the page scrolls on to the sections below. */
+.scene {
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+}
+
+/* Blends the photo into the page colour so the hero doesn't end on a hard edge. */
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 45%;
+  background: linear-gradient(to bottom, rgba(11, 18, 8, 0), rgba(11, 18, 8, 0.6) 55%, #0b1208);
+  pointer-events: none;
+}
+
+/* Fills any screen size; crops edges instead of stretching. */
+.bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: brightness(0.75); /* ponytail: same as a 25% black overlay */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Small, quiet mute control in the bottom-right corner. */
+.mute {
+  position: fixed;
+  z-index: 1;
+  right: 18px;
+  bottom: 18px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.mute:hover { background: rgba(0, 0, 0, 0.55); border-color: rgba(255, 255, 255, 0.6); }
+.mute:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.mute[aria-pressed="true"] { color: rgba(255, 255, 255, 0.5); }
+
+@media (max-width: 600px) {
+  .mute { right: 14px; bottom: 14px; }
+}
+
+
+/* Liquid-glass surface for the menu bar. */
+.glass {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  color: #fff;
+}
+.glass img { display: block; }
+
+.nav {
+  top: 18px;
+  padding: 6px;
+  border-radius: 999px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+/* mark.png has wide padding around the symbol, so render it larger than it looks. */
+.nav img { width: 38px; height: 38px; }
+.nav a { color: inherit; text-decoration: none; opacity: 0.85; transition: opacity 0.2s; }
+.nav a:hover, .nav a:focus-visible { opacity: 1; }
+
+.nav > a { display: block; border-radius: 50%; opacity: 1; }
+.nav-links { display: flex; align-items: center; gap: 22px; padding: 0 16px 0 16px; }
+
+/* Blog: a live dot, and hovering it peeks at the newest post. */
+.nav-blog { position: relative; }
+.nav-dot {
+  display: inline-block; width: 6px; height: 6px; margin-left: 6px; vertical-align: 2px;
+  border-radius: 50%; background: #ff4407; animation: navPulse 2.4s ease-out infinite;
+}
+@keyframes navPulse { 0% { box-shadow: 0 0 0 0 rgba(255, 68, 7, 0.6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(255, 68, 7, 0); } }
+.blog-peek {
+  position: absolute; top: calc(100% + 22px); right: -24px; width: 280px;
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 14px;
+  border-radius: 22px; white-space: normal; opacity: 0; visibility: hidden;
+  transform: translateY(-8px) scale(0.97); transform-origin: top right;
+  background: rgba(20, 24, 16, 0.55); border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 24px 48px -16px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.2, 0.7, 0.1, 1), visibility 0.25s;
+}
+.blog-peek::before { content: ""; position: absolute; inset: -24px 0 auto; height: 24px; } /* hover bridge */
+.nav-blog:hover .blog-peek, .nav-blog:focus-within .blog-peek { opacity: 1; visibility: visible; transform: none; }
+.nav .blog-peek { opacity: 0; } /* beats `.nav a`'s 0.85 so the fade still runs */
+.nav .nav-blog:hover .blog-peek, .nav .nav-blog:focus-within .blog-peek { opacity: 1; }
+.peek-art { display: block; aspect-ratio: 16 / 9; border-radius: 15px; overflow: hidden; margin-bottom: 6px; }
+.peek-art svg { width: 100%; height: 100%; display: block; }
+.peek-art .blob { transform-box: fill-box; transform-origin: center; animation: drift 14s ease-in-out infinite alternate; }
+@keyframes drift { to { transform: translate(60px, -40px) scale(1.18); } }
+.peek-k, .blog-peek strong, .peek-go { padding: 0 8px; }
+.peek-k { font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; color: #ff4407; }
+.blog-peek strong { font-size: 15px; line-height: 1.3; }
+.peek-go { font-size: 13px; opacity: 0.7; }
+@media (hover: none) { .blog-peek { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .nav-dot, .peek-art .blob { animation: none; }
+  .blog-peek { transition: none; }
+}
+
+@media (max-width: 600px) {
+  .nav { font-size: 13px; }
+  .nav-links { gap: 14px; padding: 0 12px 0 10px; }
+}
+
+/* The ThreeUI study fills its section; the package ships no .shader-frame rule. */
+.shader-frame {
+  position: absolute;
+  inset: 0;
+}
+/* Matching color-scheme keeps the dark iframe transparent instead of painted opaque. */
+.shader-frame .text-path-study { background: transparent; }
+.shader-frame iframe { color-scheme: dark; }
+
+/* Sections the menu links jump to. */
+.section {
+  position: relative;
+  min-height: 100svh;
+}
+
