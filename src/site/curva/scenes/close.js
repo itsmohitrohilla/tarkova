@@ -8,7 +8,7 @@ const DOCS = 'https://itsmohitrohilla.github.io/curva-docs/'
 export const html = ({ p, esc }) => `<section class="cv-scene cv-close" data-scene="close" aria-labelledby="cv-close-h">
   <div class="cv-close-wash" aria-hidden="true"></div>
   <div class="cv-close-in">
-    <h2 id="cv-close-h">Free to use. Your servers. Your model.</h2>
+    <h2 id="cv-close-h">Your AI key. A few lines of code. Clear answers you can trust.</h2>
     <div class="cv-close-cta">
       <a class="cv-close-btn" href="#start">Get started</a>
       <a class="cv-close-btn cv-close-btn-ghost" href="${DOCS}" rel="noopener">Read the docs <span aria-hidden="true">↗</span></a>

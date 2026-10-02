@@ -1,11 +1,13 @@
 // Static pages for the blog, products and legal routes. Runs in Node (vite.config.js),
 // in dev per request and at build time once, so every page ships as real HTML crawlers can read.
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { coverArt } from './art.js'
 import { products } from './products.js'
-import { footerHTML, MARK } from './footer.js'
+import { footerHTML } from './footer.js'
 import { crowkisMain, CK_HEAD } from './crowkis/page.js'
 import { curvaMain, CV_HEAD, CV_META } from './curva/page.js'
+import { vsJevMain, VJ_META, VJ_PATH, VJ_UPDATED } from './curva/vs-jev.js'
+import { aboutMain, AB_HEAD, TEAM } from './about/about.js'
 
 const PER_PAGE = 24
 // TODO(tarkova): confirm this inbox exists before launch; it's printed on the legal pages.
@@ -78,13 +80,17 @@ function head({ site, title, description, path, type = 'website', noindex, ld, e
 ${extra}${ld ? jsonld(ld) : ''}`
 }
 
-// Same glass pill as the landing page; the logo always leads home.
+// Same glass pill as the landing page; the logo always leads home. Products show their wordmark.
+const NAV_MARK = {
+  crowkis: '<img class="pill-wm" src="/products/crowkis-wordmark-white.png" alt="Crowkis" width="73" height="14" />',
+  curva: '<img class="pill-wm" src="/products/curva-wordmark-white.png" alt="Curva" width="55" height="14" />',
+}
 function nav(active) {
   const link = (href, label, key, extra = '') => `<a href="${href}"${active === key ? ' aria-current="page"' : ''}>${label}${extra}</a>`
   return `<a class="skip" href="#main">Skip to content</a>
 <header class="topbar"><nav class="pill" aria-label="Main">
 <a class="pill-mark" href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" width="38" height="38" /></a>
-<div class="pill-links">${link('/about/', 'About', 'about')}${products.map((p) => link(`/${p.id}/`, p.name, p.id)).join('')}${link('/blog/', 'Blog', 'blog', '<span class="nav-dot" aria-hidden="true"></span>')}</div>
+<div class="pill-links">${link('/about/', 'About', 'about')}${products.map((p) => link(`/${p.id}/`, NAV_MARK[p.id] || p.name, p.id)).join('')}${link('/blog/', 'Blog', 'blog', '<span class="nav-dot" aria-hidden="true"></span>')}</div>
 </nav></header>`
 }
 
@@ -427,8 +433,10 @@ function productPage(site, topics, p, latest) {
   if (p.id === 'crowkis')
     return [path, { head: head({ site, title: `${c.title} | Tarkova`, description: c.description, path, ld, extra: CK_HEAD }), body: page(p.id, topics, crowkisMain({ p, c, latest, esc, serif, card })) }]
   // Curva gets its own "calibration lab" piece (src/site/curva/), with copy from its Content Box.
-  if (p.id === 'curva')
-    return [path, { head: head({ site, title: `${CV_META.title} | Tarkova`, description: CV_META.description, path, ld, extra: CV_HEAD }), body: page(p.id, topics, curvaMain({ p, esc, serif })) }]
+  if (p.id === 'curva') {
+    const cvld = { '@context': 'https://schema.org', '@graph': [curvaApp(site), breadcrumbs(site, [['Home', '/'], [p.name, path]]), org(site)] }
+    return [path, { head: head({ site, title: `${CV_META.title} | Tarkova`, description: CV_META.description, path, ld: cvld, extra: CV_HEAD }), body: page(p.id, topics, curvaMain({ p, esc, serif })) }]
+  }
   const main = `<div class="pp" style="--brand:${p.color}">
 <section class="pp-hero">
   <div class="pp-dots" aria-hidden="true"></div>
@@ -452,78 +460,63 @@ ${p.url ? `<section class="pp-cta wrap">${p.mark ? `<img class="pp-cta-mark" src
   return [path, { head: head({ site, title: `${c.title} | Tarkova`, description: c.description, path, ld }), body: page(p.id, topics, main) }]
 }
 
-/* ---------- about ---------- */
+/* ---------- Curva vs Jev ---------- */
 
-// Founders. Drop a portrait at public/team/<id>.jpg and the card uses it instead of the monogram.
-// Focus lines follow Mohit's LinkedIn post ("I focus on whether the tech works. He focuses on whether the market cares.").
-const TEAM = [
-  { id: 'mohit', name: 'Mohit Rohilla', role: 'Co-founder · Product & Engineering', bio: 'Built the first version of Crowkis himself. Asks: does the tech work?', linkedin: 'https://www.linkedin.com/in/itsmohitrohilla/' },
-  { id: 'subhraneel', name: 'Subhraneel Baruah', role: 'Co-founder · GTM & Growth', bio: 'Background in GTM, growth and management. Asks: does the market care?', linkedin: 'https://www.linkedin.com/in/subhraneelbaruah/' },
-]
-// The founder's posts this page quotes, linked so every line is traceable.
-const SOURCES = [
-  ['How Crowkis started', 'https://www.linkedin.com/posts/itsmohitrohilla_a-few-months-ago-i-kept-noticing-the-same-share-7503016409711636480-v0WB/'],
-  ['Meet the new Tarkova mark', 'https://www.linkedin.com/posts/itsmohitrohilla_tarkova-crowkis-ai-share-7510245906982760449-NX7U/'],
-]
-const LINKEDIN = `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9.75h4v11H3zm7 0h3.8v1.5h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.65 4.78 6.1v5.45h-4v-4.83c0-1.15-.02-2.63-1.6-2.63-1.61 0-1.85 1.25-1.85 2.55v4.91h-4z"/></svg>`
-// A still film-grain layer, shared by the photos and portraits.
-const GRAIN_DEF = `<svg width="0" height="0" aria-hidden="true" style="position:absolute"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0"/></filter></svg>`
-const GRAIN = `<svg class="grain" aria-hidden="true"><rect width="100%" height="100%" filter="url(#grain)"/></svg>`
+// Curva has no domain of its own yet, so its page on tarkova.com is the app's URL.
+const curvaApp = (site) => ({
+  '@type': 'SoftwareApplication',
+  '@id': `${site}/curva/#app`,
+  name: 'Curva',
+  url: `${site}/curva/`,
+  description: CV_META.description,
+  image: `${site}/products/curva.png`,
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Any (Python, Node.js or Docker)',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  softwareHelp: { '@type': 'CreativeWork', url: 'https://itsmohitrohilla.github.io/curva-docs/' },
+  downloadUrl: 'https://pypi.org/project/curva-ai/',
+  publisher: { '@id': `${site}/#org` },
+})
+
+function vsJevPage(site, topics) {
+  const url = site + VJ_PATH
+  const ld = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebPage',
+        '@id': `${url}#page`,
+        name: VJ_META.title,
+        url,
+        description: VJ_META.description,
+        dateModified: VJ_UPDATED,
+        inLanguage: 'en',
+        about: [{ '@id': `${site}/curva/#app` }, { '@type': 'SoftwareApplication', name: 'Jev', applicationCategory: 'DeveloperApplication', publisher: { '@type': 'Organization', name: 'TypeSafe AI', url: 'https://typesafe.ai' } }],
+        publisher: { '@id': `${site}/#org` },
+      },
+      curvaApp(site),
+      breadcrumbs(site, [['Home', '/'], ['Curva', '/curva/'], ['Curva vs Jev', VJ_PATH]]),
+      org(site),
+    ],
+  }
+  return [VJ_PATH, { head: head({ site, title: `${VJ_META.title} | Tarkova`, description: VJ_META.description, path: VJ_PATH, ld }), body: page('curva', topics, vsJevMain({ esc })) }]
+}
+
+/* ---------- about ---------- */
 
 function aboutPage(site, topics) {
   const path = '/about/'
   const title = 'About Tarkova: the studio behind Crowkis and Curva'
-  const description = 'Tarkova builds products that make AI work better in the real world. How Crowkis started, why our mark is क, and the founders, Mohit Rohilla and Subhraneel Baruah.'
-  const people = TEAM.map((m) => ({ ...m, photo: existsSync(new URL(`../../public/team/${m.id}.jpg`, import.meta.url)) ? `/team/${m.id}.jpg` : null }))
+  const description = 'Tarkova builds products that make AI work better in the real world. How Crowkis started, why our mark is a single letter, and the founders, Mohit Rohilla and Subhraneel Baruah.'
   const ld = {
     '@context': 'https://schema.org',
     '@graph': [
       { '@type': 'AboutPage', name: title, url: site + path, description, mainEntity: { '@id': `${site}/#org` } },
-      { ...org(site), founder: people.map((m) => ({ '@type': 'Person', name: m.name, jobTitle: m.role, sameAs: [m.linkedin], ...(m.photo ? { image: site + m.photo } : {}) })) },
+      { ...org(site), founder: TEAM.map((m) => ({ '@type': 'Person', name: m.name, jobTitle: m.role, sameAs: [m.linkedin], ...(m.photo ? { image: site + m.photo } : {}) })) },
       breadcrumbs(site, [['Home', '/'], ['About', path]]),
     ],
   }
-  const first = (m) => m.name.split(' ')[0]
-  const photo = (src, pos) => `<figure><img src="${src}" alt="" style="object-position:${pos}" />${GRAIN}</figure>`
-  const main = `<div class="about">${GRAIN_DEF}
-<section class="ab-start">
-  <div class="ab-trio">${photo('/bg.jpg', '18% 50%')}<figure><img src="/about/mountains.jpg" alt="The Tarkova mark, the letter क, held up in the mountains" style="object-position:50% 70%" />${GRAIN}</figure>${photo('/bg.jpg', '84% 50%')}</div>
-  <div class="ab-story">
-    <h1>${riseTitle('how did it start?')}</h1>
-    <div>
-      <p>With one question, asked in different words. Working with LLM systems, Mohit kept seeing the same thing: a question, reworded, answered from scratch every single time. Full cost, full wait. He looked for something that solved it properly, couldn't find it, and built it himself.</p>
-      <p>Telling that two questions mean the same thing was one part. Doing it reliably, without ever confidently giving the wrong answer, was a much higher bar. In internal testing it cut AI costs by 30–50%. Around then, Mohit and Subhraneel started talking about turning it into a real company. That became <a href="/crowkis/">Crowkis</a>, the first product of Tarkova.</p>
-    </div>
-  </div>
-</section>
-<figure class="ab-quote">
-  <blockquote><p>“If a support bot gets asked ‘when do you close’ and ‘what time do you shut’ fifty times a day, that's not fifty new questions. It's <em>one question, asked fifty times.</em>”</p></blockquote>
-  <figcaption>Mohit Rohilla, co-founder</figcaption>
-</figure>
-<section class="ab-mark" aria-labelledby="mark-h">
-  <div class="ab-glyph" role="img" aria-label="The Tarkova mark: a stylised letter क">${MARK}</div>
-  <div class="ab-mark-text">
-    <span class="ab-kicker">Our mark</span>
-    <h2 id="mark-h">It starts with <em lang="hi">क</em>.</h2>
-    <p>The Tarkova mark is the letter क, kept simple. It's the first letter every Indian kid learns: where everything begins. So that's how we chose to begin too.</p>
-    <p>We build products that make AI work better in the real world, and every one of them will start with क. The first is Crowkis (<span lang="hi">क्रोकिस</span>). <a href="/curva/">Curva</a> is next.</p>
-    <p class="ab-hindi"><span lang="hi">क से क्रोकिस। क से बहुत कुछ आगे।</span><small>K for Crowkis. K for so much more ahead.</small></p>
-  </div>
-</section>
-<section class="ab-team" aria-labelledby="team-h">
-  <div class="ab-team-head">
-    <div><span class="ab-kicker">Our team <sup>${String(people.length).padStart(2, '0')}</sup></span><h2 id="team-h">The people behind <em>Tarkova</em></h2></div>
-    <blockquote class="ab-team-quote"><p>“I focus on whether the tech works. He focuses on whether the market cares. Both questions matter.”</p><cite>Mohit Rohilla</cite></blockquote>
-  </div>
-  <ul class="ab-people" role="list">${people.map((m) => `<li>
-    <div class="ab-photo">${m.photo ? `<img src="${m.photo}" alt="Portrait of ${esc(m.name)}" />` : `<span class="ab-mono" aria-hidden="true">${esc(m.name.split(' ').map((w) => w[0]).join(''))}</span>`}${GRAIN}</div>
-    <div class="ab-card"><span class="ab-role">${esc(m.role)}</span><h3>${esc(m.name)}</h3><p>${esc(m.bio)}</p></div>
-    <a class="ab-talk" href="${m.linkedin}" rel="noopener" target="_blank">${LINKEDIN} Talk with ${esc(first(m))}</a>
-  </li>`).join('')}</ul>
-  <p class="ab-sources">From the founders: ${SOURCES.map(([l, h]) => `<a href="${h}" rel="noopener" target="_blank">${l} ↗</a>`).join('')}</p>
-</section>
-</div>`
-  return [path, { head: head({ site, title: `${title} | Tarkova`, description, path, ld }), body: page('about', topics, main) }]
+  return [path, { head: head({ site, title: `${title} | Tarkova`, description, path, ld, extra: AB_HEAD }), body: page('about', topics, aboutMain({ esc })) }]
 }
 
 const UPDATED = 'September 29, 2026'
@@ -591,6 +584,7 @@ function sitemap(site, posts, topics) {
 ${[
     url('/', newest, '1.0'),
     ...products.map((p) => url(`/${p.id}/`, null, '0.9')),
+    url(VJ_PATH, VJ_UPDATED, '0.8'),
     url('/products/', null, '0.8'),
     url('/about/', null, '0.7'),
     url('/blog/', newest, '0.9'),
@@ -626,6 +620,7 @@ function llms(site, posts, topics) {
 > Tarkova builds new age software businesses. Products: Crowkis (${CROWKIS}), a semantic cache and agent memory layer for LLM workloads, built in Rust; and Curva (coming soon).
 
 ${products.map((p) => `- [${p.name}](${site}/${p.id}/): ${p.summary}`).join('\n')}
+- [Curva vs Jev](${site}${VJ_PATH}): ${VJ_META.description}
 - [About Tarkova](${site}/about/)
 - [Products](${site}/products/)
 - [Blog](${site}/blog/)
@@ -653,6 +648,7 @@ export function buildSite(rows, { site }) {
     productsPage(site, topics),
     aboutPage(site, topics),
     ...products.map((p) => productPage(site, topics, p, p.url ? indexable.slice(0, 3) : [])),
+    vsJevPage(site, topics),
     privacy(site, topics),
     terms(site, topics),
     notFound(site, topics, indexable.slice(0, 3)),

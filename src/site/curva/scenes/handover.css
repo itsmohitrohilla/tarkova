@@ -1,94 +1,27 @@
-/* scene: handover (PAPER). The threshold is a radio group; :has() moves the line and flips rows to abstain,
-   so it reads (and works) with no script. */
-.cv-handover { --t: 0.8; --ho-ink-dim: rgba(8, 6, 28, 0.62); --ho-rule: rgba(8, 6, 28, 0.12); background: var(--cv-paper); color: var(--cv-ink); }
-.cv-handover:has(#cv-ho-t5:checked) { --t: 0.5; }
-.cv-handover:has(#cv-ho-t6:checked) { --t: 0.6; }
-.cv-handover:has(#cv-ho-t7:checked) { --t: 0.7; }
-.cv-handover:has(#cv-ho-t9:checked) { --t: 0.9; }
-
-.cv-ho-in { padding: clamp(110px, 16vh, 180px) var(--cv-gutter); }
+/* scene: handover (PAPER). A heading and one line, beside the coverage-set chips. No script. */
+.cv-handover { --ho-ink-dim: rgba(8, 6, 28, 0.62); --ho-rule: rgba(8, 6, 28, 0.12); background: var(--cv-paper); color: var(--cv-ink); }
+.cv-ho-in { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: clamp(32px, 5vw, 80px); align-items: end; padding: clamp(110px, 16vh, 180px) var(--cv-gutter); }
 .cv-ho-title { margin: 0 0 22px; max-width: 18ch; font-size: clamp(38px, 5vw, 76px); font-weight: 600; line-height: 0.98; letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
-.cv-ho-lede { margin: 0 0 clamp(44px, 7vh, 80px); max-width: 52ch; color: var(--ho-ink-dim); font-size: 18px; line-height: 1.5; }
-.cv-handover code { font-family: var(--cv-mono); font-size: 0.86em; }
+.cv-ho-lede { margin: 0; max-width: 52ch; color: var(--ho-ink-dim); font-size: 18px; line-height: 1.5; }
+.cv-handover code { font-family: var(--cv-mono); font-size: 0.86em; white-space: nowrap; }
 .cv-ho-lede code { color: var(--cv-blue); }
-.cv-ho-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: clamp(32px, 5vw, 80px); align-items: start; }
-
-/* the decision desk: a white card on a halftone block-shadow */
-.cv-ho-desk { position: relative; padding: clamp(20px, 2.4vw, 32px); background: var(--cv-white); border: 1px solid var(--cv-ink); }
-.cv-ho-desk::before { content: ''; position: absolute; inset: 12px -12px -12px 12px; z-index: -1; color: var(--cv-blue); background: var(--cv-dots); background-size: 6px 6px; }
-.cv-ho-grid > * { position: relative; z-index: 0; }
-
-.cv-ho-set { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; padding: 0; border: 0; }
-.cv-ho-set legend { float: left; margin-right: 10px; padding: 0; font-size: 15px; }
-.cv-ho-set label { position: relative; cursor: pointer; }
-.cv-ho-set input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
-.cv-ho-set span { display: block; min-width: 44px; padding: 9px 10px 8px; border: 1px solid rgba(8, 6, 28, 0.25); text-align: center; font: 500 16px/1 var(--cv-pixel); transition: background-color 0.18s var(--cv-ease), color 0.18s var(--cv-ease), border-color 0.18s var(--cv-ease); }
-.cv-ho-set label:hover span { border-color: var(--cv-ink); }
-.cv-ho-set input:checked + span { background: var(--cv-ink); border-color: var(--cv-ink); color: var(--cv-paper); }
-.cv-ho-set input:focus-visible + span { outline: 2px solid var(--cv-blue); outline-offset: 2px; }
-
-.cv-ho-tally { margin: 0 0 18px; font-size: 15px; color: var(--ho-ink-dim); }
-.cv-ho-tally b { font: 500 22px/1 var(--cv-pixel); color: var(--cv-ink); }
-.cv-ho-tally i { font-style: normal; margin: 0 6px; }
-.cv-ho-n { display: none; }
-.cv-handover:has(#cv-ho-t5:checked) .cv-ho-n[data-t='5'],
-.cv-handover:has(#cv-ho-t6:checked) .cv-ho-n[data-t='6'],
-.cv-handover:has(#cv-ho-t7:checked) .cv-ho-n[data-t='7'],
-.cv-handover:has(#cv-ho-t8:checked) .cv-ho-n[data-t='8'],
-.cv-handover:has(#cv-ho-t9:checked) .cv-ho-n[data-t='9'] { display: inline; }
-
-/* the stream: rows share one column grid (subgrid) so the threshold line crosses every bar */
-.cv-ho-list { position: relative; display: grid; grid-template-columns: [q] minmax(0, 1.25fr) [chip] auto [bar] minmax(80px, 1fr) [c] auto [to] auto; column-gap: 14px; }
-.cv-ho-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: center; padding: 11px 0; border-top: 1px solid var(--ho-rule); }
-.cv-ho-q { grid-column: q; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; transition: opacity 0.2s var(--cv-ease); }
-.cv-ho-chip { grid-column: chip; justify-self: start; padding: 4px 8px 3px; border: 1px solid rgba(8, 6, 28, 0.3); border-radius: 4px; font: 500 12px/1 var(--cv-mono); }
-.cv-ho-bar { grid-column: bar; display: block; height: 10px; color: rgba(8, 6, 28, 0.14); background: var(--cv-dots); background-size: 4px 4px; }
-.cv-ho-bar i { display: block; height: 100%; background: var(--cv-blue); transform: scaleX(var(--v)); transform-origin: left; transition: background-color 0.2s var(--cv-ease); }
-.cv-ho-c { grid-column: c; font: 500 18px/1 var(--cv-pixel); font-variant-numeric: tabular-nums; }
-.cv-ho-to { grid-column: to; min-width: 104px; font-size: 13px; }
-.cv-ho-auto { color: var(--cv-blue); font-weight: 600; }
-.cv-ho-abs { display: none; padding: 3px 6px; background: var(--cv-ink); color: var(--cv-paper); white-space: nowrap; }
-
-.cv-handover:has(#cv-ho-t6:checked) .lo6 .cv-ho-q, .cv-handover:has(#cv-ho-t7:checked) .lo7 .cv-ho-q,
-.cv-handover:has(#cv-ho-t8:checked) .lo8 .cv-ho-q, .cv-handover:has(#cv-ho-t9:checked) .lo9 .cv-ho-q { opacity: 0.5; }
-.cv-handover:has(#cv-ho-t6:checked) .lo6 .cv-ho-bar i, .cv-handover:has(#cv-ho-t7:checked) .lo7 .cv-ho-bar i,
-.cv-handover:has(#cv-ho-t8:checked) .lo8 .cv-ho-bar i, .cv-handover:has(#cv-ho-t9:checked) .lo9 .cv-ho-bar i { background: rgba(8, 6, 28, 0.32); }
-.cv-handover:has(#cv-ho-t6:checked) .lo6 .cv-ho-auto, .cv-handover:has(#cv-ho-t7:checked) .lo7 .cv-ho-auto,
-.cv-handover:has(#cv-ho-t8:checked) .lo8 .cv-ho-auto, .cv-handover:has(#cv-ho-t9:checked) .lo9 .cv-ho-auto { display: none; }
-.cv-handover:has(#cv-ho-t6:checked) .lo6 .cv-ho-abs, .cv-handover:has(#cv-ho-t7:checked) .lo7 .cv-ho-abs,
-.cv-handover:has(#cv-ho-t8:checked) .lo8 .cv-ho-abs, .cv-handover:has(#cv-ho-t9:checked) .lo9 .cv-ho-abs { display: inline-block; }
-
-/* the min_confidence line: a full-width box translated by --t, clipped to the bar column */
-.cv-ho-line { grid-column: bar; grid-row: 1 / span 10; position: relative; pointer-events: none; overflow-x: clip; }
-.cv-ho-line i { position: absolute; top: -8px; bottom: -8px; left: -1px; width: 100%; border-left: 2px solid var(--cv-ink); transform: translateX(calc(var(--t) * 100%)); transition: transform 0.36s var(--cv-ease); }
 
 /* coverage sets */
 .cv-ho-cov { padding-top: 18px; border-top: 2px solid var(--cv-ink); }
 .cv-ho-cov h3 { margin: 0 0 18px; font-size: clamp(22px, 2.1vw, 30px); font-weight: 600; line-height: 1.12; letter-spacing: -0.02em; text-wrap: balance; }
 .cv-ho-code { margin: 0 0 14px; }
 .cv-ho-code code { color: var(--cv-blue); }
-.cv-ho-sets { list-style: none; margin: 0 0 18px; padding: 0; }
+.cv-ho-sets { list-style: none; margin: 0; padding: 0; }
 .cv-ho-sets li { display: grid; gap: 8px; padding: 14px 0; border-top: 1px solid var(--ho-rule); font-size: 15px; color: var(--ho-ink-dim); }
 .cv-ho-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.cv-ho-chips::before { content: 'set'; align-self: center; margin-right: 4px; font: 12px/1 var(--cv-mono); color: var(--ho-ink-dim); }
+.cv-ho-chips::before { content: 'list'; align-self: center; margin-right: 4px; font: 12px/1 var(--cv-mono); color: var(--ho-ink-dim); }
 .cv-ho-chips b { padding: 5px 9px 4px; background: var(--cv-blue); color: var(--cv-white); border-radius: 4px; font: 500 12px/1 var(--cv-mono); }
-.cv-ho-note { margin: 0; font-size: 14px; color: var(--ho-ink-dim); }
 
 @media (max-width: 960px) {
-  .cv-ho-grid { grid-template-columns: minmax(0, 1fr); }
+  .cv-ho-in { grid-template-columns: minmax(0, 1fr); }
   .cv-ho-cov { max-width: 560px; }
 }
 @media (max-width: 600px) {
   .cv-ho-in { padding-block: 96px; }
   .cv-ho-lede { font-size: 16px; }
-  .cv-ho-desk { padding: 16px 14px; }
-  .cv-ho-desk::before { inset: 8px -8px -8px 8px; }
-  .cv-ho-set legend { float: none; width: 100%; margin: 0 0 8px; }
-  .cv-ho-set span { min-width: 0; padding: 8px 9px 7px; }
-  .cv-ho-list { grid-template-columns: [chip] auto [bar] minmax(40px, 1fr) [c] auto [to] auto; column-gap: 8px; }
-  .cv-ho-q { display: none; }
-  .cv-ho-chip { font-size: 11px; padding: 4px 5px 3px; }
-  .cv-ho-c { font-size: 16px; }
-  .cv-ho-to { min-width: 0; font-size: 11.5px; }
-  .cv-ho-auto { font-size: 11.5px; }
 }

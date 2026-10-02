@@ -44,5 +44,8 @@ html.lenis { scroll-behavior: auto; }
   transition: width 0.35s var(--ease), height 0.35s var(--ease), margin 0.35s var(--ease), opacity 0.3s;
 }
 .ck-cursor.on { opacity: 1; }
+/* The difference blend reads cyan on Ember; over the red sections the cursor is plain Warm Sand instead. */
+body:has(:is(.ck-hero, .ck-voice, .ck-fin-stage):hover) .ck-cursor { mix-blend-mode: normal; background: #f4dec9; }
+body:has(:is(.ck-hero, .ck-voice, .ck-fin-stage):hover) .ck-cursor span { color: var(--ck-ink, #1a1c25); }
 .ck-cursor.big { width: 64px; height: 64px; margin: -32px 0 0 -32px; }
 .ck-cursor span { font: 600 11px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #000; }

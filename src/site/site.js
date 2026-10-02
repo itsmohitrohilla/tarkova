@@ -43,6 +43,8 @@ const ck = document.querySelector('[data-ck]')
 if (ck) import('./crowkis/motion.js').then((m) => m.start(ck))
 const cv = document.querySelector('[data-cv]')
 if (cv) import('./curva/motion.js').then((m) => m.start(cv))
+const ab = document.querySelector('[data-ab]')
+if (ab) import('./about/motion.js').then((m) => m.start(ab))
 
 // Copy buttons: a code block's source, or the URL in data-copy.
 document.addEventListener('click', (e) => {

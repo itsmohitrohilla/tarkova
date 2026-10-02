@@ -173,6 +173,9 @@ export async function init(el, { gsap, ScrollTrigger }) {
       for (let x = g / 2; x < off.width; x += g)
         if (d[(Math.floor(y) * off.width + Math.floor(x)) * 4 + 3] > 128) pts.push([q.x + x, q.y + y])
     pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]) // left to right: rank decides grid column and stagger
+    // Before fonts/layout settle the question can measure 0×0 and sample no ink; start every dot at its centre
+    // rather than crash. The next refresh/resize re-measures with real glyphs.
+    if (!pts.length) pts.push([q.x + q.w / 2, q.y + q.h / 2])
     return { pts, g }
   }
 

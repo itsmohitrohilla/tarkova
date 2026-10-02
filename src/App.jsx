@@ -6,6 +6,9 @@ import { products } from './site/products.js'
 import { footerHTML, WORDMARK_PROPS } from './site/footer.js'
 import './site/footer.css'
 
+// Products show their wordmark in the menu, same as the site pages' nav.
+const NAV_MARK = { crowkis: '/products/crowkis-wordmark-white.png', curva: '/products/curva-wordmark-white.png' }
+
 export default function App() {
   const audioRef = useRef(null)
   const [muted, setMuted] = useState(false)
@@ -51,7 +54,7 @@ export default function App() {
           <a href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" /></a>
           <div className="nav-links">
             <a href="/about/">About</a>
-            {products.map((p) => <a key={p.id} href={`/${p.id}/`}>{p.name}</a>)}
+            {products.map((p) => <a key={p.id} href={`/${p.id}/`}>{NAV_MARK[p.id] ? <img className="nav-wm" src={NAV_MARK[p.id]} alt={p.name} /> : p.name}</a>)}
             <div className="nav-blog">
               <a href="/blog/">Blog<span className="nav-dot" aria-hidden="true" /></a>
               {latest[0] && (

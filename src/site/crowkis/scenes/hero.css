@@ -1,35 +1,42 @@
-/* scene: hero. The section is ink; the Ember → Wine ground lives on .ck-hero-plate so it can close into a card on scroll. */
-.ck-hero { background: var(--ck-ink); color: var(--ck-white); overflow: clip; }
+/* scene: hero. One viewport on the Ember → Dried Wine ground: tagline and crow on top, lede, CTAs and facts in the
+   middle, the wordmark as a full-width base. .ck-hero-dusk (ink) is scrubbed in as the hero leaves, so it hands
+   off to the problem scene's ink without a seam. */
+.ck-hero { --ck-sand: #f4dec9; background: var(--ck-ink); color: var(--ck-white); overflow: clip; }
 .ck-hero-plate {
   position: absolute; inset: 0;
-  /* Static halftone for the no-motion page; with motion the canvas draws the live field instead. */
-  --ck-hero-ground: linear-gradient(115deg, var(--ck-red) 12%, var(--ck-red-deep) 100%);
-  background: radial-gradient(rgba(255, 255, 255, 0.07) 1.3px, transparent 1.8px) 0 0 / 17px 17px, var(--ck-hero-ground);
+  background:
+    radial-gradient(ellipse 70% 60% at 12% 0%, rgba(255, 255, 255, 0.09), transparent 70%),
+    linear-gradient(115deg, var(--ck-red) 10%, var(--ck-red-deep) 100%);
 }
-html.ck-motion .ck-hero-plate { background: var(--ck-hero-ground); will-change: clip-path; }
-.ck-hero-plate canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Fine grain, so the gradient reads as a surface, not a fill. */
+.ck-hero-plate::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.14; mix-blend-mode: soft-light;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.ck-hero-dusk { position: absolute; inset: 0; background: var(--ck-ink); opacity: 0; }
 
 .ck-hero-in {
   position: relative; min-height: 100svh;
-  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(12px, 2vw, 28px); align-content: start;
-  padding: clamp(96px, 13vh, 128px) var(--ck-gutter) clamp(48px, 8vh, 88px);
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(12px, 2vw, 28px);
+  grid-template-rows: auto auto 1fr auto; row-gap: clamp(22px, 3.4vh, 40px);
+  padding: clamp(88px, 10.5vh, 112px) var(--ck-gutter) clamp(24px, 4vh, 44px);
 }
-.ck-hero h1 { grid-column: 1 / -1; margin: 0; }
-.ck-hero h1 img { width: 100%; height: auto; }
-.ck-hero-crow {
-  grid-column: 9 / -1; grid-row: 2 / span 2; justify-self: end; align-self: start;
-  width: 100%; max-width: 400px; height: auto; margin-top: clamp(36px, 4.4vw, 64px);
-}
+/* The wordmark: first in the source (the h1), set last as the base of the stage. */
+.ck-hero h1 { grid-column: 1 / -1; grid-row: 4; margin: 0; }
+.ck-hero h1 img { width: 100%; height: auto; display: block; }
+.ck-hero-crow { grid-column: 10 / -1; grid-row: 1; justify-self: end; align-self: end; width: 100%; max-width: clamp(170px, 19vw, 320px); height: auto; }
+
+/* grid-template-rows: the tagline row, the lede/facts row, free space, the wordmark. */
 .ck-hero-tag {
-  grid-column: 1 / 9; grid-row: 2; margin: clamp(28px, 3.6vw, 52px) 0 0;
-  font: italic 400 clamp(52px, 7.6vw, 128px)/0.94 var(--ck-serif); letter-spacing: -0.01em; text-wrap: balance;
+  grid-column: 1 / 9; grid-row: 1; align-self: end; margin: 0;
+  font: italic 400 clamp(54px, 6.6vw, 116px)/0.92 var(--ck-serif); letter-spacing: -0.01em; text-wrap: balance;
 }
 /* Word masks: padded so italic overhangs and descenders are not clipped. */
 .ck-hero-w { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 0.1em 0.14em; margin: 0 -0.1em -0.14em; }
 .ck-hero-w > span { display: inline-block; }
-.ck-hero-act { grid-column: 1 / 7; grid-row: 3; margin-top: clamp(22px, 2.6vw, 36px); }
-.ck-hero-lede { margin: 0; max-width: 46ch; font-size: clamp(17px, 1.35vw, 20px); line-height: 1.55; }
-.ck-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.ck-hero-act { grid-column: 1 / 7; grid-row: 2; }
+.ck-hero-lede { margin: 0; max-width: 44ch; font-size: clamp(17px, 1.3vw, 20px); line-height: 1.55; }
+.ck-hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: clamp(22px, 3vh, 32px); }
 
 .ck-hero-btn {
   display: inline-flex; padding: 16px 26px; border-radius: 999px;
@@ -44,23 +51,25 @@ html.ck-motion .ck-hero-plate { background: var(--ck-hero-ground); will-change: 
 .ck-hero-btn:focus-visible { outline: 2px solid var(--ck-white); outline-offset: 4px; }
 
 .ck-hero-facts {
-  grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 clamp(12px, 2vw, 28px);
-  margin: clamp(56px, 9vh, 104px) 0 0;
+  grid-column: 8 / -1; grid-row: 2; align-self: start; margin: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 2.6vh, 28px) clamp(16px, 2vw, 28px);
 }
-.ck-hero-facts div { position: relative; display: flex; flex-direction: column-reverse; justify-content: flex-end; padding-top: 20px; }
+.ck-hero-facts div { position: relative; display: flex; flex-direction: column-reverse; justify-content: flex-end; padding-top: 16px; }
 .ck-hero-facts div::before { content: ''; position: absolute; inset: 0 0 auto; height: 1px; background: rgba(255, 255, 255, 0.5); transform-origin: left; }
-.ck-hero-facts dd { margin: 0; font: 600 clamp(36px, 4.2vw, 64px)/1 var(--ck-sans); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.ck-hero-facts dt { margin-top: 10px; font-size: 14px; line-height: 1.4; }
+.ck-hero-facts dd { margin: 0; font: 600 clamp(30px, 3.4vw, 52px)/1 var(--ck-sans); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ck-hero-facts dt { margin-top: 8px; font-size: 14px; line-height: 1.4; }
 
-/* One-time intro (≤1.2s). Only the wordmark gets a (still) clip wipe; the crow is there from the first frame.
-   `backwards` fill so nothing lingers after it ends and scroll transforms own the layers. */
-html.ck-motion .ck-hero h1 img { animation: ckHeroWipe 0.9s var(--ck-ease) backwards; }
-html.ck-motion .ck-hero-w > span { animation: ckHeroRise 0.9s calc(0.18s + var(--i) * 0.06s) var(--ck-ease) backwards; }
-html.ck-motion .ck-hero-lede { animation: ckHeroUp 0.8s 0.36s var(--ck-ease) backwards; }
-html.ck-motion .ck-hero-cta { animation: ckHeroUp 0.8s 0.44s var(--ck-ease) backwards; }
-html.ck-motion .ck-hero-facts div::before { animation: ckHeroLine 0.8s calc(0.3s + var(--i) * 0.08s) var(--ck-ease) backwards; }
-html.ck-motion .ck-hero-facts dt { animation: ckHeroFade 0.7s calc(0.45s + var(--i) * 0.08s) var(--ck-ease) backwards; }
-@keyframes ckHeroWipe { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+/* The page cursor inverts (difference blend), which reads cyan on Ember. Over the hero it is plain Warm Sand. */
+body:has(.ck-hero:hover) .ck-cursor { mix-blend-mode: normal; background: #f4dec9; }
+body:has(.ck-hero:hover) .ck-cursor span { color: #1a1c25; }
+
+/* One-time intro (≤1.2s). Everything is in place from the first paint; the wordmark and crow never animate.
+   `backwards` fill so nothing lingers after it ends. */
+html.ck-motion .ck-hero-w > span { animation: ckHeroRise 0.85s calc(0.12s + var(--i) * 0.05s) var(--ck-ease) backwards; }
+html.ck-motion .ck-hero-lede { animation: ckHeroUp 0.8s 0.3s var(--ck-ease) backwards; }
+html.ck-motion .ck-hero-cta { animation: ckHeroUp 0.8s 0.38s var(--ck-ease) backwards; }
+html.ck-motion .ck-hero-facts div::before { animation: ckHeroLine 0.75s calc(0.25s + var(--i) * 0.06s) var(--ck-ease) backwards; }
+html.ck-motion .ck-hero-facts dt { animation: ckHeroFade 0.6s calc(0.4s + var(--i) * 0.06s) var(--ck-ease) backwards; }
 @keyframes ckHeroRise { from { transform: translateY(110%); } }
 @keyframes ckHeroUp { from { opacity: 0; transform: translateY(18px); } }
 @keyframes ckHeroLine { from { transform: scaleX(0); } }
@@ -68,17 +77,18 @@ html.ck-motion .ck-hero-facts dt { animation: ckHeroFade 0.7s calc(0.45s + var(-
 
 @media (max-width: 900px) {
   .ck-hero-tag { grid-column: 1 / 10; }
-  .ck-hero-act { grid-column: 1 / 9; }
   .ck-hero-crow { grid-column: 10 / -1; }
-  .ck-hero-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 28px; }
+  .ck-hero-act { grid-column: 1 / -1; }
+  .ck-hero-facts { grid-column: 1 / -1; grid-row: 3; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
-  .ck-hero-in { min-height: 0; padding-top: 96px; }
-  .ck-hero-crow { grid-column: 8 / -1; grid-row: 2; margin-top: 28px; }
-  .ck-hero-tag { grid-column: 1 / -1; grid-row: 3; margin-top: 20px; font-size: clamp(46px, 13.5vw, 64px); }
-  .ck-hero-act { grid-column: 1 / -1; grid-row: 4; }
+  .ck-hero-in { padding-top: 92px; row-gap: 28px; grid-template-rows: auto auto auto auto auto 1fr auto; }
+  .ck-hero-crow { grid-column: 1 / 6; grid-row: 1; justify-self: start; max-width: 132px; }
+  .ck-hero-tag { grid-column: 1 / -1; grid-row: 2; font-size: clamp(44px, 13vw, 64px); }
+  .ck-hero-act { grid-row: 3; }
   .ck-hero-cta { flex-direction: column; align-items: stretch; }
   .ck-hero-btn { justify-content: center; }
-  .ck-hero-facts { margin-top: 52px; }
-  .ck-hero-facts dd { font-size: 40px; }
+  .ck-hero-facts { grid-row: 4; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ck-hero-facts dd { font-size: 36px; }
+  .ck-hero h1 { grid-row: 6; }
 }

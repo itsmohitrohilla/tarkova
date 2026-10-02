@@ -1,108 +1,78 @@
-// Scene "hero" (BLUE): the page's only h1, one subline, two buttons, and a live decision on a paper slip:
-// a support message and a typed question, the model asked in both option orders, then a probability per label
-// and the typed answer as a chip. The server renders the finished decision (the no-motion page); with motion the
-// slip replays it on an ambient loop while the hero is on screen. The pixel wordmark sits under it all, untouched.
-// Example values are the docs' own (Content Box: 3 Use cases/ai-agents.md, the `decide` tool response).
+// Scene "hero" (BLUE). Plain words first (owner): what Curva does, one concrete example (0.97 is the docs' example
+// value, Content Box 3 Use cases/ai-agents.md), then the proof. Fold: wordmark, the only h1, subline, example, buttons, and:
+// Curva vs Jev head to head on a public phishing benchmark. Wins only, from Content Box/4 Benchmarks/benchmarks.md
+// section 1 (all n = 100, 2026-10-01; Jev = its published numbers, on different samples). The quickstart lives
+// in "start". Everything is final in the server HTML. Motion: a short load intro on the charts (they are in view on
+// load, so a scroll scrub would start empty), then a faint sheen on Curva's bars (CSS). Pre-states only under html.cv-motion.
 export const id = 'hero'
 
 const DOCS = 'https://itsmohitrohilla.github.io/curva-docs/'
-const BARS = [['billing', 0.97], ['technical', 0.02], ['sales', 0.01], ['none_of_these', 0]]
+const VS = '/curva/vs-jev/'
+const JEV_LOGO = '/compare/jev-logo.svg'
+
+// One small chart per win: [verdict (checked: 80.8 - 62.6 = 18.2 points; 0.154 vs 0.138 is 10.4% lower;
+// 239 - 178 = 61 ms), plain metric label, curva, jev, unit, decimals, source line]. Bars start at zero, scaled to
+// the larger value; for error and time the shorter Curva bar is the win, and the verdict says so.
+const CHARTS = [
+  ['18 points more accurate', 'Accuracy on phishing emails', 80.8, 62.6, '%', 1, 'gemini-flash-lite-latest · PhishNChips · n = 100 · 2026-10-01 · 95% range 73% to 89%'],
+  ['10% lower error', 'Calibration error: how far its confidence is from reality', 0.138, 0.154, '', 3, 'gemini-flash-lite-latest · PhishNChips · n = 100 · 2026-10-01'],
+  ['61 ms faster', 'Typical response time', 178, 239, ' ms', 0, 'groq qwen3.8-27b · PhishNChips · n = 100 · 2026-10-01'],
+]
+
+// Jev has no wordmark asset of its own (typesafe.ai sets the name in text); its maker's mark sits beside the name.
+const jev = `<img src="${JEV_LOGO}" alt="" width="16" height="16">Jev`
+const wm = (p, h) => `<img class="cv-hero-wm" src="${p.wordmark[0]}" alt="Curva" width="${Math.round((h * p.wordmark[1]) / p.wordmark[2])}" height="${h}">`
+
+const chart = ([verdict, metric, c, j, unit, dp, src], p) => {
+  const max = Math.max(c, j), f = (v) => v.toFixed(dp) + unit
+  const col = (cls, name, v) => `<div class="cv-hero-ch-col ${cls}" style="--h:${(v / max).toFixed(3)}" title="${name.replace(/<[^>]+>/g, '')}: ${f(v)}"><b>${f(v)}</b><i></i></div>`
+  return `<li class="cv-hero-ch">
+          <p class="cv-hero-ch-v">${verdict}</p>
+          <p class="cv-hero-ch-m">${metric}</p>
+          <div class="cv-hero-ch-plot" role="img" aria-label="${metric}: Curva ${f(c)}, Jev ${f(j)}">${col('is-cv', 'Curva', c)}${col('is-jev', 'Jev', j)}</div>
+          <div class="cv-hero-ch-x" aria-hidden="true"><span>${wm(p, 11)}</span><span>${jev}</span></div>
+          <p class="cv-hero-ch-src">${src}</p>
+        </li>`
+}
 
 export const html = ({ p, esc }) => `<section class="cv-scene cv-hero" data-scene="hero" aria-labelledby="cv-hero-h">
   <div class="cv-hero-dots" aria-hidden="true"></div>
   <div class="cv-hero-in">
-    <h1 id="cv-hero-h">Typed decisions with calibrated probabilities, from any LLM.</h1>
-    <p class="cv-hero-sub">Send your data and a typed question. Get back one of your labels and a probability for every option. Never free text.</p>
-    <div class="cv-hero-cta">
-      <a class="cv-hero-btn" href="#start">Get started</a>
-      <a class="cv-hero-btn cv-hero-btn-ghost" href="${DOCS}" rel="noopener">Read the docs <span aria-hidden="true">↗</span></a>
-    </div>
-    <figure class="cv-hero-slip" aria-label="An example decision">
-      <dl class="cv-hero-ask">
-        <div><dt>state</dt><dd class="cv-hero-msg">I was charged twice, please refund me</dd></div>
-        <div><dt>question</dt><dd>Which team should handle this?</dd></div>
-      </dl>
-      <p class="cv-hero-status" aria-hidden="true"><span>decided</span></p>
-      <ol class="cv-hero-bars">${BARS.map(([l, v], i) => `
-        <li style="--p:${v};--i:${i}"${i ? '' : ' class="on"'}><span class="cv-hero-lbl">${l}</span><span class="cv-hero-bar"><i></i></span><span class="cv-hero-num">${v.toFixed(2)}</span></li>`).join('')}
-      </ol>
-      <p class="cv-hero-chip"><code>{"choice": "billing", "confidence": <b>0.97</b>}</code></p>
-      <figcaption>Example output from the docs.</figcaption>
-    </figure>
     <p class="cv-hero-mark"><img src="${p.wordmark[0]}" alt="${esc(p.name)}" width="${p.wordmark[1]}" height="${p.wordmark[2]}"></p>
+    <h1 id="cv-hero-h">LLM classification with confidence scores you can trust.</h1>
+    <div class="cv-hero-act">
+      <p class="cv-hero-sub">Bring the AI key you already use. Add a few lines of code. Your AI gives one clear answer and how sure it is.</p>
+      <p class="cv-hero-eg"><span>Which team should handle this email?</span><span class="cv-hero-eg-a"><b>Billing</b>, 97% sure</span></p>
+      <div class="cv-hero-cta">
+        <a class="cv-hero-btn" href="#start">Get started</a>
+        <a class="cv-hero-btn cv-hero-btn-ghost" href="${DOCS}" rel="noopener">Read the docs <span aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+    <figure class="cv-hero-vs" aria-labelledby="cv-hero-vs-t">
+      <p class="cv-hero-vs-t" id="cv-hero-vs-t">Curva vs Jev on a public phishing benchmark</p>
+      <p class="cv-hero-vs-what">Curva's best run on each measure, with the model named under each chart. Jev is a hosted AI decision service.</p>
+      <p class="cv-hero-vs-key"><span class="is-cv">${wm(p, 14)}</span><span class="is-jev">${jev}</span></p>
+      <ul>
+        ${CHARTS.map((c) => chart(c, p)).join('\n        ')}
+      </ul>
+      <figcaption><a href="${VS}">Every number, including where Jev is ahead <span aria-hidden="true">↗</span></a><span>Jev numbers are their published figures.</span></figcaption>
+    </figure>
   </div>
 </section>`
 
-export function init(el, { gsap, ScrollTrigger }) {
-  const slip = el.querySelector('.cv-hero-slip')
-  const list = el.querySelector('.cv-hero-bars')
-  const rows = [...list.children]
-  const fills = rows.map((r) => r.querySelector('i'))
-  const nums = rows.map((r) => r.querySelector('.cv-hero-num'))
-  const status = el.querySelector('.cv-hero-status span')
-  const msg = el.querySelector('.cv-hero-msg')
-  const chip = el.querySelector('.cv-hero-chip')
-  const text = msg.textContent
-  const final = BARS.map(([, v]) => v)
-
-  // One probability vector drives every bar and numeral, so they can never disagree. While the model is still
-  // being asked the bars move but the numerals stay blank: only the docs' final values are ever printed.
-  const pv = { a: 0, b: 0, c: 0, d: 0 }
-  let exact = true
-  const keys = Object.keys(pv)
-  const paint = () => keys.forEach((k, i) => {
-    fills[i].style.transform = `scaleX(${pv[k]})`
-    nums[i].textContent = exact ? pv[k].toFixed(2) : '-.--'
-  })
-  const say = (s) => () => (status.textContent = s)
-  const type = { n: text.length }
-  const vec = (vals, dur, ease = 'power2.inOut') => ({ ...Object.fromEntries(keys.map((k, i) => [k, vals[i]])), duration: dur, ease, onUpdate: paint })
-  const rowH = () => rows[1].offsetTop - rows[0].offsetTop
-
-  // The loop: type the message, ask in the original then the reversed option order, average, decide, hold.
-  const tl = gsap.timeline({ repeat: -1, paused: true, defaults: { ease: 'power2.out' } })
-  tl.add(say('new request'))
-    .set(chip, { autoAlpha: 0, y: 10 })
-    .add(() => { rows[0].classList.remove('on'); exact = false })
-    .to(pv, vec([0, 0, 0, 0], 0.4))
-    .fromTo(type, { n: 0 }, { n: text.length, duration: 1.1, ease: 'none', onUpdate: () => (msg.textContent = text.slice(0, Math.round(type.n))) })
-    .add(say('asking, original order'))
-    .to(pv, vec([0.62, 0.21, 0.09, 0.08], 0.9), '+=0.15')
-    .add(say('asking, reversed order'), '+=0.25')
-    .to(rows, { y: (i) => (rows.length - 1 - 2 * i) * rowH(), duration: 0.6, ease: 'power3.inOut' }, '<')
-    .to(pv, vec([0.88, 0.06, 0.03, 0.03], 0.9), '<0.2')
-    .to(rows, { y: 0, duration: 0.6, ease: 'power3.inOut' }, '+=0.35')
-    .add(say('averaged'), '<')
-    .to(pv, vec(final, 0.8, 'power3.out'), '<0.15')
-    .add(() => { status.textContent = 'decided'; exact = true; paint(); rows[0].classList.add('on') })
-    .to(chip, { autoAlpha: 1, y: 0, duration: 0.5 }, '<')
-    .to({}, { duration: 4.2 })
-
-  // Start from the finished slip the server rendered, and only loop while the hero is on screen.
-  tl.progress(1, false).pause()
-  let started = false
-  const run = (on) => {
-    if (!on) return tl.pause()
-    if (started) return tl.play()
-    started = true
-    gsap.delayedCall(2.2, () => ScrollTrigger.isInViewport(el) && tl.restart())
-  }
-  const st = ScrollTrigger.create({ trigger: el, start: 'top bottom', end: 'bottom top', onToggle: (s) => run(s.isActive) })
-  if (st.isActive) run(true)
-
-  // Scroll out: the halftone sinks, the slip lifts away. The wordmark never moves.
-  gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { trigger: el, start: 'top top', end: 'bottom top', scrub: 0.8 } })
-    .to(el.querySelector('.cv-hero-dots'), { yPercent: 18 }, 0)
-    .to(slip, { y: -70 }, 0)
-
-  // The halftone "light" leans toward the cursor.
-  if (!matchMedia('(pointer: fine)').matches) return
-  const dots = el.querySelector('.cv-hero-dots')
-  const dx = gsap.quickTo(dots, 'x', { duration: 1.2, ease: 'power3' })
-  const dy = gsap.quickTo(dots, 'y', { duration: 1.2, ease: 'power3' })
-  el.addEventListener('pointermove', (e) => {
-    const r = el.getBoundingClientRect()
-    dx(((e.clientX - r.left) / r.width - 0.5) * 80)
-    dy(((e.clientY - r.top) / r.height - 0.5) * 50)
+export function init(el, { gsap }) {
+  // ≤ 1.2 s, left to right: verdict and label rise in, bars grow from the baseline, numerals count up to the
+  // server's final text (restored exactly on complete).
+  const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+  el.querySelectorAll('.cv-hero-ch').forEach((ch, i) => {
+    const t = i * 0.1
+    tl.fromTo(ch.querySelectorAll('.cv-hero-ch-v, .cv-hero-ch-m'), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.06 }, t)
+    ch.querySelectorAll('.cv-hero-ch-col').forEach((col, k) => {
+      const num = col.querySelector('b'), final = num.textContent
+      const [, n, rest] = final.match(/^([\d.]+)(.*)$/), dp = (n.split('.')[1] || '').length, o = { v: 0 }
+      tl.fromTo(col.querySelector('i'), { scaleY: 0 }, { scaleY: 1, duration: 0.75 }, t + 0.15 + k * 0.08)
+        .fromTo(num, { opacity: 0 }, { opacity: 1, duration: 0.25 }, '<')
+        .to(o, { v: +n, duration: 0.75, onUpdate: () => (num.textContent = o.v.toFixed(dp) + rest), onComplete: () => (num.textContent = final) }, '<')
+    })
   })
 }

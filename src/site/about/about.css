@@ -1,0 +1,127 @@
+/* Hallmark · macrostructure: cinematic scroll film (pinned scenes) · tone: austere, black-and-white, film grain
+ * anchor hue: none (black and white; Tarkova orange stays in the nav)
+ * Pre-motion states live only under html.ab-motion; without it every scene shows its final frame. */
+
+body:has(.about) { background: #0b0b0b; color: #f4f4f0; }
+body:has(.about) .foot { margin-top: 0; }
+
+.about {
+  --ab-black: #0b0b0b;
+  --ab-ink: #f4f4f0;
+  --ab-soft: #c9c9c4;
+  --ab-dim: #8d8f94;
+  --ab-line: #2c2c2e;
+  --ab-g: clamp(16px, 3.4vw, 56px);
+  --ab-w: min(1280px, 100% - 2 * var(--ab-g));
+  --ab-big: clamp(44px, 7.6vw, 128px);
+  color: var(--ab-ink);
+  overflow-x: clip;
+}
+.about a { color: inherit; text-decoration-color: rgba(244, 244, 240, 0.35); text-underline-offset: 0.18em; text-decoration-thickness: 1px; transition: text-decoration-color 0.2s; }
+.about a:hover { text-decoration-color: var(--accent); }
+.ab-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Film grain over the whole page: one tiled noise layer, jittered on steps (compositor only). */
+.ab-grain {
+  position: fixed; inset: -64px; z-index: 4; pointer-events: none; opacity: 0.1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1.7 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: abGrain 0.7s steps(1) infinite;
+  will-change: transform;
+}
+@keyframes abGrain {
+  0% { transform: translate(0, 0); }
+  17% { transform: translate(-31px, 17px); }
+  33% { transform: translate(23px, -29px); }
+  50% { transform: translate(-13px, -41px); }
+  67% { transform: translate(37px, 11px); }
+  83% { transform: translate(-21px, 33px); }
+}
+
+/* Shared: huge headings whose words rise out of a mask, and lines whose words brighten. */
+.ab-big { font-size: var(--ab-big); font-weight: 700; letter-spacing: -0.055em; line-height: 0.92; max-width: 13ch; }
+.ab-m { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.1em; margin-bottom: -0.1em; }
+.ab-m > span { display: inline-block; }
+
+/* ---------- 1 · hero: the mountains open up behind the question ---------- */
+.ab-hero { position: relative; height: 100svh; min-height: 560px; margin-top: -58px; isolation: isolate; overflow: hidden; background: var(--ab-black); }
+.ab-hero-photo { position: absolute; inset: 0; margin: 0; overflow: hidden; }
+.ab-hero-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 74%; filter: grayscale(1) contrast(1.2) brightness(0.68); }
+.ab-hero-dim { position: absolute; inset: 0; background: var(--ab-black); opacity: 0; }
+.ab-hero-h {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center;
+  padding: 0 var(--ab-g); color: #fff; mix-blend-mode: difference;
+  font-size: clamp(64px, 15.5vw, 260px); font-weight: 700; letter-spacing: -0.065em; line-height: 0.8;
+}
+.ab-hl { display: block; white-space: nowrap; }
+.ab-hl:last-child { align-self: flex-end; }
+html.ab-motion .ab-hero-photo { clip-path: inset(30% 38% 30% 38% round 14px); }
+html.ab-motion .ab-hero-photo img { transform: scale(1.4); }
+html.ab-motion .ab-hl:first-child { transform: translateX(14vw); }
+html.ab-motion .ab-hl:last-child { transform: translateX(-14vw); }
+
+/* ---------- 2 · story ---------- */
+.ab-intro, .ab-story { width: var(--ab-w); margin: 0 auto; }
+.ab-intro { padding-top: clamp(120px, 22vh, 240px); }
+.ab-story { padding: clamp(140px, 24vh, 260px) 0 clamp(80px, 12vh, 140px); }
+.ab-kin { font-size: clamp(26px, 3.4vw, 52px); font-weight: 500; letter-spacing: -0.03em; line-height: 1.12; max-width: 24ch; margin: clamp(56px, 11vh, 128px) 0 0; }
+.ab-kin-r { margin-left: auto; max-width: 15ch; }
+
+/* ---------- 3 · the mark: from a word in the line to the whole stage (the bare white mark) ---------- */
+.ab-k-stage { width: var(--ab-w); margin: 0 auto; padding: clamp(96px, 16vh, 180px) 0; }
+.ab-k-h { font-size: var(--ab-big); font-weight: 700; letter-spacing: -0.055em; line-height: 0.95; }
+.ab-k-w { display: inline-block; }
+.ab-k-slot { display: inline-block; width: 0.9em; height: 0.9em; vertical-align: -0.1em; margin-left: -0.04em; color: var(--ab-ink); }
+.ab-k-slot .mark, .ab-k-big .mark { width: 100%; height: 100%; }
+.ab-k-big { display: none; }
+.ab-k-copy { margin-top: clamp(40px, 8vh, 72px); max-width: 34em; }
+.ab-k-copy p { margin: 0 0 18px; font-size: clamp(18px, 1.6vw, 24px); line-height: 1.5; color: var(--ab-soft); }
+
+html.ab-motion .ab-k-stage { position: relative; width: 100%; height: 100svh; min-height: 560px; padding: 0; overflow: clip; }
+html.ab-motion .ab-k-h { position: absolute; left: var(--ab-g); right: var(--ab-g); top: 50%; translate: 0 -50%; text-align: center; }
+html.ab-motion .ab-k-slot { visibility: hidden; }
+html.ab-motion .ab-k-big {
+  --T: min(64svh, 40vw);
+  display: block; position: absolute; z-index: 1; left: 50%; top: 50%;
+  width: var(--T); height: var(--T); margin: calc(var(--T) / -2) 0 0 calc(var(--T) / -2); color: var(--ab-ink);
+}
+.ab-k-big .mark { position: relative; }
+.ab-k-glow { position: absolute; inset: -40%; border-radius: 50%; background: radial-gradient(closest-side, rgba(244, 244, 240, 0.14), transparent); opacity: 0; }
+html.ab-motion .ab-k-copy { position: absolute; z-index: 2; top: 0; left: 56%; width: min(36%, 32em); margin: 0; }
+
+/* ---------- 4 · team ---------- */
+.ab-team { width: var(--ab-w); margin: 0 auto; padding-top: clamp(120px, 18vh, 200px); }
+.ab-team-quote { margin: clamp(40px, 8vh, 80px) 0 0 auto; max-width: 24ch; font-size: clamp(22px, 2.2vw, 34px); }
+.ab-team-quote p { margin: 0; font-weight: 500; line-height: 1.15; letter-spacing: -0.02em; }
+.ab-team-quote cite { display: block; margin-top: 14px; font-style: normal; font-size: 14px; color: var(--ab-dim); }
+.ab-people { list-style: none; padding: 0; margin: clamp(80px, 14vh, 160px) 0 0; display: grid; gap: clamp(96px, 16vh, 180px); }
+.ab-people li { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 64px); align-items: end; }
+.ab-people li:nth-child(even) .ab-photo { order: 2; }
+.ab-photo { position: relative; margin: 0; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 6px; background: #161616; display: grid; place-items: center; }
+.ab-photo img { width: 100%; height: 100%; object-fit: cover; scale: 1.2; filter: grayscale(1) contrast(1.15) brightness(0.95); }
+.ab-mono { font-size: clamp(96px, 12vw, 150px); font-weight: 700; letter-spacing: -0.06em; color: var(--ab-soft); }
+.ab-role { font-size: 14px; color: var(--ab-dim); }
+.ab-person h3 { margin: 10px 0 22px; font-size: clamp(52px, 8vw, 132px); font-weight: 700; letter-spacing: -0.06em; line-height: 0.86; }
+.ab-person h3 span { display: block; }
+.ab-person p { margin: 0 0 24px; max-width: 30ch; font-size: clamp(17px, 1.4vw, 20px); line-height: 1.5; color: var(--ab-soft); }
+.about .ab-talk {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--ab-line); background: #161616; font-size: 14px; text-decoration: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.about .ab-talk:hover { background: var(--ab-ink); color: #111; border-color: var(--ab-ink); }
+.ab-sources { margin: clamp(80px, 12vh, 140px) 0 0; padding: 28px 0 clamp(120px, 18vh, 200px); border-top: 1px solid var(--ab-line); display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--ab-dim); }
+.about .ab-sources a { color: var(--ab-ink); white-space: nowrap; }
+
+/* ---------- small screens ---------- */
+@media (max-width: 600px) {
+  html.ab-motion .ab-hero-photo { clip-path: inset(28% 22% 28% 22% round 12px); }
+  .ab-kin-r { max-width: 13ch; }
+  .ab-people li { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .ab-people li:nth-child(even) .ab-photo { order: 0; }
+  .ab-photo { width: 82%; }
+  .ab-people li:nth-child(even) .ab-photo { justify-self: end; }
+  .ab-team-quote { margin-left: 0; }
+  html.ab-motion .ab-k-big { --T: min(34svh, 62vw); }
+  html.ab-motion .ab-k-copy { left: var(--ab-g); right: var(--ab-g); width: auto; }
+  .ab-k-copy p { font-size: 17px; }
+}

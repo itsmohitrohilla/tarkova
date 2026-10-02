@@ -1,17 +1,17 @@
 /* scene: close. Curva blue with a halftone wash rising from the bottom edge (dots grow toward the floor),
    one big line, the buttons, the still C logo, the legal line. */
 .cv-close { background: var(--cv-blue); color: var(--cv-white); overflow: clip; }
-.cv-close-wash { position: absolute; inset: 0 0 -10%; pointer-events: none; color: var(--cv-blue-hi); will-change: transform; }
+.cv-close-wash { position: absolute; inset: 0; pointer-events: none; color: var(--cv-blue-hi); will-change: transform; }
 .cv-close-wash::before, .cv-close-wash::after { content: ''; position: absolute; inset: 0; }
 .cv-close-wash::before {
   background: var(--cv-dots);
-  -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 75%);
-  mask-image: linear-gradient(to top, #000 10%, transparent 75%);
+  -webkit-mask-image: linear-gradient(to top, transparent 90px, #000 170px, transparent 75%);
+  mask-image: linear-gradient(to top, transparent 90px, #000 170px, transparent 75%);
 }
 .cv-close-wash::after {
   background: radial-gradient(circle, currentColor 4px, transparent 4.5px) 0 0 / 12px 12px;
-  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 42%);
-  mask-image: linear-gradient(to top, #000 0%, transparent 42%);
+  -webkit-mask-image: linear-gradient(to top, transparent 90px, #000 150px, transparent 45%);
+  mask-image: linear-gradient(to top, transparent 90px, #000 150px, transparent 45%);
 }
 
 .cv-close-in {
@@ -36,10 +36,10 @@
 .cv-close-btn-ghost:hover { background: var(--cv-white); color: var(--cv-blue); box-shadow: 6px 6px 0 0 var(--cv-ink); }
 .cv-close-btn:focus-visible { outline: 2px solid var(--cv-white); outline-offset: 4px; }
 
-
 .cv-close-logo {
   grid-column: 10 / -1; grid-row: 1 / span 2; align-self: end; justify-self: end;
-  width: 100%; max-width: 260px; height: auto;
+  width: 100%; max-width: 240px; height: auto;
+  border-radius: 22%; box-shadow: 0 0 0 1.5px var(--cv-blue-soft), 12px 12px 0 var(--cv-ink); /* framed as a tile, never moved */
 }
 .cv-close-legal {
   grid-column: 1 / -1; margin: clamp(88px, 14vh, 160px) 0 0; padding-top: 20px;
@@ -49,7 +49,7 @@
 
 @media (max-width: 900px) {
   .cv-close h2, .cv-close-cta { grid-column: 1 / -1; }
-  .cv-close-logo { grid-column: 1 / -1; grid-row: 1; justify-self: start; max-width: 120px; margin-bottom: 36px; }
+  .cv-close-logo { grid-column: 1 / -1; grid-row: 1; justify-self: start; max-width: 112px; margin-bottom: 40px; box-shadow: 0 0 0 1.5px var(--cv-blue-soft), 8px 8px 0 var(--cv-ink); }
 }
 @media (max-width: 600px) {
   .cv-close-btn { padding: 15px 20px; }

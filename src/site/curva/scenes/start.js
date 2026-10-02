@@ -9,39 +9,26 @@ d = curva.decide("I was charged twice, please refund me",
                  {"team": ["billing", "technical"], "refund": "Asks for a refund?", "total": float})
 print(d.team, d.refund, d.total)           # e.g. billing True None`
 
-const WAYS = [
-  { name: 'TypeScript', line: 'Answers typed from your options.', cmd: 'npm install curva-ai', href: 'https://www.npmjs.com/package/curva-ai', link: 'npm' },
-  { name: 'n8n', line: 'Settings, Community Nodes, Install. Then a Route node.', cmd: 'n8n-nodes-curva', href: 'https://www.npmjs.com/package/n8n-nodes-curva', link: 'npm' },
-  { name: 'MCP', line: 'A decide tool for any MCP client. Run curva serve first.', cmd: 'claude mcp add curva -- curva mcp --url http://127.0.0.1:7777' },
-  { name: 'Docker', line: 'One image. --no-auth only on your own machine.', cmd: 'docker run --rm -p 127.0.0.1:7777:7777 -e OPENROUTER_API_KEY ghcr.io/itsmohitrohilla/curva \\\n  serve --addr 0.0.0.0:7777 --no-auth' },
-]
-
-const PROVIDERS = ['OpenAI', 'Anthropic', 'Gemini', 'Groq', 'Mistral', 'DeepSeek', 'GLM', 'Qwen', 'OpenRouter', 'Ollama', 'vLLM', 'LM Studio', 'llama.cpp', 'any OpenAI-compatible endpoint']
-
-// Light syntax colour: comments and strings. Escapes everything; textContent stays the exact snippet.
+// Light syntax colour (comments, strings), one span per line for the type-in. Escapes everything, so the
+// block's textContent stays the exact snippet; the copy button reads data-copy anyway.
 const hl = (src, esc) => src.split('\n').map((line) => {
   const c = line.indexOf('#')
   const code = c < 0 ? line : line.slice(0, c)
   const body = code.split(/("[^"]*")/).map((t, i) => (i % 2 ? `<span class="s">${esc(t)}</span>` : esc(t))).join('')
-  return body + (c < 0 ? '' : `<span class="c">${esc(line.slice(c))}</span>`)
+  return `<span class="l">${body}${c < 0 ? '' : `<span class="c">${esc(line.slice(c))}</span>`}</span>`
 }).join('\n')
 
 const copy = (text, esc) => `<button type="button" class="copy" data-copy="${esc(text)}">Copy</button>`
 
 export const html = ({ esc }) => `<section id="start" class="cv-scene cv-start" data-scene="start" aria-labelledby="cv-st-title">
   <div class="cv-st-in">
-    <h2 id="cv-st-title">Your first decision in three lines.</h2>
+    <h2 id="cv-st-title">Add Curva to your app in three lines.</h2>
+    <p class="cv-st-lede">Use the AI API key you already have: OpenAI, Anthropic, Gemini, Groq, OpenRouter, or a local model. Add a few lines of code, and your AI makes quick decisions you can trust. Curva itself is free.</p>
 
     <div class="cv-st-main">
       <div class="cv-st-code">
-        <figure class="cv-st-block is-sh">
-          <pre><code>${hl(SH, esc)}</code></pre>
-          ${copy(SH, esc)}
-        </figure>
-        <figure class="cv-st-block is-py">
-          <pre><code>${hl(PY, esc)}</code></pre>
-          ${copy(PY, esc)}
-        </figure>
+        <figure class="cv-st-block is-sh"><pre><code>${hl(SH, esc)}</code></pre>${copy(SH, esc)}</figure>
+        <figure class="cv-st-block is-py"><pre><code>${hl(PY, esc)}</code></pre>${copy(PY, esc)}</figure>
       </div>
       <div class="cv-st-side">
         <div class="cv-st-out" aria-label="Output">
@@ -49,28 +36,21 @@ export const html = ({ esc }) => `<section id="start" class="cv-scene cv-start" 
           <span><i>refund</i><b>True</b></span>
           <span><i>total</i><b>None</b></span>
         </div>
-        <p class="cv-st-links"><a href="https://pypi.org/project/curva-ai/" target="_blank" rel="noopener">curva-ai on PyPI ↗</a><a href="${DOCS}" target="_blank" rel="noopener">Read the docs ↗</a></p>
+        <p class="cv-st-links"><a href="https://pypi.org/project/curva-ai/" target="_blank" rel="noopener">PyPI ↗</a><a href="${DOCS}" target="_blank" rel="noopener">Docs ↗</a></p>
       </div>
     </div>
 
-    <ul class="cv-st-ways">
-${WAYS.map((w) => `      <li>
-        <div class="cv-st-way-head"><h3>${esc(w.name)}</h3>${w.href ? `<a href="${w.href}" target="_blank" rel="noopener">${esc(w.link)} ↗</a>` : ''}</div>
-        <p>${esc(w.line)}</p>
-        <div class="cv-st-cmd"><code>${esc(w.cmd)}</code>${copy(w.cmd, esc)}</div>
-      </li>`).join('\n')}
-    </ul>
-
-    <div class="cv-st-models">
-      <div>
-        <h3>Any model, your servers.</h3>
-        <p class="cv-st-prov">${PROVIDERS.map((p) => `<span>${esc(p)}</span>`).join('')}</p>
-      </div>
-      <div class="cv-st-free">
-        <p><b>Pay your model provider, nothing else.</b> Curva is free to use. Free models work.</p>
-      </div>
-    </div>
+    <p class="cv-st-also">It also works from TypeScript, n8n, MCP and Docker. <a href="${DOCS}" target="_blank" rel="noopener">See the docs ↗</a></p>
   </div>
 </section>`
 
-export function init() {}
+// Scroll-scrubbed: the snippet types in line by line, then its output lands. Ends by the time an
+// anchor jump to #start settles, so the code is always whole when someone arrives to copy it.
+export function init(el, { gsap }) {
+  const main = el.querySelector('.cv-st-main')
+  const tl = gsap.timeline({ scrollTrigger: { trigger: main, start: 'top 95%', end: 'top 55%', scrub: 0.6 }, defaults: { ease: 'none' } })
+  main.querySelectorAll('.l').forEach((line, i) => {
+    tl.fromTo(line, { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', duration: 1 }, i * 0.8)
+  })
+  tl.fromTo(main.querySelectorAll('.cv-st-out span'), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.3 })
+}

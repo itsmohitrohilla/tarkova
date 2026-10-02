@@ -116,7 +116,7 @@ export const products = [
     // TODO(tarkova): replace with Curva's real one-liner once it's announced.
     summary: 'Curva is the next product from Tarkova. It is in the works now, and details land here first.',
     facts: [],
-    links: [],
+    links: [['Curva vs Jev, every number', '/curva/vs-jev/']],
     page: {
       title: 'Curva: coming soon from Tarkova',
       description: 'Curva is the next product from Tarkova, the studio behind Crowkis. It is in the works now, and details land here first.',

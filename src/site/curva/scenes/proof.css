@@ -1,5 +1,10 @@
-/* scene: proof (INK). Instrument readings: pixel numerals over thin range scales. */
+/* scene: proof (INK). Curva vs Jev: an accuracy chart against Jev's published numbers and a plain comparison. */
 .cv-proof {
+  /* Chart marks on ink. Win = a light Curva blue (6:1 on ink); matches stay neutral. Validated 2026-10-02. */
+  --pf-win: #8b80ff;
+  --pf-tie: #a6a4b4;
+  --pf-rule: rgba(255, 255, 255, 0.14);
+  --pf-mute: rgba(255, 255, 255, 0.58);
   background: var(--cv-ink);
   color: var(--cv-white);
   padding: clamp(96px, 12vw, 176px) var(--cv-gutter);
@@ -16,93 +21,73 @@
   pointer-events: none;
 }
 .cv-pf-in { max-width: 1320px; margin: 0 auto; }
-
-.cv-pf-head { margin-bottom: clamp(48px, 6vw, 88px); }
-.cv-pf-head h2 {
+.cv-proof h2 {
   margin: 0;
   max-width: 17ch;
   font: 600 clamp(40px, 6.4vw, 96px)/0.95 var(--cv-sans);
   letter-spacing: -0.035em;
   overflow-wrap: anywhere;
 }
-.cv-pf-head p { margin: 24px 0 0; max-width: 44ch; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.45; color: rgba(255, 255, 255, 0.7); }
+.cv-proof h3 { margin: 0; font: 600 clamp(19px, 1.6vw, 22px)/1.25 var(--cv-sans); letter-spacing: -0.01em; }
+.cv-pf-meta { margin: 0; font: 12.5px/1.5 var(--cv-mono); color: var(--pf-mute); overflow-wrap: anywhere; }
 
-/* Four readings in a 2 x 2 panel, ruled like an instrument face. */
-.cv-pf-wins {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-}
-.cv-pf-win {
-  min-width: 0;
-  padding: clamp(28px, 3vw, 44px) clamp(0px, 3vw, 44px) clamp(32px, 3.4vw, 48px) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-}
-.cv-pf-win:nth-child(even) { padding-left: clamp(24px, 3vw, 44px); padding-right: 0; border-left: 1px solid rgba(255, 255, 255, 0.16); }
+/* One line under the title: the win rule. */
+.cv-pf-lede { margin: 24px 0 0; max-width: 52ch; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.45; color: rgba(255, 255, 255, 0.72); }
+/* Jev's mark: nominative, text-sized, never larger than Curva's. */
+.cv-pf-jev { display: inline-block; width: 1.15em; height: 1.15em; margin-right: 0.35em; vertical-align: -0.2em; border-radius: 2px; }
 
-.cv-pf-num {
-  margin: 0 0 14px;
-  font: 500 clamp(72px, 9vw, 136px)/0.85 var(--cv-pixel);
-  letter-spacing: -0.02em;
-  color: var(--cv-white);
-}
-.cv-pf-num span { margin-left: 0.08em; font-size: 0.38em; color: rgba(255, 255, 255, 0.6); }
-.cv-pf-win h3, .cv-pf-matches h3 { margin: 0; font: 600 clamp(19px, 1.6vw, 22px)/1.25 var(--cv-sans); letter-spacing: -0.01em; }
-.cv-pf-sub { margin: 4px 0 0; font-size: 15px; line-height: 1.45; color: rgba(255, 255, 255, 0.62); }
-.cv-pf-meta { margin: 14px 0 0; font: 12.5px/1.5 var(--cv-mono); color: rgba(255, 255, 255, 0.55); overflow-wrap: anywhere; }
+/* The chart: label | plot | value. Legend on top, hairline gridlines every 10 points. */
+.cv-pf-chart { margin: clamp(56px, 7vw, 104px) 0 0; }
+.cv-pf-chart figcaption { margin-top: 0; color: inherit; font-size: inherit; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; margin-bottom: 28px; }
+.cv-pf-legend { list-style: none; margin: 0 0 0 auto; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13.5px; color: rgba(255, 255, 255, 0.75); }
+.cv-pf-legend li { display: inline-flex; align-items: center; gap: 8px; }
+.cv-pf-legend i { flex: none; display: inline-block; }
+.cv-pf-legend .k-win, .cv-pf-legend .k-tie { width: 11px; height: 11px; border-radius: 50%; background: var(--pf-win); }
+.cv-pf-legend .k-tie { background: var(--pf-tie); }
+.cv-pf-legend .k-range { width: 22px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.3); }
+.cv-pf-legend .k-best { width: 6px; height: 14px; border: 2px solid var(--cv-white); border-radius: 2px; }
 
-/* The scale: a hairline track, the 95% range band, Curva's dot, a tick for the best published number. */
-.cv-pf-scale { position: relative; height: 56px; margin-top: 22px; }
-.cv-pf-track { position: absolute; left: 0; right: 0; top: 20px; height: 1px; background: rgba(255, 255, 255, 0.22); }
-.cv-pf-band {
-  position: absolute; top: 15px; height: 11px;
-  background: var(--cv-blue-hi);
-  transform-origin: left center;
-}
-.cv-pf-scale.is-fill .cv-pf-band { top: 18px; height: 5px; background: var(--cv-blue-hi); }
-.cv-pf-dot {
-  position: absolute; top: 14px; width: 13px; height: 13px; margin-left: -6.5px;
-  background: var(--cv-white); border: 2px solid var(--cv-ink); border-radius: 50%;
-}
-.cv-pf-best { position: absolute; top: 8px; width: 2px; height: 25px; margin-left: -1px; background: rgba(255, 255, 255, 0.85); }
-.cv-pf-best > span {
-  position: absolute; top: 30px; left: 0;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font: 11.5px/1 var(--cv-mono);
-  color: rgba(255, 255, 255, 0.75);
-}
-.cv-pf-ends {
-  position: absolute; left: 0; right: 0; top: 0;
-  display: flex; justify-content: space-between;
-  font: 10.5px/1 var(--cv-mono); color: rgba(255, 255, 255, 0.4);
-  transform: translateY(-6px);
-}
+.cv-pf-axis, .cv-pf-rows li { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr) minmax(0, 210px); gap: 0 clamp(16px, 2.4vw, 36px); align-items: center; }
+.cv-pf-axis > span:last-child { position: relative; height: 18px; }
+.cv-pf-axis i { position: absolute; top: 0; transform: translateX(-50%); font: 11.5px/1 var(--cv-mono); font-style: normal; color: rgba(255, 255, 255, 0.45); }
+.cv-pf-axis i:first-child { transform: none; }
+.cv-pf-axis i:last-child { transform: translateX(-100%); }
 
-/* Matches: four compact rows. */
-.cv-pf-matches { margin-top: clamp(56px, 6vw, 88px); }
-.cv-pf-matches ul {
-  list-style: none; margin: 22px 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
+.cv-pf-rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--pf-rule); }
+.cv-pf-rows li { padding: 14px 0; border-bottom: 1px solid var(--pf-rule); transition: background-color 0.2s; }
+.cv-pf-rows li:hover { background-color: rgba(255, 255, 255, 0.03); }
+.cv-pf-set { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cv-pf-set b { font: 600 16px/1.3 var(--cv-sans); }
+.cv-pf-set span { font: 12px/1.4 var(--cv-mono); color: var(--pf-mute); overflow-wrap: anywhere; }
+.cv-pf-plot {
+  position: relative; height: 30px;
+  background: linear-gradient(to right, var(--pf-rule) 1px, transparent 1px) 0 0 / 25% 100%;
+  box-shadow: inset -1px 0 var(--pf-rule);
 }
-.cv-pf-matches li {
-  min-width: 0;
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 18px 18px 20px 0;
-}
-.cv-pf-matches li + li { padding-left: 18px; border-left: 1px solid rgba(255, 255, 255, 0.16); }
-.cv-pf-set { font: 600 15px/1.3 var(--cv-sans); }
-.cv-pf-pair b { font: 500 34px/1 var(--cv-pixel); }
-.cv-pf-pair span { font: 13px/1 var(--cv-mono); color: rgba(255, 255, 255, 0.6); margin-left: 4px; }
-.cv-pf-mini { position: relative; height: 12px; }
-.cv-pf-mini::before { content: ''; position: absolute; left: 0; right: 0; top: 5px; height: 1px; background: rgba(255, 255, 255, 0.22); }
-.cv-pf-mini .cv-pf-band { top: 2px; height: 7px; background: rgba(61, 45, 255, 0.9); }
-.cv-pf-mini .cv-pf-best { top: 0; height: 12px; }
-.cv-pf-matches .cv-pf-meta { margin: 0; }
+.cv-pf-plot .cv-pf-band { position: absolute; top: 11px; height: 8px; border-radius: 4px; background: rgba(166, 164, 180, 0.35); transform-origin: left center; }
+.cv-pf-plot .cv-pf-dot { position: absolute; top: 9px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--pf-tie); box-shadow: 0 0 0 2px var(--cv-ink); }
+.cv-pf-plot .cv-pf-best { position: absolute; top: 6px; width: 6px; height: 18px; margin-left: -3px; border: 2px solid var(--cv-white); border-radius: 2px; }
+.cv-pf-rows .is-win .cv-pf-band { background: rgba(139, 128, 255, 0.45); }
+.cv-pf-rows .is-win .cv-pf-dot { background: var(--pf-win); }
+.cv-pf-val { margin: 0; display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.cv-pf-val b { font: 500 24px/1 var(--cv-pixel); }
+.cv-pf-val span { font: 12px/1 var(--cv-mono); color: var(--pf-mute); }
+.cv-pf-val em { min-width: 7ch; font: 12px/1 var(--cv-mono); font-style: normal; color: var(--pf-mute); }
+.cv-pf-rows .is-win .cv-pf-val em { color: var(--pf-win); }
 
-.cv-pf-foot { margin: clamp(36px, 4vw, 56px) 0 0; font-size: 16px; color: rgba(255, 255, 255, 0.7); }
+/* Comparison: thin rules, generous padding, no boxes. */
+.cv-pf-vs { width: 100%; margin: clamp(88px, 10vw, 152px) 0 0; border-collapse: collapse; table-layout: fixed; }
+.cv-pf-vs caption { margin-bottom: 20px; text-align: left; font: 600 clamp(19px, 1.6vw, 22px)/1.25 var(--cv-sans); letter-spacing: -0.01em; }
+.cv-pf-vs th, .cv-pf-vs td { padding: 18px clamp(12px, 2vw, 28px) 18px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--pf-rule); font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.cv-pf-vs thead th, .cv-pf-vs thead td { padding-top: 0; padding-bottom: 14px; font: 13px/1.4 var(--cv-mono); color: var(--pf-mute); }
+.cv-pf-vs thead th:last-child { color: var(--pf-win); }
+.cv-pf-vs tbody th { width: 22%; font-weight: 600; }
+.cv-pf-vs tbody td { color: rgba(255, 255, 255, 0.62); }
+.cv-pf-vs tbody td:last-child { color: var(--cv-white); }
+.cv-pf-vs code { font: 14px/1.4 var(--cv-mono); color: var(--cv-white); }
+.cv-pf-vs tr > :last-child { padding-right: 0; }
+
+.cv-pf-foot { margin: clamp(48px, 5vw, 72px) 0 0; font-size: 16px; color: rgba(255, 255, 255, 0.7); }
 .cv-pf-foot a {
   margin-left: 6px;
   color: var(--cv-white);
@@ -113,17 +98,23 @@
 }
 .cv-pf-foot a:hover { color: #b7b0ff; }
 .cv-pf-foot a:focus-visible { outline: 2px solid var(--cv-white); outline-offset: 3px; }
+.cv-pf-tm { margin: 20px 0 0; max-width: 70ch; font-size: 13px; line-height: 1.5; color: var(--pf-mute); }
 
 @media (max-width: 900px) {
-  .cv-pf-matches ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cv-pf-matches li:nth-child(3) { padding-left: 0; border-left: 0; }
-  .cv-pf-matches li:nth-child(n + 3) { border-top: 1px solid rgba(255, 255, 255, 0.16); }
+  .cv-pf-legend { margin-left: 0; }
+  .cv-pf-axis, .cv-pf-rows li { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; }
+  .cv-pf-axis > span:first-child { display: none; }
+  .cv-pf-axis > span:last-child, .cv-pf-plot { grid-column: 1 / -1; grid-row: 2; }
+  .cv-pf-axis > span:last-child { grid-row: 1; }
+  .cv-pf-val { grid-row: 1; grid-column: 2; }
 }
 @media (max-width: 600px) {
-  .cv-pf-wins { grid-template-columns: minmax(0, 1fr); }
-  .cv-pf-win, .cv-pf-win:nth-child(even) { padding: 28px 0 30px; border-left: 0; }
-  .cv-pf-num { font-size: 76px; }
-  .cv-pf-matches ul { grid-template-columns: minmax(0, 1fr); }
-  .cv-pf-matches li, .cv-pf-matches li + li { padding: 16px 0; border-left: 0; }
-  .cv-pf-matches li + li { border-top: 1px solid rgba(255, 255, 255, 0.16); }
+  .cv-pf-vs thead { display: none; }
+  .cv-pf-vs, .cv-pf-vs caption, .cv-pf-vs tbody, .cv-pf-vs tr { display: block; }
+  .cv-pf-vs tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; padding: 16px 0; border-bottom: 1px solid var(--pf-rule); }
+  .cv-pf-vs tbody th { grid-column: 1 / -1; width: auto; }
+  .cv-pf-vs th, .cv-pf-vs td { padding: 0; border: 0; font-size: 15px; }
+  .cv-pf-vs td::before { display: block; margin-bottom: 2px; font: 11.5px/1.4 var(--cv-mono); color: var(--pf-mute); }
+  .cv-pf-vs td:nth-of-type(1)::before { content: 'LLM directly'; }
+  .cv-pf-vs td:nth-of-type(2)::before { content: 'Curva'; color: var(--pf-win); }
 }
