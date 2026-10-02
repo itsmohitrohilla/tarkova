@@ -1,0 +1,123 @@
+/* scene: curve (INK, #how). Static = four finished panels stacked; html.cv-motion on desktop = one pinned
+   viewport with the panels layered and crossfaded by scroll (curve.js). */
+.cv-curve { --cu-gap: 14px; --cu-line: rgba(255, 255, 255, 0.16); --cu-dim: rgba(255, 255, 255, 0.64); background: var(--cv-ink); color: var(--cv-white); }
+.cv-cu-pin { padding: clamp(104px, 15vh, 168px) var(--cv-gutter) clamp(80px, 13vh, 150px); }
+.cv-cu-title { margin: 0 0 clamp(48px, 8vh, 104px); max-width: 17ch; font-size: clamp(38px, 5vw, 76px); font-weight: 600; line-height: 0.98; letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
+.cv-cu-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: clamp(72px, 11vh, 132px); }
+.cv-cu-step { display: grid; grid-template-columns: minmax(0, 4.4fr) minmax(0, 7fr); gap: clamp(28px, 5vw, 96px); align-items: center; }
+.cv-cu-copy h3 { margin: 0 0 14px; font-size: clamp(24px, 2.4vw, 36px); font-weight: 600; line-height: 1.08; letter-spacing: -0.02em; text-wrap: balance; }
+.cv-cu-step.is-last h3 { font-size: clamp(28px, 3.3vw, 52px); line-height: 1.02; letter-spacing: -0.03em; }
+.cv-cu-copy p { margin: 0; max-width: 38ch; color: var(--cu-dim); font-size: 17px; line-height: 1.5; }
+.cv-cu-rail { display: none; }
+
+/* shared marks: typed chips, probability bars, pixel numerals */
+.cv-cu-chip { display: inline-block; padding: 5px 10px 4px; border: 1px solid rgba(255, 255, 255, 0.34); border-radius: 4px; font: 500 13px/1 var(--cv-mono); letter-spacing: 0; white-space: nowrap; }
+.cv-cu-num { font: 500 26px/1 var(--cv-pixel); font-variant-numeric: tabular-nums; }
+.cv-cu-bar { display: block; height: 12px; color: rgba(255, 255, 255, 0.2); background: var(--cv-dots); background-size: 5px 5px; }
+.cv-cu-bar i { display: block; height: 100%; background: var(--cv-blue-hi); transform: scaleX(var(--v)); transform-origin: left; }
+
+/* 1 asked twice */
+.cv-cu-q { margin: 0 0 26px; font-size: 18px; line-height: 1.4; }
+.cv-cu-q span { color: var(--cu-dim); margin-left: 6px; }
+.cv-cu-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--cu-line); }
+.cv-cu-row[data-row='2'] { border-top-color: rgba(255, 255, 255, 0.5); }
+.cv-cu-row[data-row='2'] .cv-cu-num { color: var(--cv-white); }
+.cv-cu-rname { color: var(--cu-dim); font-size: 14px; }
+.cv-cu-row[data-row='2'] .cv-cu-rname { color: var(--cv-white); font-weight: 600; }
+.cv-cu-vec { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--cu-gap); }
+.cv-cu-cell { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'chip num' 'bar bar'; align-items: center; gap: 10px 8px; will-change: transform; }
+.cv-cu-cell .cv-cu-chip { grid-area: chip; justify-self: start; }
+.cv-cu-cell .cv-cu-num { grid-area: num; justify-self: end; color: var(--cu-dim); }
+.cv-cu-cell .cv-cu-bar { grid-area: bar; }
+
+/* 2 a probability for every label */
+.cv-cu-cols { list-style: none; margin: 0 0 26px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 150px)); gap: clamp(16px, 3vw, 40px); align-items: end; }
+.cv-cu-col { display: grid; gap: 12px; justify-items: start; }
+.cv-cu-col .cv-cu-num { font-size: clamp(30px, 3.4vw, 52px); color: var(--cu-dim); }
+.cv-cu-col.is-top .cv-cu-num { color: var(--cv-white); }
+.cv-cu-colbar { position: relative; display: block; width: 100%; height: clamp(170px, 30vh, 300px); border-bottom: 2px solid rgba(255, 255, 255, 0.6); }
+.cv-cu-colbar i { position: absolute; inset: 0; color: rgba(255, 255, 255, 0.55); background: var(--cv-dots); background-size: 6px 6px; clip-path: inset(calc((1 - var(--v)) * 100%) 0 0 0); }
+.cv-cu-col.is-top .cv-cu-colbar i { color: rgba(8, 6, 28, 0.4); background: var(--cv-dots), var(--cv-blue-hi); background-size: 6px 6px, auto; }
+.cv-cu-answer { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.cv-cu-answer code { padding: 7px 11px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); color: var(--cu-dim); font: 13px/1 var(--cv-mono); }
+.cv-cu-answer b { color: var(--cv-white); font-weight: 600; }
+
+/* 3 corrections come back */
+.cv-cu-post { margin: 0 0 18px; }
+.cv-cu-post code { font: 14px/1 var(--cv-mono); color: var(--cv-blue-soft); }
+.cv-cu-cells { list-style: none; margin: 0 0 24px; padding: 0; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; max-width: 520px; }
+.cv-cu-cells li { position: relative; aspect-ratio: 1; border: 1px solid var(--cu-line); color: rgba(255, 255, 255, 0.08); background: var(--cv-dots); background-size: 5px 5px; }
+.cv-cu-cells li.on { border-color: var(--cv-blue-hi); background: var(--cv-blue-hi); color: var(--cv-white); }
+.cv-cu-cells li.on.x { border-color: rgba(255, 255, 255, 0.6); background: var(--cv-dots); background-size: 4px 4px; color: rgba(255, 255, 255, 0.45); }
+.cv-cu-cells li.on::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--cv-white); font: 600 clamp(11px, 1.2vw, 17px)/1 var(--cv-mono); }
+.cv-cu-cells li.on.x::after { content: '✕'; background: var(--cv-ink); inset: 28%; }
+.cv-cu-count { display: flex; align-items: baseline; gap: 12px; margin: 0 0 12px; }
+.cv-cu-count b { font: 500 clamp(56px, 6.5vw, 104px)/0.9 var(--cv-pixel); font-variant-numeric: tabular-nums; }
+.cv-cu-count span { color: var(--cu-dim); font-size: 16px; }
+.cv-cu-fit { margin: 0; max-width: 42ch; color: var(--cu-dim); font-size: 15px; line-height: 1.45; }
+
+/* 4 the curve */
+.cv-cu-rel { display: grid; grid-template-columns: auto minmax(180px, 1fr); gap: clamp(20px, 3vw, 48px); align-items: end; }
+.cv-cu-plot { margin: 0; }
+.cv-cu-plot svg { display: block; width: min(100%, 60vh, 520px); height: auto; overflow: visible; }
+.cv-cu-frame { fill: none; stroke: rgba(255, 255, 255, 0.22); }
+.cv-cu-gridl { fill: none; stroke: rgba(255, 255, 255, 0.07); }
+.cv-cu-diag { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.5; stroke-dasharray: 5 6; }
+#cv-cu-ht circle { fill: var(--cv-blue-hi); }
+#cv-cu-ht2 circle { fill: var(--cv-white); }
+.cv-cu-gap { stroke: none; }
+.cv-cu-ghost { fill: none; stroke: rgba(255, 255, 255, 0.3); stroke-width: 1.5; stroke-dasharray: 2 5; }
+.cv-cu-line { fill: none; stroke: var(--cv-white); stroke-width: 2.5; stroke-linecap: round; }
+.cv-cu-dot { stroke: var(--cv-white); stroke-width: 1.5; }
+.cv-cu-mark path { fill: none; stroke: var(--cv-blue-soft); stroke-width: 1.2; stroke-dasharray: 3 4; }
+.cv-cu-mark text { fill: var(--cv-blue-soft); font: 500 17px var(--cv-pixel); }
+.cv-cu-tick { fill: rgba(255, 255, 255, 0.5); font: 500 14px var(--cv-pixel); }
+.cv-cu-axis { fill: rgba(255, 255, 255, 0.62); font: 13px var(--cv-sans); }
+.cv-cu-ece p { margin: 0 0 10px; color: var(--cu-dim); font-size: 15px; line-height: 1.45; max-width: 30ch; }
+.cv-cu-ece span { white-space: nowrap; }
+.cv-cu-ece .cv-cu-ecev { margin: 0 0 6px; color: var(--cv-white); }
+.cv-cu-ecev b { font: 500 clamp(64px, 7.2vw, 116px)/0.9 var(--cv-pixel); font-variant-numeric: tabular-nums; }
+.cv-cu-ece .cv-cu-src { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--cu-line); font-size: 13px; }
+
+/* motion, desktop: one pinned viewport, panels layered (pre-motion state: only panel 1 shows) */
+@media (min-width: 601px) {
+  html.cv-motion .cv-cu-pin { box-sizing: border-box; height: 100vh; height: 100svh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding-top: clamp(90px, 12vh, 128px); padding-bottom: clamp(22px, 4.5vh, 44px); }
+  html.cv-motion .cv-cu-title { margin-bottom: clamp(14px, 3vh, 40px); max-width: 22ch; font-size: clamp(34px, min(4.6vw, 7.2vh), 72px); }
+  html.cv-motion .cv-cu-steps { position: relative; display: block; }
+  html.cv-motion .cv-cu-step { position: absolute; inset: 0; will-change: opacity, transform; }
+  html.cv-motion .cv-cu-step:not(:first-child) { opacity: 0; visibility: hidden; }
+  html.cv-motion .cv-cu-rail { display: flex; align-items: center; gap: 16px; font: 500 15px/1 var(--cv-pixel); color: rgba(255, 255, 255, 0.36); }
+  html.cv-motion .cv-cu-rail span.on { color: var(--cv-white); }
+  html.cv-motion .cv-cu-rail i { order: 9; width: 160px; height: 2px; margin-left: 8px; background: var(--cv-white); transform: scaleX(0); transform-origin: left; }
+  html.cv-motion .cv-cu-colbar { height: clamp(150px, 28vh, 290px); }
+}
+@media (min-width: 601px) and (max-height: 760px) {
+  html.cv-motion .cv-cu-q { margin-bottom: 12px; }
+  html.cv-motion .cv-cu-row { padding: 10px 0; }
+}
+
+/* tablet: the art column needs room */
+@media (max-width: 960px) {
+  .cv-cu-step { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+  .cv-cu-rel { grid-template-columns: minmax(0, 1fr); }
+  .cv-cu-row { grid-template-columns: 1fr; gap: 8px; }
+}
+
+/* mobile: stacked panels, each scrubbed on its own */
+@media (max-width: 600px) {
+  .cv-curve { --cu-gap: 8px; }
+  .cv-cu-pin { padding-top: 88px; padding-bottom: 88px; }
+  .cv-cu-title { margin-bottom: 44px; }
+  .cv-cu-steps { gap: 72px; }
+  .cv-cu-step { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .cv-cu-copy p { font-size: 16px; }
+  .cv-cu-q { font-size: 16px; }
+  .cv-cu-chip { padding: 4px 6px 3px; font-size: 11.5px; }
+  .cv-cu-num { font-size: 20px; }
+  .cv-cu-cell { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'chip' 'num' 'bar'; gap: 6px; }
+  .cv-cu-cell .cv-cu-num { justify-self: start; }
+  .cv-cu-colbar { height: 180px; }
+  .cv-cu-cells { gap: 4px; }
+  .cv-cu-cells li.on::after { font-size: 11px; }
+  .cv-cu-ece p { max-width: none; }
+}

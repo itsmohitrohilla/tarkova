@@ -33,7 +33,6 @@ export const html = ({ c, esc, serif }) => {
   ]
   return `<section class="ck-scene ck-install" id="get-started" data-scene="install">
   <header class="ck-in-head">
-    <p class="ck-in-kicker">Get started</p>
     <h2>${serif('Up and running in *one minute*.')}</h2>
     <p class="ck-in-lede">One Docker image for the server, one package for your app.</p>
     <ul class="ck-in-reg" aria-label="Official packages">
@@ -48,7 +47,7 @@ export const html = ({ c, esc, serif }) => {
       <div class="ck-in-info">
         <span class="ck-in-num">01</span>
         <h3>${logo('docker', 30)}Run the server</h3>
-        <p>One container, every feature compiled in. It listens on three local ports:</p>
+        <p>One container, three local ports.</p>
         <dl class="ck-in-ports">${docker.ports.map(([port, what]) => `<div><dt>${esc(port)}</dt><dd>${esc(what)}</dd></div>`).join('')}</dl>
         <p class="ck-in-links">${link(docker.url, 'Docker Hub', esc)}${link(docker.docs, 'Docker guide', esc)}</p>
       </div>
@@ -59,7 +58,7 @@ export const html = ({ c, esc, serif }) => {
       <div class="ck-in-info">
         <span class="ck-in-num">02</span>
         <h3>Add the SDK</h3>
-        <p>Wrap the function that calls your model. Misses run it once; paraphrases are served from the cache.</p>
+        <p>Wrap your model call. Rephrasings hit the cache.</p>
       </div>
       <div class="ck-in-sdk">
         <div class="ck-in-tabs" role="radiogroup" aria-label="SDK language">
@@ -79,7 +78,7 @@ export const html = ({ c, esc, serif }) => {
       <div class="ck-in-info">
         <span class="ck-in-num">03</span>
         <h3>${serif('Done. Ask *twice*, pay once.')}</h3>
-        <p>Repeat questions now hit the cache. Bonus: give Claude Code or any agent the same memory over MCP.</p>
+        <p>Optional: connect Claude Code or any agent over MCP.</p>
       </div>
       ${term('MCP', cmd('', mcp, esc))}
     </li>
@@ -95,8 +94,8 @@ export function init(el, { gsap }) {
   // Refresh after the pinned scenes above so our starts include their spacing.
   const st = (o) => ({ refreshPriority: -1, scrub: 0.8, ...o })
 
-  // Header: kicker, title and lede rise into place at staggered depths; the registry logos stay still.
-  gsap.fromTo(el.querySelectorAll('.ck-in-kicker, .ck-in-head h2, .ck-in-lede'), { y: (i) => 40 + i * 30, opacity: 0.1 }, {
+  // Header: title and lede rise into place at staggered depths; the registry logos stay still.
+  gsap.fromTo(el.querySelectorAll('.ck-in-head h2, .ck-in-lede'), { y: (i) => 40 + i * 30, opacity: 0.1 }, {
     y: 0, opacity: 1, ease: 'power2.out', stagger: 0.15, scrollTrigger: st({ trigger: el.querySelector('.ck-in-head'), start: 'top 90%', end: 'top 40%' }),
   })
 

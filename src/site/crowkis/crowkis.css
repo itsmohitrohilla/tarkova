@@ -1,20 +1,21 @@
 /* /crowkis/ motion page: shared tokens + engine styles. Each scene's own styles live next to it. */
 @import './scenes/hero.css';
-@import './scenes/who.css';
 @import './scenes/problem.css';
 @import './scenes/pipeline.css';
+@import './scenes/who.css';
 @import './scenes/voice.css';
 @import './scenes/capabilities.css';
 @import './scenes/explain.css';
 @import './scenes/install.css';
-@import './scenes/play.css';
 @import './scenes/finale.css';
 
 .ck {
-  --ck-red: #d50000;
-  --ck-red-deep: #8f0000;
-  --ck-ink: #111111;
-  --ck-paper: #ededea;
+  /* Crowkis identity, Route 02: Ember Red, Dried Wine, Raven Ink, and a Warm Sand-tinted paper. */
+  --ck-red: #c41a1a;
+  --ck-red-deep: #452121;
+  --ck-ink: #1a1c25;
+  --ck-paper: #faf2ea;
+  --ck-red-lt: #d65f5f; /* Ember tinted 30% toward white: red text on ink grounds (4.6:1) */
   --ck-white: #ffffff;
   --ck-dim: #9a9ea7;
   --ck-sans: 'Funnel Sans', system-ui, sans-serif;
@@ -27,9 +28,6 @@
 }
 .ck-scene { position: relative; }
 /* The footer tucks over the red finale, so its rounded top corners show red, not page background. */
-/* Who and Problem are both ink: close the stacked padding so they read as one dark chapter. */
-.ck-who + .ck-problem { padding-top: clamp(40px, 6vh, 72px); }
-
 body:has(.ck) .foot { margin-top: -32px; position: relative; z-index: 1; }
 
 /* Lenis */

@@ -1,25 +1,24 @@
 // Scene "explain" (Explained): the plain-language deep dive. One-sentence statement → eight-tile feature bento →
-// what it deliberately doesn't do → editions (Community vs Enterprise comparison). White ground. All copy is
-// first-party (crowkis.com). The static layout is the finished state: every tile's micro-visual renders finished,
-// init only loops it while on screen, and the edition marks only get a scroll-scrubbed entrance.
+// what it deliberately doesn't do. White ground. All copy is first-party (crowkis.com). The static layout is the
+// finished state: every tile's micro-visual renders finished, and init only loops it while on screen.
 //   id                       matches data-scene on the root <section>
 //   html(ctx) -> string      Node only, no DOM. ctx = { p, c, latest, esc, serif, card }
 //   init(el, m)              browser only; m = { gsap, ScrollTrigger, lenis }
 export const id = 'explain'
 
 // [group] marks the word groups that turn red as you scroll.
-const SENTENCE = 'A [drop-in] cache, written in [Rust], that [understands] what your LLM is being asked and only reuses an answer when it can [justify] that reuse.'
+const SENTENCE = 'A [drop-in] cache, written in [Rust], that [understands] questions and reuses an answer only when it is [safe].'
 
 // Bento tiles: [key, size (l = hero, s = small, w = full width), title, tag, one plain line].
 const FEATURES = [
-  ['code', 'l', 'One-line integration', 'get_or_compute', 'Hand it the question and your model call. On a safe hit your model never runs; on a miss it runs once and the answer is banked.'],
-  ['stream', 's', 'Streaming', '', 'Cached answers stream back chunk by chunk, so a hit feels like live model output.'],
-  ['image', 's', 'Images too', '', 'An image and its text are matched together, as one entry.'],
-  ['reason', 's', 'Reasoning reuse', '', 'Saves the expensive part, the reasoning, not just the final words.'],
-  ['thresh', 's', 'Adaptive thresholds', '', 'Each intent tunes its own bar from live hit and miss feedback. Where mistakes hurt, the bar goes up.'],
-  ['mcp', 's', 'Works with your AI coding assistant', 'MCP', 'Claude Code and other MCP apps check the cache before spending tokens.'],
-  ['dash', 'l', 'See everything', '', 'Every hit, miss and block with its confidence score, live. Plus Prometheus /metrics and OpenTelemetry.'],
-  ['upgrade', 'w', 'Survives model upgrades', '', 'Canary a new model, compare quality, then migrate entries, so your warm cache survives the upgrade.'],
+  ['code', 'l', 'One-line integration', 'get_or_compute', 'Wrap your model call. A safe hit skips it; a miss runs it once.'],
+  ['stream', 's', 'Streaming', '', 'Hits stream back like live model output.'],
+  ['image', 's', 'Images too', '', 'An image and its text match as one entry.'],
+  ['reason', 's', 'Reasoning reuse', '', 'Reuses the reasoning, not just the words.'],
+  ['thresh', 's', 'Adaptive thresholds', '', 'Each intent tunes its own bar. Riskier means stricter.'],
+  ['mcp', 's', 'Works with coding assistants', 'MCP', 'Claude Code checks the cache before spending tokens.'],
+  ['dash', 'l', 'See everything', '', 'Every hit, miss and block, live. Prometheus and OpenTelemetry built in.'],
+  ['upgrade', 'w', 'Survives model upgrades', '', 'Canary a new model, then migrate. Your cache stays warm.'],
 ]
 
 // Shared by the server markup (first rows) and the live feed in init.
@@ -37,14 +36,14 @@ const BARS = Array.from({ length: 28 }, (_, i) => {
 const THRESH = [['factual', 0.88], ['personal', 0.94], ['creative', 0.70]]
 const ENTRIES = ['refunds', 'pricing', 'passwords', 'shipping']
 
-const row = ([k, v, s, q]) => `<li class="is-${k}"><b>${v}</b><span>${s || '—'}</span><span>${q}</span></li>`
+const row = ([k, v, s, q]) => `<li class="is-${k}"><b>${v}</b><span>${s || '·'}</span><span>${q}</span></li>`
 const bar = ([k, h]) => `<i class="is-${k}" style="--h:${h.toFixed(2)}"></i>`
 
 // Each micro-visual's server markup is its finished state (what reduced motion sees); init only loops away and back.
 const VIZ = {
   code: () => `<div class="ck-ex-code">
         <p class="ck-ex-status"><span class="ck-ex-pill is-hit" data-pill>HIT 0.94</span><span data-note>model not called</span></p>
-        <pre><code><span class="ln"><i>1</i>q = <span class="s" data-q>"What’s your refund window?"</span></span><span class="ln"><i>2</i>answer = cache.<b>get_or_compute</b>(q, <span class="fn is-off" data-fn>call_model<span class="run"></span></span>)</span><span class="ln"><i>3</i><span class="cm" data-cm># served from cache in 4 ms</span></span></code></pre>
+        <pre><code><span class="ln"><i>1</i>q = <span class="s" data-q>"What’s your refund window?"</span></span><span class="ln"><i>2</i>answer = cache.<b>get_or_compute</b>(q, <span class="fn is-off" data-fn>call_model<span class="run"></span></span>)</span><span class="ln"><i>3</i><span class="cm" data-cm># served from cache</span></span></code></pre>
       </div>`,
   stream: () => `<div class="ck-ex-chat">
         <p class="ck-ex-q">How do refunds work?</p>
@@ -53,7 +52,7 @@ const VIZ = {
       </div>`,
   image: () => `<div class="ck-ex-ent">
         <span class="ck-ex-tag">entry #4821</span>
-        <div class="ck-ex-img"><svg viewBox="0 0 120 84" preserveAspectRatio="xMidYMid slice"><rect width="120" height="84" fill="#ededea"/><circle cx="84" cy="30" r="13" fill="#d50000"/><path d="M0 84 L0 58 L28 36 L52 60 L70 46 L120 72 L120 84Z" fill="#111"/><path d="M0 84 L0 70 L40 56 L78 74 L120 64 L120 84Z" fill="#9a9ea7"/></svg><span class="scan"></span></div>
+        <div class="ck-ex-img"><svg viewBox="0 0 120 84" preserveAspectRatio="xMidYMid slice"><rect width="120" height="84" style="fill:var(--ck-paper)"/><circle cx="84" cy="30" r="13" style="fill:var(--ck-red)"/><path d="M0 84 L0 58 L28 36 L52 60 L70 46 L120 72 L120 84Z" style="fill:var(--ck-ink)"/><path d="M0 84 L0 70 L40 56 L78 74 L120 64 L120 84Z" style="fill:var(--ck-dim)"/></svg><span class="scan"></span></div>
         <span class="ck-ex-plus2">+</span>
         <p class="ck-ex-cap">“a red sun over two hills”</p>
         <span class="ck-ex-pill is-hit" data-pill>match 0.91</span>
@@ -87,38 +86,13 @@ const VIZ = {
       </div>`,
 }
 const NOT = [
-  ['Not a replacement for your LLM', 'It sits in front and decides reuse vs recompute.'],
-  ['Not a vector database for RAG', 'Keep your RAG store, put Crowkis in front of the model calls.'],
-  ['Never phones home', 'Offline license check, runs fully air-gapped.'],
-  ['No surprises on a miss', 'A miss is a pass-through: exactly what happened before Crowkis.'],
+  ['Not a replacement for your LLM', 'It decides: reuse or recompute.'],
+  ['Not a vector database for RAG', 'Keep your RAG store. Crowkis fronts the model.'],
+  ['Never phones home', 'Runs fully air-gapped.'],
+  ['No surprises on a miss', 'A miss passes straight through.'],
 ]
 
-// Editions, framed like crowkis.com/enterprise: one comparison, Community | Enterprise, grouped by what's shared,
-// how far it scales and what Enterprise adds. A cell is true (included), false (not) or a short value.
-const ED_GROUPS = [
-  ['In both', [
-    ['Full engine, all seven differentiators', '', true, true],
-    ['Same signed binary', 'A licence file flips the tier at boot.', true, true],
-    ['Runs fully air-gapped', 'Offline licence check. Never phones home.', true, true],
-  ]],
-  ['Scale', [
-    ['Tenants', '', 'Up to 3', 'Unlimited'],
-    ['Cache entries', '', '100K', 'Unlimited'],
-  ]],
-  ['Enterprise adds', [
-    ['Virtual API keys', 'Per-key budgets and rate limits.', false, true],
-    ['SSO / SAML', '', false, true],
-    ['Audit log', '', false, true],
-    ['Crowkis Replay on your own traffic', 'See your real savings before you spend.', false, true],
-  ]],
-]
-
-// Included = red check, not included = dim dash; both carry a spoken label.
-const cell = (v, esc) => v === true ? '<span class="ck-ex-mk is-yes" role="img" aria-label="Included"></span>'
-  : v === false ? '<span class="ck-ex-mk is-no" role="img" aria-label="Not included"></span>'
-  : `<span class="ck-ex-val">${esc(v)}</span>`
 const pad = (i) => String(i + 1).padStart(2, '0')
-const ext = (href, text, esc, cursor = 'Open') => `<a href="${esc(href)}" target="_blank" rel="noopener" data-cursor="${cursor}">${esc(text)} <span aria-hidden="true">↗</span></a>`
 
 // Words become spans (scrubbed from faint to solid); [groups] become <em> with a red rule that draws under them.
 const sentence = (esc) =>
@@ -130,18 +104,11 @@ const sentence = (esc) =>
 
 export const html = ({ esc, serif }) => `<section class="ck-scene ck-explain" id="explained" data-scene="explain" aria-labelledby="ck-ex-one">
   <div class="ck-ex-one">
-    <p class="ck-ex-kicker">Explained · in one sentence</p>
     <h2 id="ck-ex-one" class="ck-ex-sentence">${sentence(esc)}</h2>
   </div>
 
   <div class="ck-ex-feat">
-    <header>
-      <div>
-        <p class="ck-ex-kicker">What you get</p>
-        <h2 class="ck-ex-h">${serif('What you get, *explained*.')}</h2>
-      </div>
-      <p class="ck-ex-lede">Eight things Crowkis does, one plain line each.</p>
-    </header>
+    <h2 class="ck-ex-h">${serif('Eight features, *explained*.')}</h2>
     <ul class="ck-ex-bento">
       ${FEATURES.map(([k, size, t, tag, x], i) => `<li class="ck-ex-tile is-${size} is-${k}"><article>
       <div class="ck-ex-viz" aria-hidden="true">${VIZ[k]()}</div>
@@ -151,44 +118,15 @@ export const html = ({ esc, serif }) => `<section class="ck-scene ck-explain" id
   </div>
 
   <div class="ck-ex-not">
-    <p class="ck-ex-kicker">Deliberately not</p>
     <h2 class="ck-ex-h">${serif('What it *doesn’t* do.')}</h2>
     <ul class="ck-ex-nots">
       ${NOT.map(([t, x]) => `<li><span class="ck-ex-x" aria-hidden="true"></span><h3>${esc(t)}</h3><p>${esc(x)}</p></li>`).join('\n      ')}
     </ul>
   </div>
-
-  <div class="ck-ex-ed">
-    <p class="ck-ex-kicker">Editions</p>
-    <h2 class="ck-ex-h">${serif('Free to run. *Flat* to scale.')}</h2>
-    <table class="ck-ex-cmp">
-      <caption class="ck-ex-sr">Community and Enterprise editions compared</caption>
-      <thead><tr>
-        <td class="ck-ex-intro"><p class="ck-ex-lede">Free is not a trial. Run Community in production for as long as you like; Enterprise is for when you outgrow it.</p></td>
-        <th scope="col" class="is-c"><div class="ck-ex-eh">
-          <h3>Community</h3>
-          <p class="ck-ex-lead">Free forever</p>
-          <p class="ck-ex-note">No licence, no sign-up. Solo devs and small teams can run it in production.</p>
-          <p class="ck-ex-acts"><a class="ck-ex-btn is-red" href="#get-started" data-cursor="Install">Get started</a></p>
-        </div></th>
-        <th scope="col" class="is-e"><div class="ck-ex-eh">
-          <h3>Enterprise</h3>
-          <p class="ck-ex-lead">Flat per cluster per year</p>
-          <p class="ck-ex-note">No usage metering. No checkout, a conversation.</p>
-          <p class="ck-ex-acts"><a class="ck-ex-btn is-white" href="mailto:contact@crowkis.com" data-cursor="Email">Talk to us</a>${ext('https://www.crowkis.com/enterprise', 'See Enterprise', esc)}</p>
-        </div></th>
-      </tr></thead>
-      ${ED_GROUPS.map(([g, rows]) => `<tbody>
-        <tr class="ck-ex-grp"><th scope="rowgroup">${esc(g)}</th><td class="is-c"></td><td class="is-e"></td></tr>
-        ${rows.map(([t, sub, c, e]) => `<tr><th scope="row">${esc(t)}${sub ? `<small>${esc(sub)}</small>` : ''}</th>${[['is-c', c], ['is-e', e]].map(([k, v]) => `<td class="${k}">${cell(v, esc)}</td>`).join('')}</tr>`).join('\n        ')}
-      </tbody>`).join('\n      ')}
-    </table>
-  </div>
 </section>`
 
 // Ambient loops, one per tile. Each is built paused from the finished state, departs after `hold` seconds and
 // ends back on the finished state, so pausing anywhere or wrapping to 0 never jumps.
-const RED = '#d50000'
 const LOOP = {
   code(v, gsap, hold) {
     const q = v.querySelector('[data-q]'), fn = v.querySelector('[data-fn]'), cm = v.querySelector('[data-cm]')
@@ -201,15 +139,15 @@ const LOOP = {
       .call(set(false, '"How do refunds work?"', 'MISS', 'calling model…', '# first time anyone asked'), null, hold)
       .fromTo(fn.querySelector('.run'), { scaleX: 0 }, { scaleX: 1, duration: 1.3, ease: 'none', immediateRender: false }, '+=0.2')
       .call(set(false, '"How do refunds work?"', 'MISS', 'model ran once', '# answer banked for next time'))
-      .call(set(true, '"What’s your refund window?"', 'HIT 0.94', 'model not called', '# served from cache in 4 ms'), null, '+=1.8')
+      .call(set(true, '"What’s your refund window?"', 'HIT 0.94', 'model not called', '# served from cache'), null, '+=1.8')
       .set({}, {}, '+=1.4')
   },
-  stream(v, gsap, hold) {
-    const c = [...v.querySelectorAll('.c')], pill = v.querySelector('[data-pill]')
+  stream(v, gsap, hold, red) {
+    const c = [...v.querySelectorAll('.c')], pill = v.querySelector('[data-pill]'), [r, g, b] = gsap.utils.splitColor(red)
     return gsap.timeline({ repeat: -1, paused: true })
       .to([...c, pill], { opacity: 0, duration: 0.35 }, hold)
       .to(c, { opacity: 1, duration: 0.15, stagger: 0.45 }, '+=0.4')
-      .fromTo(c, { backgroundColor: 'rgba(213, 0, 0, 0.18)' }, { backgroundColor: 'rgba(213, 0, 0, 0)', duration: 0.6, stagger: 0.45, immediateRender: false }, '<')
+      .fromTo(c, { backgroundColor: `rgba(${r}, ${g}, ${b}, 0.18)` }, { backgroundColor: `rgba(${r}, ${g}, ${b}, 0)`, duration: 0.6, stagger: 0.45, immediateRender: false }, '<')
       .to(pill, { opacity: 1, duration: 0.3 }, '-=0.2')
       .set({}, {}, '+=1')
   },
@@ -226,9 +164,9 @@ const LOOP = {
       .to(pill, { opacity: 1, duration: 0.3 }, '<')
       .set({}, {}, '+=1.2')
   },
-  reason(v, gsap, hold) {
+  reason(v, gsap, hold, red) {
     const nd = v.querySelectorAll('.nd'), on = v.querySelectorAll('.on'), pill = v.querySelector('[data-pill]')
-    const lit = { fill: RED, stroke: RED, duration: 0.25 }, draw = { attr: { 'stroke-dashoffset': 0 }, duration: 0.55, ease: 'power1.inOut' }
+    const lit = { fill: red, stroke: red, duration: 0.25 }, draw = { attr: { 'stroke-dashoffset': 0 }, duration: 0.55, ease: 'power1.inOut' }
     return gsap.timeline({ repeat: -1, paused: true })
       .to(nd, { fill: '#ffffff', stroke: '#c9cbd0', duration: 0.4 }, hold)
       .to(on, { attr: { 'stroke-dashoffset': 1 }, duration: 0.4 }, '<')
@@ -276,7 +214,7 @@ const LOOP = {
       // Feed: the bottom row is recycled as the newest one on top.
       const li = feed.lastElementChild
       li.className = `is-${f[0]}`
-      ;[li.children[0].textContent, li.children[1].textContent, li.children[2].textContent] = [f[1], f[2] || '—', f[3]]
+      ;[li.children[0].textContent, li.children[1].textContent, li.children[2].textContent] = [f[1], f[2] || '·', f[3]]
       feed.prepend(li)
       gsap.fromTo(feed.children, { y: -li.offsetHeight }, { y: 0, duration: 0.5, ease: 'power3.out' })
       gsap.fromTo(li, { opacity: 0 }, { opacity: 1, duration: 0.4 })
@@ -313,8 +251,9 @@ export function init(el, { gsap, ScrollTrigger }) {
 
   // Bento tiles: each micro-visual loops gently, starting from (and returning to) its finished state, and only
   // while its tile is on screen. Holds differ per tile so neighbours don't pulse in sync.
+  const red = getComputedStyle(el).getPropertyValue('--ck-red').trim()
   $$('.ck-ex-tile').forEach((t, i) => {
-    const tl = LOOP[t.className.match(/is-(\w+)$/)[1]](t.querySelector('.ck-ex-viz'), gsap, 1.6 + (i % 3) * 0.7)
+    const tl = LOOP[t.className.match(/is-(\w+)$/)[1]](t.querySelector('.ck-ex-viz'), gsap, 1.6 + (i % 3) * 0.7, red)
     ScrollTrigger.create(st({ trigger: t, start: 'top bottom', end: 'bottom top', onToggle: (s) => (s.isActive ? tl.play() : tl.pause()) }))
   })
 
@@ -324,12 +263,6 @@ export function init(el, { gsap, ScrollTrigger }) {
     gsap.fromTo($$('.ck-ex-nots > li'), { y: (i) => 30 + (i % n) * 50 }, {
       y: (i) => -(i % n) * 20, ease: 'none', scrollTrigger: st({ trigger: $('.ck-ex-nots'), start: 'top bottom', end: 'bottom top', scrub: 1 }),
     })
-  })
-
-  // Editions: the marks and values land row by row as the comparison scrolls through.
-  gsap.to($$('.ck-ex-cmp tbody :is(.ck-ex-mk, .ck-ex-val)'), {
-    opacity: 1, scale: 1, ease: 'power2.out', stagger: 0.06,
-    scrollTrigger: st({ trigger: $('.ck-ex-cmp tbody'), start: 'top 85%', endTrigger: $('.ck-ex-cmp'), end: 'bottom 70%', scrub: 0.8 }),
   })
 
   // Tiles: spotlight follows the pointer and the tile tilts toward it. Fine pointers only.

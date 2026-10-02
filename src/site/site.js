@@ -41,6 +41,8 @@ if (wordmark && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
 // The Crowkis page's motion engine, only where its scenes are on the page.
 const ck = document.querySelector('[data-ck]')
 if (ck) import('./crowkis/motion.js').then((m) => m.start(ck))
+const cv = document.querySelector('[data-cv]')
+if (cv) import('./curva/motion.js').then((m) => m.start(cv))
 
 // Copy buttons: a code block's source, or the URL in data-copy.
 document.addEventListener('click', (e) => {

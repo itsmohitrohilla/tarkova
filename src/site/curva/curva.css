@@ -1,0 +1,40 @@
+/* /curva/ "calibration lab" page: shared tokens + engine styles. Each scene's own styles live next to it. */
+@import './scenes/hero.css';
+@import './scenes/problem.css';
+@import './scenes/curve.css';
+@import './scenes/handover.css';
+@import './scenes/usecases.css';
+@import './scenes/proof.css';
+@import './scenes/start.css';
+@import './scenes/close.css';
+
+@font-face {
+  font-family: 'Pixelify Sans';
+  src: url('/PixelifySans.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+.cv {
+  /* Curva blue is sampled from the logo; the rest is a print-lab palette: ink, paper, halftone. */
+  --cv-blue: #1800ad;
+  --cv-blue-hi: #3d2dff;
+  --cv-blue-soft: #e9e7ff;
+  --cv-ink: #08061c;
+  --cv-paper: #f3f2ec;
+  --cv-white: #ffffff;
+  --cv-dim: #6f6c86;
+  --cv-sans: 'Funnel Sans', system-ui, sans-serif;
+  --cv-pixel: 'Pixelify Sans', ui-monospace, monospace;
+  --cv-serif: 'Instrument Serif', Georgia, serif;
+  --cv-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cv-ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --cv-gutter: clamp(20px, 4vw, 64px);
+  /* Halftone dot field, the brand's texture (from the dotted "C"). Tint with background-color. */
+  --cv-dots: radial-gradient(circle, currentColor 1.2px, transparent 1.7px) 0 0 / 12px 12px;
+  margin-top: -58px; /* run under the sticky nav */
+  overflow-x: clip;
+  font-family: var(--cv-sans);
+}
+.cv-scene { position: relative; }
+body:has(.cv) .foot { margin-top: 0; }

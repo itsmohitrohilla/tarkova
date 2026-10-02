@@ -1,16 +1,11 @@
-// Scene "finale": the latest posts on paper, then the closing call to action. The red stage opens out of
-// a crow app-icon card to full bleed, the headline rises word by word ("twice" last), and the stage settles
+// Scene "finale": the closing call to action. The Ember → Wine stage opens out of a crow app-icon card to full bleed, the headline rises word by word ("twice" last), and the stage settles
 // into a rounded card as the footer arrives. The crow mark itself never animates (owner's rule).
 export const id = 'finale'
 
 // One mask per word, so words rise through it wherever the line happens to wrap.
 const words = (t, serif) => t.split(' ').map((w) => `<span class="ck-fin-w"><span>${serif(w)}</span></span>`).join(' ')
 
-export const html = ({ p, latest, esc, serif, card }) => `<section class="ck-scene ck-finale" data-scene="finale">
-${latest.length ? `<section class="ck-fin-posts" aria-labelledby="ck-fin-posts-h">
-<div class="ck-fin-head"><p class="ck-fin-kicker">From the blog</p><h2 id="ck-fin-posts-h">${words('Go *deeper*.', serif)}</h2><a class="ck-fin-all" href="/blog/">All articles <span aria-hidden="true">→</span></a></div>
-<ul class="grid" role="list">${latest.map((q) => card(q, 'h3')).join('')}</ul>
-</section>` : ''}
+export const html = ({ p, esc, serif }) => `<section class="ck-scene ck-finale" data-scene="finale">
 <div class="ck-fin-cta"><div class="ck-fin-frame"><section class="ck-fin-stage" aria-labelledby="ck-fin-cta-h">
 <img class="ck-fin-mark" src="${p.mark[0]}" alt="" width="${p.mark[1]}" height="${p.mark[2]}" />
 <h2 id="ck-fin-cta-h">${words('Stop paying *twice* for the same answer.', serif)}</h2>
@@ -23,11 +18,6 @@ export function init(el, { gsap }) {
   const cta = el.querySelector('.ck-fin-cta')
   const stage = el.querySelector('.ck-fin-stage')
   const mark = el.querySelector('.ck-fin-mark')
-  const rise = (ws) => gsap.fromTo(ws, { yPercent: 110 }, { yPercent: 0, ease: 'none', stagger: 0.12 })
-
-  // "Go deeper." rises through its masks as the heading comes up.
-  const head = el.querySelector('.ck-fin-head')
-  if (head) gsap.timeline({ scrollTrigger: { trigger: head, start: 'top 90%', end: 'top 50%', scrub: 1 } }).add(rise(q('.ck-fin-head .ck-fin-w > span')))
 
   // The stage starts as a rounded red card framing the crow (the Crowkis app icon), in px from the mark.
   const icon = () => {
@@ -48,13 +38,7 @@ export function init(el, { gsap }) {
     .fromTo(q('.ck-fin-links li'), { y: 48, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, stagger: 0.08, ease: 'power3.out' }, '>-0.2')
     .to({}, { duration: 0.4 }) // hold the finished frame before letting go
 
-
   const mm = gsap.matchMedia()
-
-  // Three columns drift at different speeds, aligned mid-screen.
-  mm.add('(min-width: 901px)', () => {
-    gsap.fromTo(q('.ck-finale .grid > li'), { y: (i) => i * 56 }, { y: (i) => i * -56, ease: 'none', scrollTrigger: { trigger: '.ck-finale .grid', start: 'top bottom', end: 'bottom top', scrub: true } })
-  })
 
   // Magnetic buttons: within reach, the button leans toward the pointer and its label a little further.
   mm.add('(pointer: fine) and (min-width: 601px)', () => {

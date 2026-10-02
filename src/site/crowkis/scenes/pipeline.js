@@ -2,17 +2,18 @@
 // with one example query ("What's the refund timeline?"):
 //   01 Ask         the question, set huge.
 //   02 Understand  its letters dissolve into dots that settle into a 32 × 12 embedding; one row (the intent) lights red.
-//   03 Check       the embedding squeezes into a band and flows left → right through five thin gates; at each gate a few
-//                  near-misses stop and drop away, the rest pass and redden. A gate turns red once most of the stream is through.
-//   04 Answer      the survivors converge into one red dot just past the last gate: 0.4 ms, served from cache.
+//   03 Check       the embedding gathers into one candidate-answer cluster beside a five-row scorecard. Each check's bar
+//                  fills and its tick lands; a few near-misses peel off and fade, the cluster tightens and turns ink → red.
+//   04 Answer      after the fifth tick the cluster collapses into one red dot (same centre): 0.4 ms, served from cache.
 // Motion pins one full-viewport stage; the particles are a pure function of the pin's timeline time (plus a small
 // ambient drift), so scrolling back plays it in reverse. The canvas reads its geometry from the DOM (the question's
-// words, the grid box, the gates, the dot), so CSS owns the layout at every width. Static (reduced motion) is the
-// finished story: the four steps in order, with a CSS dot grid, the gates and the readout.
+// words, the grid box, the cluster box, the dot), so CSS owns the layout at every width. Static (reduced motion) is
+// the finished story: the four steps in order, with a CSS dot grid, the finished scorecard and the readout.
 export const id = 'pipeline'
 
 const LINES = [['What’s', 'the'], ['refund', 'timeline?']]
-const GATES = ['similarity', 'template', 'confidence', 'trust', 'freshness']
+// [name, example value, bar fill, threshold]. Values are for the example query only (labelled as such).
+const CHECKS = [['similarity', '0.94', 0.94], ['template', '', 1], ['confidence', '0.91 ≥ 0.88', 0.91, 0.88], ['trust', '', 1], ['freshness', '', 1]]
 const COLS = 32, ROWS = 12, HOT = 5 // the embedding grid and its intent row
 
 // Each step's art. In motion it is also the geometry the canvas reads.
@@ -20,8 +21,13 @@ const ART = [
   `<p class="ck-pl-q"><small>CGET</small>${LINES.map((l) => `<span class="ck-pl-line">${l.map((w) => `<span class="ck-pl-w">${w}</span>`).join(' ')}</span>`).join(' ')}</p>`,
   `<div class="ck-pl-embed"><span class="ck-pl-grid" aria-hidden="true"></span><p class="ck-pl-lbl">meaning + structure · <b>intent: factual</b></p></div>`,
   `<div class="ck-pl-check">
-          <ol class="ck-pl-gates">${GATES.map((g) => `<li><i aria-hidden="true"></i><span>${g}</span></li>`).join('')}</ol>
-          <p class="ck-pl-why"><code>crowkis why</code> walks the five gates for any query.</p>
+          <span class="ck-pl-cluster" aria-hidden="true"></span>
+          <div class="ck-pl-card">
+            <p class="ck-pl-eg">Example query <span>“What’s the refund timeline?”</span></p>
+            <ol class="ck-pl-checks">${CHECKS.map(([n, v, f, min]) => `<li><span class="ck-pl-name">${n}</span><span class="ck-pl-bar"${min ? ' data-min' : ''} style="--v:${f}${min ? `;--min:${min}` : ''}" aria-hidden="true"><i></i></span><span class="ck-pl-val">${v}</span><svg class="ck-pl-tick" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.5l3.6 3.6L13.5 4" pathLength="1"/></svg></li>`).join('')}</ol>
+            <p class="ck-pl-pass"><b>5 / 5</b> passed · reuse the cached answer</p>
+            <p class="ck-pl-why"><code>crowkis why</code> walks the five checks for any query.</p>
+          </div>
         </div>`,
   `<div class="ck-pl-ans">
           <i class="ck-pl-dot" aria-hidden="true"></i>
@@ -45,7 +51,6 @@ const TRY = [
 
 export const html = ({ c, esc, serif }) => `<section class="ck-scene ck-pipeline" id="how" data-scene="pipeline">
   <header class="ck-pl-head">
-    <p class="ck-pl-kicker">How it works</p>
     <h2>${serif('From question to answer in *four* steps.')}</h2>
   </header>
   <div class="ck-pl-stage">
@@ -60,7 +65,7 @@ export const html = ({ c, esc, serif }) => `<section class="ck-scene ck-pipeline
   </div>
   <div class="ck-pl-code">
     <div class="ck-pl-try">
-      <div><p class="ck-pl-kicker">Try it</p><h3>${serif('Three commands. *That’s the idea.*')}</h3></div>
+      <div><h3>${serif('Three commands. *That’s the idea.*')}</h3></div>
       <p>Store an answer once. Ask it again in different words, and it still comes back from cache.</p>
     </div>
     <figure class="ck-pl-term">
@@ -72,8 +77,8 @@ export const html = ({ c, esc, serif }) => `<section class="ck-scene ck-pipeline
 </section>`
 
 // Timeline beats (timeline seconds; the pin maps scroll onto 0 → END).
-// flow: the check step (grid → band over `band`, then the band travels from `go` until everything reaches the dot).
-const B = { dissolve: 1.25, fly: [1.45, 3.5], row: 3.8, flow: [4.7, 8.5], band: 0.8, go: 5.1, fade: 8.6, END: 10 }
+// flow: the check step starts (grid → cluster over `band`); check k's tick lands at `checks[k]`; then `collapse` into the dot.
+const B = { dissolve: 1.25, fly: [1.45, 3.5], row: 3.8, flow: 4.7, band: 0.9, checks: [5.95, 6.35, 6.75, 7.15, 7.55], collapse: [7.8, 8.5], fade: 8.6, END: 10 }
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v)
 const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2) // cubic in-out
 // Staggered local progress: particle with stagger s (0..1) runs its own slice of [t0, t1].
@@ -94,17 +99,18 @@ export async function init(el, { gsap, ScrollTrigger }) {
       scrollTrigger: { trigger: '.ck-pl-head', start: 'top 88%', end: 'top 40%', scrub: 0.8 },
     }),
   })
-  gsap.from($('.ck-pl-head .ck-pl-kicker'), { x: -40, opacity: 0, ease: 'power2.out', scrollTrigger: { trigger: '.ck-pl-head', start: 'top 92%', end: 'top 60%', scrub: 0.8 } })
 
   // ---------- The pinned stage ----------
   const stage = $('.ck-pl-stage'), cv = $('.ck-pl-cv'), ctx = cv.getContext('2d')
-  const copies = $$('.ck-pl-copy'), gates = $$('.ck-pl-gates li'), bars = $$('.ck-pl-gates i'), names = $$('.ck-pl-gates span')
+  const copies = $$('.ck-pl-copy'), rows = $$('.ck-pl-checks li'), fills = $$('.ck-pl-bar i'), vals = $$('.ck-pl-val'), ticks = $$('.ck-pl-tick path')
+  const card = [$('.ck-pl-eg'), ...rows, $('.ck-pl-pass'), $('.ck-pl-why')]
   const mobile = () => innerWidth <= 900
   let on = false // the pin is active
 
   gsap.set(copies.slice(1), { autoAlpha: 0, y: 24 })
-  gsap.set([$('.ck-pl-lbl'), $('.ck-pl-why'), $('.ck-pl-read'), ...names], { autoAlpha: 0 })
-  gsap.set(bars, { scaleY: 0 })
+  gsap.set([$('.ck-pl-lbl'), $('.ck-pl-read'), ...card, ...vals], { autoAlpha: 0 })
+  gsap.set(fills, { scaleX: 0 })
+  gsap.set(ticks, { strokeDashoffset: 1 })
   gsap.set($('.ck-pl-dot'), { scale: 0 })
   gsap.set($('.ck-pl-read'), { y: 30 })
 
@@ -122,24 +128,29 @@ export async function init(el, { gsap, ScrollTrigger }) {
   seq.to($('.ck-pl-q'), { autoAlpha: 0, duration: 0.35 }, B.dissolve + 0.05) // the letters hand over to their dots
   swap(1, 1.9)
   seq.to($('.ck-pl-lbl'), { autoAlpha: 1, duration: 0.4 }, B.row + 0.1)
-    .to($('.ck-pl-lbl'), { autoAlpha: 0, duration: 0.3 }, B.flow[0] - 0.2)
+    .to($('.ck-pl-lbl'), { autoAlpha: 0, duration: 0.3 }, B.flow - 0.2)
   swap(2, 4.6)
-  seq.to(bars, { scaleY: 1, duration: 0.6, stagger: 0.1, ease: 'power2.out' }, B.flow[0])
-    .to(names, { autoAlpha: 1, duration: 0.4, stagger: 0.1 }, B.flow[0] + 0.2)
-    .to($('.ck-pl-why'), { autoAlpha: 1, duration: 0.4 }, 5.4)
+  // Scorecard: label + rows come up while the cluster gathers; then each check scores in turn (bar fills, value
+  // shows, tick draws), the verdict line after the fifth, and the card clears as the dot takes over.
+  seq.fromTo(card.slice(0, 6), { y: 12 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.06, ease: 'power2.out' }, B.flow + 0.62) // once the gather has mostly landed
+    .to(card[7], { autoAlpha: 1, duration: 0.4 }, B.flow + 1.1)
+  B.checks.forEach((t, k) => seq
+    .to(fills[k], { scaleX: 1, duration: 0.38, ease: 'power2.inOut' }, t - 0.4)
+    .to(vals[k], { autoAlpha: 1, duration: 0.2 }, t - 0.12)
+    .to(ticks[k], { strokeDashoffset: 0, duration: 0.18, ease: 'power2.out' }, t))
+  seq.to(card[6], { autoAlpha: 1, duration: 0.3 }, B.checks[4] + 0.12)
   swap(3, 7.9)
-  seq.to([...gates, $('.ck-pl-why')], { autoAlpha: 0, duration: 0.5, stagger: -0.04 }, 8.1)
+  seq.to(card, { autoAlpha: 0, duration: 0.4, stagger: 0.03 }, 8.0)
     .to($('.ck-pl-dot'), { scale: 1, duration: 0.35, ease: 'power3.out' }, B.fade)
     .to($('.ck-pl-read'), { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 8.8)
     .to({}, { duration: B.END - 9.3 }, 9.3) // hold the finished frame before the pin releases
 
   // ---------- Particles ----------
   // Geometry comes from the DOM, relative to the stage: the question's words (sampled into a point cloud), the grid
-  // box, the gates (their x, the row's centre line and height), and the dot. Re-read on every refresh (resize, font
-  // swap, breakpoint).
+  // box, the cluster box (centre + radius) and the dot. Re-read on every refresh (resize, font swap, breakpoint).
   let N = 0, W = 0, H = 0, dpr = 1
-  let ax, ay, bx, by, br, hot, col, sc, ph, x0, y0, D, xe, sg, gx = [], gy = 0, gh = 0, bh = 1, sp = 1, dx = 0, dy = 0, dr = 1, rt = 1, rb = 1.9
-  let px, py, pr, bk
+  let ax, ay, bx, by, br, hot, col, sc, ph, ux, uy, gq, sg, cx = 0, cy = 0, R = 1, dx = 0, dy = 0, dr = 1, rt = 1, rb = 1.9
+  let px, py, pr, bk, FILL = []
   const rel = (e) => { const s = stage.getBoundingClientRect(), r = e.getBoundingClientRect(); return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height } }
 
   // Sample the question's glyphs on a regular grid, so the dots read as the letters they came from.
@@ -172,14 +183,16 @@ export async function init(el, { gsap, ScrollTrigger }) {
     N = Math.max(pts.length, COLS * ROWS) // ponytail: a tiny layout repeats points so every grid cell gets a dot
     rt = Math.max(1, g * 0.32)
     const grid = rel($('.ck-pl-grid')), cw = grid.w / COLS, ch = grid.h / ROWS
-    const row = rel($('.ck-pl-gates')), dot = rel($('.ck-pl-dot'))
-    gx = gates.map((g) => { const r = rel(g); return r.x + r.w / 2 })
-    gy = row.y + row.h / 2; gh = row.h; bh = gh * 0.36; rb = mobile() ? 1.5 : 1.9; sp = gx[1] - gx[0]
-    dx = dot.x + dot.w / 2; dy = dot.y + dot.h / 2; dr = dot.w / 2
-    const xB = gx[0] - 0.7 * sp, xA = Math.max(rel(copies[0]).x, gx[0] - 2.6 * sp) // the band waits left of the first gate, inside the gutter
+    const cl = rel($('.ck-pl-cluster')), dotEl = $('.ck-pl-dot'), dot = rel(dotEl)
+    cx = cl.x + cl.w / 2; cy = cl.y + cl.h / 2; R = cl.w / 2; rb = mobile() ? 1.5 : 1.9
+    dx = dot.x + dot.w / 2; dy = dot.y + dot.h / 2; dr = dotEl.offsetWidth / 2 // offsetWidth: the dot is scaled to 0 until step 04
+    // Brand colours from the tokens: ink → red in five steps (one per passed check). ponytail: assumes rgb() computed values.
+    const rgb = (s) => s.match(/[\d.]+/g).slice(0, 3).map(Number), ink = rgb(getComputedStyle(el).color), red = rgb(getComputedStyle(dotEl).backgroundColor)
+    FILL = [0, 1, 2, 3, 4, 5].map((l) => `rgb(${ink.map((v, c) => Math.round(v + ((red[c] - v) * l) / 5)).join(',')})`)
     const F = (n) => new Float32Array(n)
-    ;[ax, ay, bx, by, br, sc, ph, x0, y0, D, xe, px, py, pr] = Array.from({ length: 14 }, () => F(N))
+    ;[ax, ay, bx, by, br, sc, ph, ux, uy, gq, px, py, pr] = Array.from({ length: 13 }, () => F(N))
     hot = new Uint8Array(N); col = F(N); sg = new Int8Array(N); bk = new Int8Array(N)
+    const gcx = grid.x + grid.w / 2, gcy = grid.y + grid.h / 2, d2 = F(N)
     for (let i = 0; i < N; i++) {
       const p = pts[i % pts.length], c = Math.floor((i * COLS) / N), r = i % ROWS, cell = c * ROWS + r
       const v = rnd(cell, 7) ** 1.6
@@ -189,20 +202,23 @@ export async function init(el, { gsap, ScrollTrigger }) {
       br[i] = Math.min(cw, ch) * (r === HOT ? 0.24 : 0.06 + 0.17 * v)
       ph[i] = rnd(cell, 3) * 6.283 // shared by every dot in a cell, so a cell stays one crisp dot
       sc[i] = (i / N) * 0.75 + rnd(i, 1) * 0.25 // stagger: a left-to-right wave
-      // The band keeps the grid's order (columns → x, rows → y), so the squeeze reads as the same embedding.
-      x0[i] = xA + ((xB - xA) * (c + rnd(i, 10))) / COLS
-      y0[i] = gy + ((r + rnd(i, 11)) / ROWS - 0.5) * bh
-      D[i] = (dx - xA) * (1 + 0.12 * rnd(i, 12)) // enough travel for the band's tail to reach the dot
-      xe[i] = dx + (rnd(i, 13) - 0.5) * 1.2 * dr // where it settles inside the dot
-      sg[i] = rnd(i, 8) < 0.18 ? Math.floor(rnd(i, 9) * 5) : -1 // a near-miss: the gate that vetoes it
+      d2[i] = (bx[i] - gcx) ** 2 + (by[i] - gcy) ** 2 + rnd(i, 10) // + jitter breaks ties between dots of one cell
     }
+    // The cluster is an even sunflower disc. Rank by distance from the grid's centre, so the middle of the embedding
+    // lands in the middle of the cluster and its ends become the rim.
+    const ord = Array.from({ length: N }, (_, i) => i).sort((a, b) => d2[a] - d2[b])
+    ord.forEach((i, q) => {
+      const u = Math.sqrt((q + 0.5) / N), a = q * 2.39996
+      ux[i] = u * Math.cos(a); uy[i] = u * Math.sin(a)
+      gq[i] = 0.7 * (q / N) + 0.3 * rnd(i, 12) // gather stagger: centre first
+      sg[i] = u > 0.62 && rnd(i, 8) < 0.24 ? Math.floor(rnd(i, 9) * 5) : -1 // a near-miss on the rim: the check it fails
+    })
   }
 
   let blank = true, lastT = -1
-  const lit = [0, 0, 0, 0, 0], passed = [0, 0, 0, 0, 0]
-  const light = (k, v) => { if (lit[k] !== v) { lit[k] = v; gates[k].classList.toggle('is-on', !!v) } }
-  // Fill buckets: 0–5 = gates passed (ink → red in five steps), 6–8 = a vetoed dot fading as it drops (ink).
-  const FILL = [0, 1, 2, 3, 4, 5].map((l) => `rgb(${Math.round(17 + (196 * l) / 5)},${Math.round(17 - (17 * l) / 5)},${Math.round(17 - (17 * l) / 5)})`)
+  const lit = [0, 0, 0, 0, 0]
+  const mark = (k, v) => { if (lit[k] !== v) { lit[k] = v; rows[k].classList.toggle('is-on', !!v) } } // a passed check: name ink, bar red
+  // Fill buckets: 0–5 = checks passed (ink → red, FILL from measure), 6–8 = a near-miss fading as it peels away (ink).
   const FADE = [0.85, 0.55, 0.25]
 
   const frame = () => {
@@ -211,12 +227,12 @@ export async function init(el, { gsap, ScrollTrigger }) {
     lastT = T
     const now = performance.now() / 1000
     const alpha = clamp01((T - B.dissolve) / 0.25) * (1 - clamp01((T - B.fade) / 0.25))
-    const flow = T >= B.flow[0]
-    if (!flow) gates.forEach((_, k) => light(k, 0))
+    const flow = T >= B.flow
+    let n = 0, s = 0 // checks passed: whole (colour) and smooth (tightening)
+    B.checks.forEach((t, k) => { mark(k, T >= t ? 1 : 0); if (T >= t) n++; s += clamp01((T - t) / 0.35) })
     if (alpha <= 0) { if (!blank) { ctx.clearRect(0, 0, cv.width, cv.height); blank = true } return }
     blank = false
-    passed.fill(0)
-    const u = clamp01((T - B.go) / (B.flow[1] - B.go)), tr = 0.5 * u + 0.5 * u * u * (3 - 2 * u) // travel: steady, soft at both ends
+    const tight = R * (1 - 0.05 * s)
     for (let i = 0; i < N; i++) {
       let x, y, r, j, b
       if (!flow) { // letters → embedding, on a curved flight
@@ -226,25 +242,25 @@ export async function init(el, { gsap, ScrollTrigger }) {
         r = rt + (br[i] - rt) * k
         j = clamp01((T - B.dissolve) / 0.3) * 1.2 + arc * 3 + (k === 1 ? 0.4 : 0)
         b = hot[i] && T > B.row + col[i] * 0.5 ? 5 : 0
-      } else { // grid squeezes into a band, then the band runs the gates; the gate logic uses the path position `a`
-        const m = ease(lp(T, B.flow[0], B.flow[0] + B.band, col[i], 0.35)), g = sg[i]
-        let a = x0[i] + D[i] * tr, yy = y0[i], fall = -1
-        if (g >= 0 && a > gx[g] - 3) { fall = clamp01((a - gx[g] + 3 - 0.35 * sp) / (1.5 * sp)); a = gx[g] - 3 } // vetoed: stops at its gate, holds, then drops
-        let n = 0
-        for (let k = 0; k < 5; k++) if (a > gx[k]) { n++; passed[k]++ }
-        if (a > gx[4]) { // past the last gate: funnel into the dot
-          a = Math.min(a, xe[i])
-          yy += (dy + ((y0[i] - gy) * 1.6 * dr) / bh - yy) * ease(clamp01((a - gx[4]) / (xe[i] - gx[4])))
-        }
-        x = bx[i] + (a - bx[i]) * m; y = by[i] + (yy - by[i]) * m
+      } else { // grid gathers into the cluster, which tightens and reddens as checks pass, then collapses into the dot
+        const m = ease(lp(T, B.flow, B.flow + B.band, gq[i], 0.35)), g = sg[i]
+        let cx1 = cx + ux[i] * tight, cy1 = cy + uy[i] * tight
         r = br[i] + (rb - br[i]) * m; j = 0.35 + 0.5 * (1 - m)
-        if (fall >= 0) { y += fall * fall * gh * 0.45; r *= 1 - 0.3 * fall; b = fall >= 1 ? -1 : fall > 0 ? 6 + Math.min(2, Math.floor(fall * 3)) : 0 }
-        else b = Math.max(n, hot[i] ? Math.round(5 * (1 - m)) : 0) // the intent row hands its red back as it joins the band
+        b = Math.max(n, hot[i] ? Math.round(5 * (1 - m)) : 0) // the intent row hands its red back as it joins
+        if (g >= 0 && T > B.checks[g]) { // near-miss: peels outward and sinks, fading, never taking the red
+          const f = clamp01((T - B.checks[g] - 0.15 * sc[i]) / 0.6)
+          cx1 += ux[i] * R * 0.6 * f; cy1 += uy[i] * R * 0.6 * f + f * f * R * 0.4
+          r *= 1 - 0.4 * f; b = f >= 1 ? -1 : 6 + Math.min(2, Math.floor(f * 3))
+        } else {
+          const c = ease(lp(T, B.collapse[0], B.collapse[1], gq[i], 0.3))
+          cx1 += (dx + ux[i] * dr * 0.7 - cx1) * c; cy1 += (dy + uy[i] * dr * 0.7 - cy1) * c
+          r += (Math.max(1.3, rb * 0.8) - r) * c; j *= 1 - c
+        }
+        x = bx[i] + (cx1 - bx[i]) * m; y = by[i] + (cy1 - by[i]) * m
       }
       px[i] = x + j * Math.sin(now * 0.8 + ph[i]); py[i] = y + j * Math.cos(now * 0.65 + ph[i] * 1.7)
       pr[i] = r; bk[i] = b
     }
-    if (flow) for (let k = 0; k < 5; k++) light(k, passed[k] > N * 0.5 ? 1 : 0) // a gate turns red once most of the stream is through it
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, W, H)

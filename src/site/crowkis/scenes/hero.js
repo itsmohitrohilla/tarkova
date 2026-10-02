@@ -1,5 +1,5 @@
-// Scene "hero": the red stage. Wordmark (the page's only h1), crow, tagline, lede, CTAs and facts, over a live
-// halftone dot field that flows, swells under the cursor like a lens and ripples on click. Scrolling out, the red
+// Scene "hero": the Ember → Wine stage. Wordmark (the page's only h1), crow, tagline, lede, CTAs and facts, over a live
+// halftone dot field that flows, swells under the cursor like a lens and ripples on click. Scrolling out, the
 // stage closes into a rounded card on the next scene's ink, the dots zoom out of focus and the copy layers drift
 // at different depths. The one-time intro is CSS (hero.css), so it plays even if this module never runs.
 // The logos never move: no transform ever touches the wordmark or the crow.
@@ -148,8 +148,8 @@ function dotField(canvas, el) {
           p.moveTo(X + s, Y); p.arc(X, Y, s, 0, TAU)
         }
       }
-      g.fillStyle = 'rgba(255, 88, 64, 0.5)'; g.fill(light)
-      g.fillStyle = 'rgba(120, 0, 0, 0.45)'; g.fill(deep)
+      g.fillStyle = 'rgba(244, 222, 201, 0.16)'; g.fill(light) // Warm Sand
+      g.fillStyle = 'rgba(26, 28, 37, 0.3)'; g.fill(deep) // Raven Ink
     },
   }
   f.measure()

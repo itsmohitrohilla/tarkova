@@ -21,11 +21,11 @@ const slot = (ph, val) => val
 
 const BEATS = [
   ['The first caller asks. Your model answers once.',
-    'Crowkis keeps only the shape of that answer. The order number and the date become empty slots. The caller’s own values are dropped, never stored.'],
+    'Crowkis keeps the shape of the answer. The caller’s details are never stored.'],
   ['The next caller gets their own answer.',
-    'Different words, same question. Crowkis serves the shape and fills in this caller’s details, fresh for this call. Your model is never called.'],
+    'Same shape, this caller’s details. No model call.'],
   ['The reply lands before the model would speak.',
-    'For speech-to-speech: Crowkis reads the free transcript. On a hit it injects the reply and skips the model’s respond event. No inference billed, no speech synthesis billed. Works with any realtime voice API.'],
+    'On a hit, the model’s respond event is skipped. Works with any realtime voice API.'],
 ]
 
 const FIGS = [
@@ -79,21 +79,19 @@ const FIGS = [
           <li>Hit: inject reply</li>
           <li><s>Respond event</s> skipped</li>
         </ol>
-        <p class="ckv-bill">${stamp('No inference billed', ' is-ink')}${stamp('No synthesis billed', ' is-ink')}<span>Any realtime voice API</span></p>
+        <p class="ckv-bill">${stamp('No inference billed', ' is-ink')}${stamp('No synthesis billed', ' is-ink')}</p>
       </figure>`,
 ]
 
 const PROOF = [
   ['0.34', 'ms', 'p50 per spoken turn'],
-  ['63.96', 'ms', 'p99, inside a ~1,000 ms turn'],
-  ['7,463', 'turns/sec', '16 concurrent callers, p99 2.89 ms'],
+  ['63.96', 'ms', 'p99 of a ~1,000 ms turn'],
 ]
 
 export const html = ({ serif }) => `<section class="ck-scene ck-voice" id="voice" data-scene="voice" aria-labelledby="ckv-title">
   <header class="ckv-head">
-    <p class="ckv-kicker">New · Voice agents</p>
     <h2 class="ckv-title" id="ckv-title">${serif('Voice agents that answer *instantly*.')}</h2>
-    <p class="ckv-intro">Callers ask the same things, each in their own words. Crowkis answers every one with that caller’s own details, and your model never hears the repeat.</p>
+    <p class="ckv-intro">Each caller gets their own details. Your model never hears the repeat.</p>
   </header>
   <div class="ckv-stage">
     <ol class="ckv-beats">
@@ -105,12 +103,12 @@ export const html = ({ serif }) => `<section class="ck-scene ck-voice" id="voice
   </div>
   <div class="ckv-promise">
     <p class="ckv-promise-t">${serif('Nothing caller‑specific *ever* enters the cache.')}</p>
-    <p class="ckv-promise-s">One shared shape, values filled per call. If an answer won’t de‑personalise, it isn’t cached at all. And your agent never reads “{order_id}” out loud.</p>
+    <p class="ckv-promise-s">If an answer can’t be de‑personalised, it isn’t cached.</p>
   </div>
   <ul class="ckv-proof">
     ${PROOF.map(([n, u, l]) => `<li><span class="ckv-big"><span>${n}<small> ${u}</small></span></span><span class="ckv-lbl">${l}</span></li>`).join('\n    ')}
   </ul>
-  <p class="ckv-note">Measured in our tests. Latency: live voice path, single-threaded. Throughput: 16 concurrent callers after a restart.</p>
+  <p class="ckv-note">Measured in our tests on the live voice path, single-threaded.</p>
 </section>`
 
 export async function init(el, { gsap, ScrollTrigger }) {
@@ -150,8 +148,8 @@ export async function init(el, { gsap, ScrollTrigger }) {
     speak(tl, 'c1', t, 0.9)
     wipe(tl, $('.ckv-q', f1), t + 0.05)
     tl.fromTo($('.ckv-wire i', f1), { scaleX: 0 }, { scaleX: 1, duration: 0.8 }, t + 0.9)
-    const model = $('.ckv-model', f1), think = $('.ckv-think', f1)
-    tl.to(model, { backgroundColor: '#ffffff', color: '#111111', duration: 0.3 }, t + 1.6)
+    const model = $('.ckv-model', f1), think = $('.ckv-think', f1), ink = getComputedStyle(el).getPropertyValue('--ck-ink').trim()
+    tl.to(model, { backgroundColor: '#ffffff', color: ink, duration: 0.3 }, t + 1.6)
       .fromTo(think, { opacity: 0 }, { opacity: 1, duration: 0.2 }, t + 1.6)
       .to(think, { opacity: 0, duration: 0.2 }, t + 2.3)
       .to(model, { backgroundColor: 'rgba(255,255,255,0)', color: '#ffffff', duration: 0.4 }, t + 2.4)
@@ -183,7 +181,7 @@ export async function init(el, { gsap, ScrollTrigger }) {
       .fromTo($('.ckv-strike', f3), { scaleX: 0 }, { scaleX: 1, duration: 0.6 }, t + 1.2)
       .fromTo($('.ckv-seg em', f3), { opacity: 0 }, { opacity: 1, duration: 0.4 }, t + 1.5)
       .fromTo($('.is-p99', f3), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4 }, t + 1.7)
-    $$('.ckv-bill > *', f3).forEach((s, i) => (s.tagName === 'EM' ? press(tl, s, t + 2 + i * 0.3) : tl.fromTo(s, { opacity: 0 }, { opacity: 1, duration: 0.3 }, t + 2.6)))
+    $$('.ckv-bill > em', f3).forEach((s, i) => press(tl, s, t + 2 + i * 0.3))
   }
 
   const mm = gsap.matchMedia(el)
@@ -224,5 +222,4 @@ export async function init(el, { gsap, ScrollTrigger }) {
     type: 'words', mask: 'words', autoSplit: true,
     onSplit: (self) => gsap.from(self.words, { yPercent: 110, stagger: 0.08, ease: 'power3.out', scrollTrigger: { trigger: $('.ckv-head'), start: 'top 88%', end: 'top 40%', scrub: 0.8 } }),
   })
-  gsap.from($('.ckv-kicker'), { x: -40, opacity: 0, ease: 'power2.out', scrollTrigger: { trigger: $('.ckv-head'), start: 'top 92%', end: 'top 60%', scrub: 0.8 } })
 }

@@ -23,23 +23,20 @@ const fig = (vis, sr) => `<span class="ck-sr">${sr}</span><span aria-hidden="tru
 const bars = (rows) => `<div class="ck-cap-bars">${rows.map(([l, w, v = '', win]) => `<p${win ? ' class="is-win"' : ''}><span>${l}</span><i><i class="fl" style="--w:${w}"></i></i><span>${v}</span></p>`).join('')}</div>`
 const GATES = ['similarity', 'template', 'confidence', 'trust', 'freshness']
 const BENEFITS = [
-  [fig(`${n(60)}–${n(70)}<small>%</small>`, '60–70%'), 'on repetitive workloads',
-    bars([['without Crowkis', 1], ['with Crowkis', 0.35, '', 1]])],
+  [fig(n(1), '1'), 'model call per question',
+    bars([['without Crowkis', 1, '×50'], ['with Crowkis', 0.02, '×1', 1]])],
   [fig(`${n('0.4')}<small>ms</small>`, '0.4 ms'), 'per cache hit',
     bars([['model round-trip', 1, 'seconds'], ['cache hit', 0.015, '0.4 ms', 1]])],
   [fig(n(5), '5'), 'gates, every hit, every time',
     `<ol class="ck-cap-gates">${GATES.map((g) => `<li>${g}</li>`).join('')}</ol>`],
-  [fig(`~${n(15)}<small>%</small>`, 'about 15%'), 'of the token cost to replay reasoning',
-    `<div class="ck-cap-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52"/><circle class="on" cx="60" cy="60" r="52" pathLength="100"/></svg><p><span class="is-win">replaying reasoning</span><span>re-running it</span><span>+ memory per agent &amp; user</span></p></div>`],
-  [fig('1', '1'), 'Docker image, every feature compiled in',
-    '<p class="ck-cap-cmd"><span aria-hidden="true">$</span> <code>docker pull crowkis/crowkis:latest</code></p><p class="ck-cap-note">your existing clients connect unmodified</p>'],
+  [fig('1', '1'), 'Docker image, every feature in',
+    '<p class="ck-cap-cmd"><span aria-hidden="true">$</span> <code>docker pull crowkis/crowkis:latest</code></p>'],
   [fig('Free', 'Free'), 'Community edition, self-hosted',
     '<div class="ck-cap-switch" aria-hidden="true"><span class="th"></span><span>Community · Free</span><span>Enterprise</span></div><p class="ck-cap-tiers"><span>no licence, no sign-up</span><span class="ent">+ SSO · audit log · budgets</span></p>'],
 ]
 
 export const html = ({ c, esc, serif }) => `<section class="ck-scene ck-capabilities" data-scene="capabilities" aria-labelledby="ck-cap-what">
   <div class="ck-cap-what">
-    <p class="ck-cap-kicker">What Crowkis is</p>
     <h2 id="ck-cap-what" class="ck-cap-title">${words(c.what.title, esc, serif)}</h2>
     <p class="ck-cap-lede">${esc(c.what.text)}</p>
     <div class="ck-cap-compare" role="table" aria-label="How Crowkis compares to other caches">
@@ -49,7 +46,6 @@ export const html = ({ c, esc, serif }) => `<section class="ck-scene ck-capabili
   </div>
   <div class="ck-cap-band"><div class="ck-cap-track">${facts(false)}${facts(true)}</div></div>
   <div class="ck-cap-for">
-    <p class="ck-cap-kicker">What it can do for you</p>
     <h2 class="ck-cap-title2">${'Less spend. Faster answers. *Safer* AI.'.split(/(?<=\.) /).map((l) => `<span>${serif(l)}</span>`).join(' ')}</h2>
     <ul class="ck-cap-list">
       ${c.forYou.map(([t, x], i) => `<li class="ck-cap-item"><span class="ck-cap-rule" aria-hidden="true"></span><p class="ck-cap-fig">${BENEFITS[i][0]}<span class="ck-cap-lbl">${BENEFITS[i][1]}</span></p><div class="ck-cap-viz">${BENEFITS[i][2]}</div><h3>${esc(t)}</h3><p>${esc(x)}</p></li>`).join('\n      ')}
@@ -85,7 +81,7 @@ export function init(el, { gsap, ScrollTrigger, lenis }) {
 
   // Ledger: each row is scrubbed while it rises through the lower half of the screen. The rule draws, numbers
   // count up from zero and the row's one graphic plays: bars fill at one speed (so the short one stops first),
-  // gates light in step with the count, the ring draws, the command types, the switch slides to Enterprise.
+  // gates light in step with the count, the command types, the switch slides to Enterprise.
   $$('.ck-cap-item').forEach((item) => {
     const q = (s) => item.querySelector(s), qq = (s) => [...item.querySelectorAll(s)]
     const tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: st({ trigger: item, start: 'top 85%', end: 'top 35%', scrub: 0.6 }) })
@@ -100,7 +96,6 @@ export function init(el, { gsap, ScrollTrigger, lenis }) {
       tl.fromTo(f, { scaleX: 0 }, { scaleX: w, duration: Math.max(w, 0.06) }, 0)
     })
     qq('.ck-cap-gates li').forEach((g, i) => tl.fromTo(g, { opacity: 0.25 }, { opacity: 1, duration: 0.12 }, i * 0.2 + 0.08))
-    if (q('.on')) tl.fromTo(q('.on'), { strokeDasharray: '0 100' }, { strokeDasharray: '15 100', duration: 1 }, 0)
     if (q('code')) tl.fromTo(q('code'), { clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)', ease: 'steps(34)', duration: 0.9 }, 0)
     if (q('.th')) {
       tl.fromTo(q('.th'), { xPercent: 0 }, { xPercent: 100, ease: 'power2.inOut', duration: 0.5 }, 0.3)

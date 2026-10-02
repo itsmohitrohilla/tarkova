@@ -1,24 +1,10 @@
-/* scene: finale — "Go deeper" posts on paper, then the red closing stage. */
+/* scene: finale. The closing stage: an Ember → Wine ground that opens out of the crow icon card. */
 .ck-finale { background: var(--ck-paper); color: var(--ck-ink); font-family: var(--ck-sans); }
 
 /* A word inside its mask; the padding keeps serif descenders and italic overhang out of the clip. */
 .ck-finale .ck-fin-w { display: inline-block; overflow: clip; padding: 0 0.08em 0.12em 0; margin: 0 -0.08em -0.12em 0; vertical-align: top; }
 .ck-finale .ck-fin-w > span { display: inline-block; will-change: transform; }
 .ck-finale h2 em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
-
-/* Posts */
-.ck-fin-posts { padding: clamp(96px, 13vw, 200px) var(--ck-gutter) clamp(72px, 9vw, 140px); }
-.ck-fin-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px 32px; margin-bottom: clamp(36px, 5vw, 72px); }
-.ck-fin-kicker { grid-column: 1 / -1; margin: 0; font: 500 12px/1 var(--ck-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ck-red); }
-.ck-fin-head h2 { margin: 0; font-size: clamp(64px, 12vw, 200px); font-weight: 600; line-height: 0.9; letter-spacing: -0.05em; }
-.ck-fin-all {
-  display: inline-flex; align-items: center; gap: 10px; margin-bottom: 1.2em;
-  font-weight: 600; font-size: 16px; color: var(--ck-ink); text-decoration: none;
-  border-bottom: 1px solid currentColor; padding-bottom: 4px;
-}
-.ck-fin-all span { transition: transform 0.4s var(--ck-ease); }
-.ck-fin-all:hover span { transform: translateX(6px); }
-.ck-finale .grid > li { will-change: transform; }
 
 /* Closing stage: opens from the crow icon card to full bleed (clip-path on the stage). */
 .ck-fin-stage {
@@ -46,9 +32,6 @@
 .ck-fin-btn:focus-visible { outline: 2px solid var(--ck-white); outline-offset: 4px; }
 
 @media (max-width: 600px) {
-  .ck-fin-head { grid-template-columns: 1fr; }
-  .ck-fin-head h2 { font-size: 21vw; }
-  .ck-fin-all { justify-self: start; margin-bottom: 0; }
   .ck-fin-stage { padding: 88px 20px; }
   .ck-fin-stage h2 { font-size: 15vw; }
   .ck-fin-links { flex-direction: column; align-items: stretch; width: 100%; max-width: 340px; }

@@ -1,7 +1,7 @@
 // Scene "problem": the déjà-vu bill. Three beats:
 //   1. head: the title and intro rise line by line out of masks, scrubbed as they scroll in.
-//   2. echo (pinned): one support bot's day. Rephrasings of the same question stream in while a meter bills
-//      every one, then they all collapse into a single red dot: one meaning. The verdict rises under it.
+//   2. echo (pinned): one support bot's day. Rephrasings of the same question stream in while a meter counts
+//      the model calls, then they all collapse into a single red dot: one meaning. The verdict rises under it.
 //   3. rail: the five problems. Desktop pins a horizontal track (numerals fill red as they reach the middle);
 //      ≤768px stacks them and fills each numeral as it scrolls through.
 export const id = 'problem'
@@ -24,42 +24,31 @@ const ASKS = [
   ['17:20', 'When do you shut tonight?', 72, 70, 0.95],
   ['18:02', 'open late?', 25, 73, 0.8],
 ]
-// Meter rates (illustrative): cost and latency of one uncached model call, and calls per day.
-const PER_CALL = 0.014
-const WAIT_S = 2.6
+// Calls in the example day (the story's "fifty times a day").
 const CALLS = 50
-const money = (n, dp = 2) => `$${(n * PER_CALL).toFixed(dp)}`
-const wait = (n) => { const s = Math.round(n * WAIT_S); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` }
 
 export const html = ({ c, esc, serif }) => {
   const pr = c.problem
   return `<section class="ck-scene ck-problem" data-scene="problem" aria-labelledby="ckp-title">
   <header class="ckp-head">
-    <p class="ckp-kicker">The problem</p>
     <h2 class="ckp-title" id="ckp-title">${serif(pr.title)}</h2>
     <p class="ckp-intro">${esc(pr.intro)}</p>
   </header>
   <div class="ckp-echo">
-    <div class="ckp-story">
-      <p class="ckp-label">Example: a support bot, one day</p>
-      <p class="ckp-lede">“When do you close?” “What time do you shut?” It hears some version of it fifty times a day.</p>
-    </div>
     <div class="ckp-cloud" data-cursor="déjà vu">
       <ul class="ckp-asks">
-        ${ASKS.map(([t, q, x, y, d]) => `<li class="ckp-ask" style="--x:${x}%;--y:${y}%;--d:${d}"><span class="ckp-ask-in"><span class="ckp-ask-meta">${t} · new call · ${money(1, 3)}</span>${esc(q)}</span></li>`).join('\n        ')}
+        ${ASKS.map(([t, q, x, y, d]) => `<li class="ckp-ask" style="--x:${x}%;--y:${y}%;--d:${d}"><span class="ckp-ask-in"><span class="ckp-ask-meta">${t} · new call</span>${esc(q)}</span></li>`).join('\n        ')}
       </ul>
       <span class="ckp-dot" aria-hidden="true"></span>
-      <p class="ckp-verdict"><span class="ckp-v"><span>That’s not fifty new questions. It’s <em>one question</em>, asked fifty times.</span></span><span class="ckp-v ckp-v-sub"><span>But the AI treats it as new every time. Full cost, full wait.</span></span></p>
+      <p class="ckp-verdict"><span class="ckp-v"><span>Fifty asks. <em>One question.</em></span></span><span class="ckp-v ckp-v-sub"><span>Your model bills every one.</span></span></p>
     </div>
     <dl class="ckp-meter">
-      <div><dt>Model calls</dt><dd data-m="calls">×${CALLS}</dd></div>
-      <div><dt>Billed</dt><dd data-m="cost">${money(CALLS)}</dd></div>
-      <div><dt>User wait</dt><dd data-m="wait">${wait(CALLS)}</dd></div>
+      <div><dt>Model calls</dt><dd class="ckp-calls">×${CALLS}</dd></div>
       <div><dt>Cache hits</dt><dd class="ckp-zero">0</dd></div>
     </dl>
   </div>
   <div class="ckp-rail">
-    <p class="ckp-rail-cap">Five ways the same question keeps <em>costing you</em>.</p>
+    <p class="ckp-rail-cap">Why it keeps <em>costing you</em>.</p>
     <ol class="ckp-track">
       ${pr.items.map(([t, d], i) => `<li class="ckp-panel"><span class="ckp-num" data-n="0${i + 1}" aria-hidden="true">0${i + 1}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></li>`).join('\n      ')}
     </ol>
@@ -73,7 +62,7 @@ export async function init(el, { gsap }) {
   const $$ = (s) => [...el.querySelectorAll(s)]
   const echo = $('.ckp-echo'), cloud = $('.ckp-cloud'), dot = $('.ckp-dot'), asks = $$('.ckp-ask')
   const rail = $('.ckp-rail'), track = $('.ckp-track'), panels = $$('.ckp-panel')
-  const meter = { calls: $('[data-m=calls]'), cost: $('[data-m=cost]'), wait: $('[data-m=wait]') }
+  const calls = $('.ckp-calls')
 
   // Pinned triggers are created synchronously (before any await) so they register in page order.
   const mm = gsap.matchMedia()
@@ -89,7 +78,7 @@ export async function init(el, { gsap }) {
       if (i) tl.fromTo(a, { autoAlpha: 0, yPercent: 60, scale: 0.9 }, { autoAlpha: 1, yPercent: 0, scale: 1, duration: 0.8, ease: 'power2.out' }, i * step)
       tl.to(a, { opacity: 0.32, duration: 1 }, i * step + 1.1) // older asks fade back like memories
     })
-    // Meter: calls tick 0 → 50 across the stream; cost and wait derive from calls.
+    // Meter: calls tick 0 → 50 across the stream.
     const m = { n: 0 }
     let shown = -1
     tl.to(m, {
@@ -98,9 +87,7 @@ export async function init(el, { gsap }) {
         const n = Math.round(m.n)
         if (n === shown) return
         shown = n
-        meter.calls.textContent = `×${n}`
-        meter.cost.textContent = money(n)
-        meter.wait.textContent = wait(n)
+        calls.textContent = `×${n}`
       },
     }, 0)
     // Collapse: every ask flies to the dot and vanishes into it.

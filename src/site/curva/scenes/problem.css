@@ -1,0 +1,85 @@
+/* scene: problem. Paper. The four problems on the left; on the right a sticky specimen of a free-text answer,
+   marked up problem by problem, then dissolved into halftone with the typed chip on top. */
+.cv-problem { background: var(--cv-paper); color: var(--cv-ink); }
+.cv-problem-in {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: clamp(12px, 2vw, 28px);
+  padding: clamp(88px, 13vh, 160px) var(--cv-gutter);
+}
+.cv-problem h2 {
+  grid-column: 1 / 11; margin: 0; min-width: 0;
+  font: 600 clamp(34px, 4.6vw, 72px)/1.02 var(--cv-sans); letter-spacing: -0.03em; text-wrap: balance; overflow-wrap: anywhere;
+}
+
+.cv-problem-list { grid-column: 1 / 6; grid-row: 2; list-style: none; margin: clamp(48px, 7vh, 88px) 0 0; padding: 0; }
+.cv-problem-list li {
+  display: grid; grid-template-columns: 1.4em minmax(0, 1fr); column-gap: 18px;
+  padding: 26px 0; border-top: 1px solid var(--cv-ink);
+}
+.cv-problem-n { grid-row: span 2; font: 500 44px/0.9 var(--cv-pixel); color: var(--cv-blue); }
+.cv-problem-list h3 { margin: 0; font: 600 clamp(20px, 1.7vw, 26px)/1.2 var(--cv-sans); letter-spacing: -0.015em; }
+.cv-problem-list p { margin: 8px 0 0; font-size: 17px; line-height: 1.5; color: var(--cv-dim); }
+
+/* The specimen */
+.cv-problem-spec {
+  grid-column: 7 / -1; grid-row: 2; align-self: start; position: sticky; top: max(96px, calc(50vh - 220px));
+  margin: clamp(48px, 7vh, 88px) 0 0; padding: clamp(24px, 2.6vw, 40px);
+  background: var(--cv-white); border: 1.5px solid var(--cv-ink); border-radius: 6px;
+}
+.cv-problem-opts { display: grid; margin: 0 0 18px; overflow: clip; font: 400 13px/1.5 var(--cv-mono); color: var(--cv-dim); }
+.cv-problem-opts > span { grid-area: 1 / 1; }
+.cv-problem-opts > span::before { content: 'options: '; }
+.cv-problem-rev { visibility: hidden; }
+.cv-problem-said { position: relative; width: fit-content; max-width: 100%; margin: 0; --fade: 0; }
+.cv-problem-said p {
+  margin: 0; font: 500 clamp(22px, 2.1vw, 32px)/1.35 var(--cv-sans); letter-spacing: -0.015em;
+  opacity: calc(1 - var(--fade) * 0.75);
+}
+.cv-problem-said::after { /* the sentence goes to halftone */
+  content: ''; position: absolute; inset: -6px; pointer-events: none;
+  color: var(--cv-dim); background: var(--cv-dots); background-size: 7px 7px; opacity: calc(var(--fade) * 0.9);
+}
+.cv-problem-sw {
+  display: inline-flex; flex-direction: column; height: 1.35em; overflow: clip; vertical-align: bottom;
+}
+.cv-problem-sw > span { display: block; line-height: 1.35em; white-space: nowrap; }
+.cv-problem-sw > span + span { color: var(--cv-blue); }
+
+/* Marks: a highlighter that draws in, tagged with the problem's number. */
+.cv-problem-m {
+  --hl: 1;
+  background: linear-gradient(var(--cv-blue-soft), var(--cv-blue-soft)) 0 88% / calc(var(--hl) * 100%) 0.5em no-repeat;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+/* every data-m element is a .cv-problem-m */
+.cv-problem-m::after, .cv-problem-opts::after {
+  content: attr(data-m); margin-left: 4px; vertical-align: super;
+  font: 500 14px/0 var(--cv-pixel); color: var(--cv-blue);
+}
+.cv-problem-opts::after { content: '3'; grid-area: 1 / 2; margin-left: 6px; vertical-align: baseline; line-height: 1.5; }
+.cv-problem-opts { grid-template-columns: max-content max-content; }
+.cv-problem-log { margin: 22px 0 0; font: 400 13px/1.5 var(--cv-mono); color: var(--cv-dim); }
+.cv-problem-log .cv-problem-m { background: none; padding: 6px 10px; border: 1px dashed var(--cv-dim); border-radius: 4px; display: inline-block; }
+
+.cv-problem-chip { margin: 26px 0 0; }
+.cv-problem-chip code {
+  display: inline-block; max-width: 100%; padding: 14px 18px; border-radius: 4px; overflow-wrap: anywhere;
+  background: var(--cv-blue); color: var(--cv-white); font: 400 15px/1.4 var(--cv-mono);
+  box-shadow: 8px 8px 0 var(--cv-ink);
+}
+.cv-problem-chip b { font: 500 20px/1 var(--cv-pixel); }
+
+/* With motion on wide screens each problem gets a screen of scroll, so the specimen has time to answer it. */
+@media (min-width: 901px) {
+  html.cv-motion .cv-problem-list li { min-height: 46vh; align-content: start; }
+  html.cv-motion .cv-problem-list { padding-bottom: 30vh; }
+}
+@media (max-width: 900px) {
+  .cv-problem h2, .cv-problem-list, .cv-problem-spec { grid-column: 1 / -1; grid-row: auto; }
+  .cv-problem-spec { position: relative; top: auto; margin-top: 40px; }
+  .cv-problem-list { margin-top: 48px; }
+}
+@media (max-width: 600px) {
+  .cv-problem-spec { padding: 22px 18px; }
+  .cv-problem-chip code { font-size: 13px; padding: 12px 14px; box-shadow: 6px 6px 0 var(--cv-ink); }
+  .cv-problem-n { font-size: 36px; }
+}

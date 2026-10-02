@@ -1,11 +1,12 @@
-/* scene: hero. The section is ink; the red lives on .ck-hero-plate so it can close into a card on scroll. */
+/* scene: hero. The section is ink; the Ember → Wine ground lives on .ck-hero-plate so it can close into a card on scroll. */
 .ck-hero { background: var(--ck-ink); color: var(--ck-white); overflow: clip; }
 .ck-hero-plate {
   position: absolute; inset: 0;
   /* Static halftone for the no-motion page; with motion the canvas draws the live field instead. */
-  background: var(--ck-red) radial-gradient(rgba(255, 255, 255, 0.07) 1.3px, transparent 1.8px) 0 0 / 17px 17px;
+  --ck-hero-ground: linear-gradient(115deg, var(--ck-red) 12%, var(--ck-red-deep) 100%);
+  background: radial-gradient(rgba(255, 255, 255, 0.07) 1.3px, transparent 1.8px) 0 0 / 17px 17px, var(--ck-hero-ground);
 }
-html.ck-motion .ck-hero-plate { background-image: none; will-change: clip-path; }
+html.ck-motion .ck-hero-plate { background: var(--ck-hero-ground); will-change: clip-path; }
 .ck-hero-plate canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .ck-hero-in {

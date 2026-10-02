@@ -1,0 +1,120 @@
+/* scene: usecases (BLUE). Decision cards on a halftone light table. */
+.cv-usecases {
+  background: var(--cv-blue);
+  color: var(--cv-white);
+  padding: clamp(96px, 12vw, 176px) var(--cv-gutter) clamp(120px, 14vw, 200px);
+  isolation: isolate;
+}
+/* Halftone field, densest at the bottom, like the dotted "C". */
+.cv-usecases::before {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: -1;
+  background: var(--cv-dots);
+  color: rgba(255, 255, 255, 0.16);
+  -webkit-mask-image: radial-gradient(120% 70% at 85% 100%, #000 10%, transparent 70%);
+  mask-image: radial-gradient(120% 70% at 85% 100%, #000 10%, transparent 70%);
+  pointer-events: none;
+}
+
+.cv-uc-head { max-width: 1320px; margin: 0 auto clamp(48px, 6vw, 88px); }
+.cv-uc-head h2 {
+  margin: 0;
+  max-width: 18ch;
+  font: 600 clamp(40px, 6.4vw, 96px)/0.95 var(--cv-sans);
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+.cv-uc-head p { margin: 24px 0 0; max-width: 40ch; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.45; color: rgba(255, 255, 255, 0.78); }
+
+.cv-uc-grid {
+  max-width: 1320px; margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(14px, 1.6vw, 22px);
+  align-items: start;
+}
+/* Staggered columns: even cards sit lower, so the wall reads as loose slips, not a table. */
+.cv-uc-card:nth-child(even) { margin-top: 40px; }
+
+.cv-uc-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 12px;
+  min-width: 0;
+  padding: 22px 20px 18px;
+  background: var(--cv-paper);
+  color: var(--cv-ink);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(8, 6, 28, 0.2), 0 18px 40px -24px rgba(8, 6, 28, 0.6);
+  will-change: transform;
+}
+/* A halftone swatch in the corner, the print-lab registration mark. */
+.cv-uc-card::after {
+  content: '';
+  position: absolute; top: 0; right: 0;
+  width: 64px; height: 64px;
+  background: radial-gradient(circle, currentColor 1.3px, transparent 1.8px) 0 0 / 7px 7px;
+  color: var(--cv-blue);
+  -webkit-mask-image: radial-gradient(circle at 100% 0, #000, transparent 72%);
+  mask-image: radial-gradient(circle at 100% 0, #000, transparent 72%);
+  pointer-events: none;
+}
+.cv-uc-card h3 { margin: 0; font: 600 21px/1.15 var(--cv-sans); letter-spacing: -0.015em; }
+.cv-uc-card > p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--cv-dim); }
+
+/* The typed question: type tag + the question text. */
+.cv-uc-q { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px dashed rgba(8, 6, 28, 0.22); }
+.cv-uc-q span {
+  align-self: flex-start;
+  padding: 2px 7px;
+  background: var(--cv-blue); color: var(--cv-white);
+  font: 500 12px/1.4 var(--cv-mono);
+  border-radius: 2px;
+}
+.cv-uc-q code { font: 13px/1.45 var(--cv-mono); color: var(--cv-ink); overflow-wrap: anywhere; }
+
+/* The answer: chips. A value chip carries its probability in pixel type and a thin bar. */
+.cv-uc-a { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-uc-chip {
+  position: relative;
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 5px 9px 6px;
+  background: var(--cv-blue-soft);
+  color: var(--cv-blue);
+  border-radius: 999px;
+  font: 13px/1.2 var(--cv-mono);
+  overflow: hidden;
+}
+.cv-uc-chip i { font-style: normal; color: var(--cv-dim); }
+.cv-uc-chip b { font-weight: 600; }
+.cv-uc-chip em { font: 500 16px/1 var(--cv-pixel); font-style: normal; }
+.cv-uc-chip.is-val { background: var(--cv-blue); color: var(--cv-white); border-radius: 3px; padding-bottom: 9px; }
+.cv-uc-chip.is-val i { color: rgba(255, 255, 255, 0.7); }
+.cv-uc-chip s {
+  position: absolute; left: 0; bottom: 0;
+  width: 100%; height: 3px;
+  background: var(--cv-blue-hi);
+  transform: scaleX(var(--p)); transform-origin: left;
+  text-decoration: none;
+}
+.cv-uc-chip.is-val s { background: rgba(255, 255, 255, 0.85); }
+
+.cv-uc-note { margin: 0; font-size: 13px; line-height: 1.4; color: var(--cv-dim); }
+.cv-uc-recipe {
+  margin-top: auto;
+  padding-top: 10px;
+  font: 11.5px/1.4 var(--cv-mono);
+  color: var(--cv-dim);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .cv-uc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cv-uc-card:nth-child(even) { margin-top: 40px; }
+}
+@media (max-width: 600px) {
+  .cv-uc-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .cv-uc-card:nth-child(even) { margin-top: 0; }
+  .cv-uc-card { padding: 18px 16px 14px; gap: 10px; }
+  .cv-uc-card h3 { font-size: 19px; }
+}

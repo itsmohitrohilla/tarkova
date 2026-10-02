@@ -5,15 +5,9 @@
   overflow: clip;
 }
 .ck-explain > div + div { margin-top: clamp(120px, 15vw, 240px); }
-.ck-ex-kicker {
-  display: flex; align-items: center; gap: 10px; margin: 0 0 clamp(20px, 3vw, 40px);
-  font: 500 12px/1 var(--ck-mono); letter-spacing: 0.16em; text-transform: uppercase; color: #6b6f77;
-}
-.ck-ex-kicker::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ck-red); }
 .ck-explain h2 { margin: 0; }
 .ck-explain h3 { margin: 0; }
 .ck-explain em { color: var(--ck-red); }
-.ck-explain a { color: inherit; }
 
 /* 1. The sentence */
 .ck-ex-sentence {
@@ -31,12 +25,10 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 /* Section titles */
 .ck-ex-h { font: 600 clamp(40px, 5.6vw, 92px)/0.95 var(--ck-sans); letter-spacing: -0.045em; }
 .ck-ex-h em { font-family: var(--ck-serif); font-weight: 400; letter-spacing: -0.01em; }
-.ck-ex-lede { max-width: 30ch; margin: 0; font-size: clamp(17px, 1.3vw, 20px); line-height: 1.5; color: #555a62; }
 
 .ck-ex-nots p { margin: 0.6em 0 0; max-width: 52ch; font-size: clamp(16px, 1.2vw, 18px); line-height: 1.55; color: #4a4e56; }
 
 /* 2. Features: a bento of tiles, each with a live micro-visual on top and one plain line below */
-.ck-ex-feat > header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; }
 .ck-ex-bento {
   display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(12px, 1.2vw, 18px);
   margin: clamp(48px, 6vw, 96px) 0 0; padding: 0; list-style: none;
@@ -55,7 +47,7 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 .ck-ex-viz {
   flex: 1; display: grid; place-items: center; min-height: clamp(200px, 17vw, 250px);
   padding: clamp(16px, 1.6vw, 24px); border-radius: 16px; background: var(--ck-white);
-  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06), 0 18px 40px -28px rgba(17, 17, 17, 0.35);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ck-ink) 6%, transparent), 0 18px 40px -28px color-mix(in srgb, var(--ck-ink) 35%, transparent);
   font-size: 14px; line-height: 1.4;
 }
 .ck-ex-viz > * { width: 100%; }
@@ -64,12 +56,12 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 .ck-ex-tile h3 { font-size: clamp(22px, 1.9vw, 30px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 .ck-ex-tile h3 code {
   display: inline-block; vertical-align: 0.25em; margin-left: 4px; padding: 5px 8px; border-radius: 6px;
-  font: 500 12px/1 var(--ck-mono); letter-spacing: 0; background: rgba(213, 0, 0, 0.08); color: var(--ck-red);
+  font: 500 12px/1 var(--ck-mono); letter-spacing: 0; background: color-mix(in srgb, var(--ck-red) 8%, transparent); color: var(--ck-red);
 }
 .ck-ex-tile p { margin: 0; }
 .ck-ex-txt p { margin-top: 0.55em; max-width: 46ch; font-size: clamp(15px, 1.1vw, 17px); line-height: 1.5; color: #4a4e56; }
 .ck-ex-tile.is-dash .ck-ex-txt p { color: rgba(255, 255, 255, 0.64); }
-.ck-ex-tile.is-dash h3 code { background: rgba(213, 0, 0, 0.25); color: #ff5a5a; }
+.ck-ex-tile.is-dash h3 code { background: color-mix(in srgb, var(--ck-red) 25%, transparent); color: var(--ck-red-lt); }
 
 /* Shared micro-visual bits */
 .ck-ex-pill {
@@ -90,7 +82,7 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 .ck-ex-code b { font-weight: 600; color: var(--ck-white); }
 .ck-ex-code .s { color: #f2b8b8; }
 .ck-ex-code .cm { color: rgba(255, 255, 255, 0.45); }
-.ck-ex-code .fn { position: relative; color: #ff5a5a; transition: color 0.4s; }
+.ck-ex-code .fn { position: relative; color: var(--ck-red-lt); transition: color 0.4s; }
 .ck-ex-code .fn.is-off { color: rgba(255, 255, 255, 0.3); text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.4); }
 .ck-ex-code .run { position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: var(--ck-red); transform-origin: 0 50%; }
 .ck-ex-code .fn.is-off .run { opacity: 0; }
@@ -107,17 +99,17 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 /* Images too: picture + caption inside one entry outline */
 .ck-ex-ent {
   --ent: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
-  padding: 30px 12px 12px; border: 1.5px dashed rgb(213 0 0 / calc(0.2 + var(--ent) * 0.8)); border-radius: 12px; position: relative;
+  padding: 30px 12px 12px; border: 1.5px dashed color-mix(in srgb, var(--ck-red) calc((0.2 + var(--ent) * 0.8) * 100%), transparent); border-radius: 12px; position: relative;
 }
 .ck-ex-ent .ck-ex-tag { position: absolute; left: 12px; top: 11px; }
 .ck-ex-ent .ck-ex-pill { position: absolute; right: 10px; top: 7px; }
 .ck-ex-img { position: relative; overflow: hidden; aspect-ratio: 10 / 7; border-radius: 8px; }
 .ck-ex-img svg { display: block; width: 100%; height: 100%; }
-.ck-ex-img .scan { position: absolute; inset: 0; opacity: 0; background: linear-gradient(transparent 65%, rgba(213, 0, 0, 0.35) 97%, var(--ck-red)); }
+.ck-ex-img .scan { position: absolute; inset: 0; opacity: 0; background: linear-gradient(transparent 65%, color-mix(in srgb, var(--ck-red) 35%, transparent) 97%, var(--ck-red)); }
 .ck-ex-plus2 { font: 500 16px/1 var(--ck-mono); color: #9a9ea7; }
 .ck-ex-cap {
   font: 400 italic clamp(15px, 1.3vw, 19px)/1.3 var(--ck-serif);
-  background: linear-gradient(rgba(213, 0, 0, 0.14), rgba(213, 0, 0, 0.14)) 0 0 / 100% 100% no-repeat;
+  background: linear-gradient(color-mix(in srgb, var(--ck-red) 14%, transparent), color-mix(in srgb, var(--ck-red) 14%, transparent)) 0 0 / 100% 100% no-repeat;
   padding: 4px 6px; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 
@@ -139,7 +131,7 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 .ck-ex-th .kw { position: absolute; inset: 0; transform: translateX(calc(var(--v) * 100%)); }
 .ck-ex-th .kn {
   position: absolute; left: -8px; top: -5px; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box;
-  background: var(--ck-white); border: 2px solid var(--ck-red); box-shadow: 0 2px 6px rgba(17, 17, 17, 0.2);
+  background: var(--ck-white); border: 2px solid var(--ck-red); box-shadow: 0 2px 6px color-mix(in srgb, var(--ck-ink) 20%, transparent);
 }
 
 /* MCP: a terminal */
@@ -148,7 +140,7 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 .ck-ex-term .dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
 .ck-ex-term .dots i:first-child { background: var(--ck-red); }
 .ck-ex-term p { white-space: nowrap; }
-.ck-ex-term .pr { color: #ff5a5a; }
+.ck-ex-term .pr { color: var(--ck-red-lt); }
 .ck-ex-term .ty { display: inline-block; }
 .ck-ex-term .out { display: flex; align-items: baseline; gap: 8px; color: rgba(255, 255, 255, 0.6); white-space: normal; }
 .ck-ex-term .ck-ex-pill { flex: none; padding: 3px 6px; font-size: 10px; }
@@ -167,7 +159,7 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
   background: rgba(255, 255, 255, 0.22); transition: transform 0.45s var(--ck-ease);
 }
 .ck-ex-dash .ck-ex-bars i.is-hit { background: var(--ck-red); }
-.ck-ex-dash .ck-ex-bars i.is-block { background: transparent; box-shadow: inset 0 0 0 1.5px #ff5a5a; }
+.ck-ex-dash .ck-ex-bars i.is-block { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ck-red-lt); }
 .ck-ex-feed {
   margin: 0; padding: 0; list-style: none; height: 100%; min-height: 150px; max-height: 200px; overflow: hidden;
   -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent);
@@ -178,7 +170,7 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 .ck-ex-feed b { justify-self: start; padding: 3px 6px; border-radius: 4px; font-weight: 600; font-size: 10px; letter-spacing: 0.08em; }
 .ck-ex-feed .is-hit b { background: var(--ck-red); color: var(--ck-white); }
 .ck-ex-feed .is-miss b { background: rgba(255, 255, 255, 0.14); }
-.ck-ex-feed .is-block b { box-shadow: inset 0 0 0 1px #ff5a5a; color: #ff5a5a; }
+.ck-ex-feed .is-block b { box-shadow: inset 0 0 0 1px var(--ck-red-lt); color: var(--ck-red-lt); }
 
 /* Survives model upgrades: entries migrate from v1 to v2. Columns are equal and gapless, so a lane
    moved by -200% of its own width sits exactly in the v1 column. */
@@ -204,9 +196,9 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 @media (hover: hover) and (pointer: fine) {
   .ck-ex-tile article::before {
     content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s var(--ck-ease);
-    background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgba(213, 0, 0, 0.12), transparent 65%);
+    background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--ck-red) 12%, transparent), transparent 65%);
   }
-  .ck-ex-tile.is-dash article::before { background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(213, 0, 0, 0.35), transparent 65%); }
+  .ck-ex-tile.is-dash article::before { background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--ck-red) 35%, transparent), transparent 65%); }
   .ck-ex-tile article:hover::before { opacity: 1; }
 }
 
@@ -220,64 +212,6 @@ html.ck-motion .ck-ex-sentence .u { transform: scaleX(0); }
 /* A red "no" mark: a ring with a bar through it */
 .ck-ex-x { position: relative; display: block; width: 30px; height: 30px; border: 2px solid var(--ck-red); border-radius: 50%; box-sizing: border-box; }
 .ck-ex-x::after { content: ''; position: absolute; left: 50%; top: -1px; bottom: -1px; width: 2px; margin-left: -1px; background: var(--ck-red); transform: rotate(45deg); }
-
-/* 4. Editions: one comparison table. Community and Enterprise are two tall columns (paper, ink) that the
-   rows cut across, so every line reads left to right: what it is, Community, Enterprise. */
-.ck-ex-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.ck-ex-cmp {
-  --gap: clamp(8px, 1vw, 14px);
-  width: calc(100% + 2 * var(--gap)); table-layout: fixed; border-collapse: separate; border-spacing: var(--gap) 0;
-  margin: clamp(56px, 7vw, 110px) calc(-1 * var(--gap)) 0; text-align: left;
-}
-.ck-ex-cmp thead td { width: 36%; vertical-align: bottom; padding: 0 clamp(24px, 4vw, 72px) clamp(28px, 3vw, 44px) 0; }
-.ck-ex-cmp th, .ck-ex-cmp td { padding: 0; vertical-align: top; font-weight: inherit; }
-.ck-ex-cmp .is-c { background: var(--ck-paper); }
-.ck-ex-cmp .is-e { background: var(--ck-ink); color: var(--ck-white); }
-.ck-ex-cmp thead .is-c, .ck-ex-cmp thead .is-e { border-radius: 22px 22px 0 0; }
-.ck-ex-cmp tbody:last-child tr:last-child .is-c, .ck-ex-cmp tbody:last-child tr:last-child .is-e { border-radius: 0 0 22px 22px; }
-
-/* Column heads: name, price line, one honest sentence, the CTA */
-.ck-ex-eh { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; padding: clamp(26px, 2.6vw, 42px) clamp(22px, 2.4vw, 40px) clamp(28px, 3vw, 44px); }
-.ck-ex-eh h3 { font-size: clamp(32px, 3.4vw, 54px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
-.ck-ex-lead { margin: 12px 0 0; font: 400 italic clamp(22px, 2vw, 30px)/1.1 var(--ck-serif); color: var(--ck-red); }
-.ck-ex-cmp .is-e .ck-ex-lead { color: #ff5a5a; }
-.ck-ex-note { flex: 1; margin: 16px 0 0; max-width: 34ch; font-size: clamp(15px, 1.1vw, 17px); line-height: 1.5; color: #4a4e56; }
-.ck-ex-cmp .is-e .ck-ex-note { color: rgba(255, 255, 255, 0.64); }
-.ck-ex-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin: clamp(22px, 2.4vw, 32px) 0 0; }
-.ck-ex-btn {
-  display: inline-flex; align-items: center; padding: 15px 26px; border-radius: 999px; white-space: nowrap;
-  font-weight: 600; font-size: 16px; text-decoration: none; transition: background 0.3s, color 0.3s;
-}
-.ck-ex-btn.is-red { background: var(--ck-red); color: var(--ck-white); }
-.ck-ex-btn.is-red:hover { background: var(--ck-ink); }
-.ck-ex-btn.is-white { background: var(--ck-white); color: var(--ck-ink); }
-.ck-ex-btn.is-white:hover { background: var(--ck-red); color: var(--ck-white); }
-.ck-ex-acts > a:not(.ck-ex-btn) {
-  white-space: nowrap; text-decoration: none; padding-bottom: 3px; transition: color 0.3s;
-  background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
-}
-.ck-ex-acts > a:not(.ck-ex-btn):hover { color: #ff5a5a; }
-.ck-ex-cmp a:focus-visible { outline: 2px solid var(--ck-red); outline-offset: 4px; }
-.ck-ex-cmp .is-e a:focus-visible { outline-color: var(--ck-white); }
-
-/* Rows */
-.ck-ex-cmp tbody th, .ck-ex-cmp tbody td { padding: 16px clamp(22px, 2.4vw, 40px); border-top: 1px solid rgba(17, 17, 17, 0.1); }
-.ck-ex-cmp tbody th { padding-left: 0; font-size: clamp(16px, 1.2vw, 18px); font-weight: 500; line-height: 1.35; }
-.ck-ex-cmp tbody .is-e { border-top-color: rgba(255, 255, 255, 0.12); }
-.ck-ex-cmp tbody:last-child tr:last-child > * { padding-bottom: clamp(26px, 2.6vw, 40px); }
-.ck-ex-cmp th small { display: block; margin-top: 3px; font-size: 14px; font-weight: 400; color: #6b6f77; }
-.ck-ex-cmp .ck-ex-grp > * { padding-top: clamp(30px, 3vw, 44px); padding-bottom: 10px; border-top: 0; }
-.ck-ex-cmp .ck-ex-grp th { font: 500 12px/1 var(--ck-mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ck-red); }
-.ck-ex-val { display: inline-block; font-size: clamp(16px, 1.2vw, 18px); font-weight: 600; letter-spacing: -0.01em; line-height: 1.35; }
-/* Marks: a red disc with a white tick, or a dim dash */
-.ck-ex-mk { position: relative; display: inline-block; width: 22px; height: 22px; vertical-align: -4px; }
-.ck-ex-mk.is-yes { border-radius: 50%; background: var(--ck-red); }
-.ck-ex-mk.is-yes::after {
-  content: ''; position: absolute; left: 7px; top: 4px; width: 5px; height: 10px;
-  border: solid var(--ck-white); border-width: 0 2px 2px 0; transform: rotate(45deg);
-}
-.ck-ex-mk.is-no::after { content: ''; position: absolute; left: 4px; right: 4px; top: 10px; height: 2px; border-radius: 1px; background: #b9bcc2; }
-html.ck-motion .ck-ex-cmp tbody :is(.ck-ex-mk, .ck-ex-val) { opacity: 0; transform: scale(0.5); }
 
 @media (max-width: 960px) {
   .ck-ex-nots { grid-template-columns: repeat(2, 1fr); }
@@ -298,27 +232,4 @@ html.ck-motion .ck-ex-cmp tbody :is(.ck-ex-mk, .ck-ex-val) { opacity: 0; transfo
   .ck-ex-dash { grid-template-columns: 1fr; }
   .ck-ex-feed { min-height: 0; height: 150px; }
   .ck-ex-term { font-size: 11px; }
-  /* Comparison: each row becomes its label over a Community | Enterprise pair */
-  .ck-ex-cmp, .ck-ex-cmp thead, .ck-ex-cmp tbody { display: block; }
-  .ck-ex-cmp { width: auto; margin-inline: 0; }
-  .ck-ex-cmp tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ck-ex-cmp thead td { grid-column: 1 / -1; width: auto; padding: 0 0 28px; }
-  .ck-ex-cmp .ck-ex-grp td { display: none; }
-  .ck-ex-cmp tbody th { grid-column: 1 / -1; padding: 18px 0 8px; border-top: 0; }
-  .ck-ex-cmp tbody td { padding: 10px 16px; border-top: 0; }
-  .ck-ex-cmp .ck-ex-grp th { padding: 36px 0 10px; border-bottom: 1px solid rgba(17, 17, 17, 0.1); }
-  .ck-ex-cmp tbody td.is-c { border-radius: 12px 0 0 12px; }
-  .ck-ex-cmp tbody td.is-e { border-radius: 0 12px 12px 0; }
-  .ck-ex-cmp tbody:last-child tr:last-child > td { padding-bottom: 10px; }
-  .ck-ex-cmp tbody:last-child tr:last-child > th { padding-bottom: 8px; }
-  .ck-ex-cmp tbody:last-child tr:last-child .is-c { border-radius: 12px 0 0 12px; }
-  .ck-ex-cmp tbody:last-child tr:last-child .is-e { border-radius: 0 12px 12px 0; }
-  .ck-ex-cmp thead .is-c { border-radius: 18px 0 0 18px; }
-  .ck-ex-cmp thead .is-e { border-radius: 0 18px 18px 0; }
-  .ck-ex-eh { padding: 20px 16px 22px; }
-  .ck-ex-eh h3 { font-size: 26px; }
-  .ck-ex-lead { font-size: 21px; }
-  .ck-ex-note { font-size: 14px; }
-  .ck-ex-acts { flex-direction: column; align-items: flex-start; gap: 14px; }
-  .ck-ex-btn { padding: 12px 18px; font-size: 15px; }
 }

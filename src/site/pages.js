@@ -5,6 +5,7 @@ import { coverArt } from './art.js'
 import { products } from './products.js'
 import { footerHTML, MARK } from './footer.js'
 import { crowkisMain, CK_HEAD } from './crowkis/page.js'
+import { curvaMain, CV_HEAD, CV_META } from './curva/page.js'
 
 const PER_PAGE = 24
 // TODO(tarkova): confirm this inbox exists before launch; it's printed on the legal pages.
@@ -425,6 +426,9 @@ function productPage(site, topics, p, latest) {
   // Crowkis gets the full motion piece (src/site/crowkis/); other products use the layout below.
   if (p.id === 'crowkis')
     return [path, { head: head({ site, title: `${c.title} | Tarkova`, description: c.description, path, ld, extra: CK_HEAD }), body: page(p.id, topics, crowkisMain({ p, c, latest, esc, serif, card })) }]
+  // Curva gets its own "calibration lab" piece (src/site/curva/), with copy from its Content Box.
+  if (p.id === 'curva')
+    return [path, { head: head({ site, title: `${CV_META.title} | Tarkova`, description: CV_META.description, path, ld, extra: CV_HEAD }), body: page(p.id, topics, curvaMain({ p, esc, serif })) }]
   const main = `<div class="pp" style="--brand:${p.color}">
 <section class="pp-hero">
   <div class="pp-dots" aria-hidden="true"></div>

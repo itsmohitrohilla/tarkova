@@ -7,8 +7,6 @@
   padding: clamp(96px, 16vh, 200px) var(--ck-gutter) clamp(96px, 16vh, 200px);
 }
 .ck-pl-head { max-width: min(1400px, 160vh); margin: 0 auto clamp(48px, 9vh, 112px); }
-.ck-pl-kicker { display: flex; align-items: center; gap: 12px; margin: 0; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ck-red); }
-.ck-pl-kicker::before { content: ''; width: 8px; height: 8px; background: currentColor; }
 .ck-pl-head h2 {
   margin: 22px 0 0; max-width: 11ch;
   font: 600 clamp(44px, 7.6vw, 128px)/0.94 var(--ck-sans); letter-spacing: -0.04em;
@@ -47,22 +45,30 @@
 .ck-pl-lbl { margin-top: 20px !important; color: var(--pl-soft); }
 .ck-pl-lbl b { color: var(--ck-red); font-weight: 600; }
 
-/* 03 Check: five tall, thin gates in a row, a stream of dots running through them, ink turning red. A passed gate is red. */
-.ck-pl-check { position: relative; }
-.ck-pl-gates { position: relative; display: flex; list-style: none; padding: 0; height: 280px; margin-bottom: 64px !important; }
-.ck-pl-gates::before { /* static only: the stream, a dot band that reddens left → right */
-  content: ''; position: absolute; left: 0; right: 0; top: 28%; bottom: 28%;
-  background: linear-gradient(90deg, var(--ck-ink) 5%, var(--ck-red) 70%);
-  -webkit-mask: radial-gradient(circle, #000 0 1.6px, transparent 2px) 0 0 / 11px 11px;
-  mask: radial-gradient(circle, #000 0 1.6px, transparent 2px) 0 0 / 11px 11px;
+/* 03 Check: a scorecard. The candidate answer (a red dot cluster) beside five checks, each a score bar, an example
+   value where one helps, and a tick. Static shows it finished: all five passed. */
+.ck-pl-check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 4vw, 72px); align-items: center; }
+.ck-pl-cluster { /* static only: the cluster, already red */
+  display: block; width: clamp(120px, 13vw, 220px); aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, var(--ck-red) 0 1.7px, transparent 2.2px) 50% 50% / 8px 8px;
 }
-.ck-pl-gates li { position: relative; flex: 1; }
-.ck-pl-gates i { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ck-red); transition: background-color 0.3s; }
-.ck-pl-gates i::before, .ck-pl-gates i::after { content: ''; position: absolute; left: -4px; right: -4px; height: 2px; background: inherit; } /* the slit's end caps */
-.ck-pl-gates i::before { top: 0; }
-.ck-pl-gates i::after { bottom: 0; }
-.ck-pl-gates span { position: absolute; left: 50%; top: calc(100% + 18px); transform: translateX(-50%); font: 500 clamp(18px, 1.6vw, 26px)/1 var(--ck-sans); letter-spacing: -0.01em; color: var(--ck-red); white-space: nowrap; transition: color 0.3s; }
-.ck-pl-why { margin-top: 20px !important; text-align: center; color: var(--pl-soft); text-transform: none; letter-spacing: 0.02em; }
+.ck-pl-eg { margin-bottom: 12px !important; font: 500 12px/1.5 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--pl-soft); }
+.ck-pl-eg span { margin-left: 0.6em; text-transform: none; letter-spacing: 0.01em; color: var(--ck-ink); }
+.ck-pl-checks { list-style: none; padding: 0; }
+.ck-pl-checks li {
+  display: grid; grid-template-columns: 5.6em minmax(0, 1fr) 6.4rem 0.9em; gap: clamp(12px, 1.2vw, 20px); align-items: center;
+  padding: 0.45em 0; border-top: 1px solid color-mix(in srgb, var(--ck-ink) 14%, transparent);
+  font: 500 clamp(20px, 2vw, 30px)/1.1 var(--ck-sans); letter-spacing: -0.015em; color: var(--ck-ink); transition: color 0.3s;
+}
+.ck-pl-checks li:last-child { border-bottom: 1px solid color-mix(in srgb, var(--ck-ink) 14%, transparent); }
+.ck-pl-bar { position: relative; height: 3px; background: color-mix(in srgb, var(--ck-ink) 10%, transparent); }
+.ck-pl-bar i { position: absolute; inset: 0 auto 0 0; width: calc(var(--v) * 100%); background: var(--ck-red); transform-origin: 0 50%; transition: background-color 0.3s; }
+.ck-pl-bar[data-min]::after { /* the threshold the score must clear */ content: ''; position: absolute; left: calc(var(--min) * 100%); top: -6px; bottom: -6px; width: 1px; background: var(--ck-ink); }
+.ck-pl-val { justify-self: start; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ck-red); transition: color 0.3s; }
+.ck-pl-tick { width: 0.9em; height: 0.9em; fill: none; stroke: var(--ck-red); stroke-width: 2.4; stroke-linecap: square; stroke-dasharray: 1; }
+.ck-pl-pass { margin-top: 16px !important; font: 500 12px/1 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ck-red); }
+.ck-pl-pass b { font-weight: 700; }
+.ck-pl-why { margin-top: 10px !important; color: var(--pl-soft); text-transform: none; letter-spacing: 0.02em; }
 .ck-pl-why code { font: inherit; color: var(--ck-ink); }
 
 /* 04 Answer: one red dot, and the time it took. */
@@ -91,18 +97,19 @@ html.ck-motion .ck-pl-q { position: absolute; left: var(--ck-gutter); right: var
 html.ck-motion .ck-pl-embed { position: absolute; left: 50%; top: 48%; width: min(58vw, 900px); transform: translate(-50%, -50%); }
 html.ck-motion .ck-pl-grid { background: none; }
 html.ck-motion .ck-pl-grid::after { display: none; }
-/* 03 + 04 share one row: --gl/--gw place the gates, --gy/--gh their centre line and height; the dot sits --gd past them. */
-html.ck-motion .ck-pl-stage { --gl: 14vw; --gw: 44vw; --gd: 3.5vw; --gy: 44%; --gh: min(40vh, 400px); }
-html.ck-motion .ck-pl-check { position: absolute; left: var(--gl); top: var(--gy); width: var(--gw); height: var(--gh); transform: translateY(-50%); }
-html.ck-motion .ck-pl-gates { height: 100%; margin: 0 !important; }
-html.ck-motion .ck-pl-gates::before { display: none; }
-html.ck-motion .ck-pl-gates i { background: rgba(17, 17, 17, 0.42); }
-html.ck-motion .ck-pl-gates span { color: var(--pl-soft); }
-html.ck-motion .ck-pl-gates li.is-on i { background: var(--ck-red); }
-html.ck-motion .ck-pl-gates li.is-on span { color: var(--ck-red); }
-html.ck-motion .ck-pl-why { position: absolute; left: 0; bottom: calc(100% + 28px); margin: 0 !important; text-align: left; white-space: nowrap; }
-/* The dot sits just past the last gate, where the stream converges; the readout hangs to its right. */
-html.ck-motion .ck-pl-ans { position: absolute; left: calc(var(--gl) + var(--gw) + var(--gd)); top: var(--gy); align-items: center; transform: translate(calc(clamp(16px, 1.6vw, 24px) / -2), -50%); }
+/* 03 + 04 share one centre: the cluster sits at --cx/--cy (radius --cr), the scorecard --cg to its right (width --cl),
+   the pair centred on the stage; step 04's dot lands on the same centre, so the collapse reads as one move. */
+html.ck-motion .ck-pl-stage {
+  --cr: min(17vh, 160px); --cg: clamp(40px, 6vw, 104px); --cl: min(36vw, 520px); --cy: 47%;
+  --cx: calc(50vw + var(--cr) - (2 * var(--cr) + var(--cg) + var(--cl)) / 2);
+}
+html.ck-motion .ck-pl-check { position: absolute; inset: 0; display: block; }
+html.ck-motion .ck-pl-cluster { position: absolute; left: calc(var(--cx) - var(--cr)); top: calc(var(--cy) - var(--cr)); width: calc(2 * var(--cr)); background: none; }
+html.ck-motion .ck-pl-card { position: absolute; left: calc(var(--cx) + var(--cr) + var(--cg)); top: var(--cy); width: var(--cl); transform: translateY(-50%); }
+html.ck-motion .ck-pl-checks li:not(.is-on) { color: var(--pl-soft); }
+html.ck-motion .ck-pl-checks li:not(.is-on) .ck-pl-bar i { background: var(--ck-ink); }
+/* The dot sits on the cluster's centre; the readout hangs to its right. */
+html.ck-motion .ck-pl-ans { position: absolute; left: var(--cx); top: var(--cy); align-items: center; transform: translate(calc(clamp(16px, 1.6vw, 24px) / -2), -50%); }
 html.ck-motion .ck-pl-read { position: relative; }
 html.ck-motion .ck-pl-served, html.ck-motion .ck-pl-miss { position: absolute; left: 0.3em; white-space: nowrap; }
 html.ck-motion .ck-pl-served { top: 100%; }
@@ -135,13 +142,6 @@ html.ck-motion .ck-pl-miss { top: calc(100% + 30px); }
 @keyframes ck-pl-blink { 50% { opacity: 0; } }
 
 
-/* ≤1100px: five names side by side would crowd, so each runs down its gate, read bottom to top. */
-@media (max-width: 1100px) {
-  .ck-pl-gates { margin-bottom: 120px !important; }
-  .ck-pl-gates span { top: calc(100% + 14px); writing-mode: vertical-rl; transform: translateX(-50%) rotate(180deg); font-size: 17px; }
-  html.ck-motion .ck-pl-stage { --gy: 42%; --gh: min(32vh, 340px); } /* room for the upright names above the copy */
-}
-
 /* ≤900px: static stacks copy over art; motion keeps the same stage, re-laid for a narrow screen. */
 @media (max-width: 900px) {
   .ck-pl-step { display: block; }
@@ -154,11 +154,15 @@ html.ck-motion .ck-pl-miss { top: calc(100% + 30px); }
   .ck-pl-roll { font-size: 72px; }
   html.ck-motion .ck-pl-q { top: 44%; font-size: 15vw; }
   html.ck-motion .ck-pl-embed { top: 42%; width: calc(100vw - 2 * var(--ck-gutter)); }
-  html.ck-motion .ck-pl-stage { --gl: 24vw; --gw: 54vw; --gy: 37%; --gh: 24vh; }
-  html.ck-motion .ck-pl-why { bottom: auto; top: calc(100% + 118px); left: calc(var(--ck-gutter) - var(--gl)); white-space: normal; max-width: 30ch; }
-  /* Narrow: the dot ends the row at the right edge; the readout drops beneath it, right-aligned. */
-  html.ck-motion .ck-pl-ans { left: auto; right: var(--ck-gutter); flex-direction: column; align-items: flex-end; gap: 22px; transform: translateY(calc(clamp(16px, 1.6vw, 24px) / -2)); text-align: right; }
-  html.ck-motion .ck-pl-read { display: flex; flex-direction: column; align-items: flex-end; }
+  .ck-pl-check { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .ck-pl-cluster { width: 120px; }
+  .ck-pl-checks li { grid-template-columns: 5.6em minmax(0, 1fr) auto 0.9em; gap: 10px; }
+  .ck-pl-val { font-size: 12px; }
+  /* Narrow: the cluster centred up top, the scorecard full width beneath it; step 04 stacks on the same centre. */
+  html.ck-motion .ck-pl-stage { --cr: min(12vh, 24vw); --cx: 50vw; --cy: 26%; }
+  html.ck-motion .ck-pl-card { left: var(--ck-gutter); right: var(--ck-gutter); width: auto; top: calc(var(--cy) + var(--cr) + 24px); transform: none; }
+  html.ck-motion .ck-pl-ans { flex-direction: column; gap: 22px; transform: translate(-50%, calc(clamp(16px, 1.6vw, 24px) / -2)); text-align: center; }
+  html.ck-motion .ck-pl-read { display: flex; flex-direction: column; align-items: center; }
   html.ck-motion .ck-pl-ms { font-size: 26vw; }
   html.ck-motion :is(.ck-pl-served, .ck-pl-miss) { position: static; }
   .ck-pl-try { grid-template-columns: 1fr; }

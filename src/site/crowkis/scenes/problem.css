@@ -4,15 +4,13 @@
   padding: clamp(96px, 16vh, 180px) 0 0;
 }
 .ck-problem :is(h2, h3, p, dl, dd, ol, ul) { margin: 0; }
-.ck-problem em { color: var(--ck-red); }
+.ck-problem em { color: var(--ck-red-lt); }
 
 /* ---------- 1. head ---------- */
 .ckp-head { padding: 0 var(--ck-gutter) clamp(72px, 14vh, 160px); display: grid; gap: clamp(28px, 4vw, 56px); }
-.ckp-kicker, .ckp-label, .ckp-meter dt, .ckp-ask-meta {
+.ckp-meter dt, .ckp-ask-meta {
   font: 500 12px/1 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ck-dim);
 }
-.ckp-kicker { display: flex; align-items: center; gap: 12px; }
-.ckp-kicker::before { content: ''; width: 8px; height: 8px; background: var(--ck-red); }
 .ckp-title {
   font: 600 clamp(52px, 10.4vw, 188px)/0.9 var(--ck-sans); letter-spacing: -0.045em;
   max-width: 11ch; text-wrap: balance;
@@ -27,12 +25,10 @@
 
 /* ---------- 2. echo: one question, fifty times ---------- */
 .ckp-echo {
-  display: grid; grid-template-rows: auto 1fr auto; gap: clamp(20px, 3vh, 36px);
+  display: grid; grid-template-rows: 1fr auto; gap: clamp(20px, 3vh, 36px);
   padding: clamp(84px, 11vh, 110px) var(--ck-gutter) clamp(24px, 4vh, 44px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
-.ckp-story { display: grid; grid-template-columns: 1fr minmax(0, 30ch); gap: 24px; align-items: start; }
-.ckp-lede { font-size: clamp(17px, 1.4vw, 21px); line-height: 1.4; color: #c9ccd1; }
 
 .ckp-cloud { position: relative; }
 .ckp-asks { list-style: none; padding: 0; position: relative; height: clamp(360px, 52vh, 620px); }
@@ -43,7 +39,7 @@
   /* cursor parallax (set from JS), scaled by depth; transform stays free for the scroll timeline */
   translate: calc(var(--mx, 0) * var(--d) * 1px) calc(var(--my, 0) * var(--d) * 1px);
 }
-.ckp-ask-meta { font-size: 11px; color: var(--ck-red); letter-spacing: 0.08em; }
+.ckp-ask-meta { font-size: 11px; color: var(--ck-red-lt); letter-spacing: 0.08em; }
 .ckp-ask:first-child .ckp-ask-in { color: var(--ck-white); }
 
 .ckp-dot {
@@ -68,7 +64,7 @@
   padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 .ckp-meter dd { margin-top: 10px; font: 500 clamp(24px, 3vw, 48px)/1 var(--ck-mono); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.ckp-meter dd.ckp-zero { color: var(--ck-red); }
+.ckp-meter dd.ckp-zero { color: var(--ck-red-lt); }
 
 /* ---------- 3. rail: the five problems ---------- */
 .ckp-rail { position: relative; overflow: clip; border-top: 1px solid rgba(255, 255, 255, 0.1); }
@@ -127,7 +123,6 @@ html.ck-motion .ckp-num { --f: 0; }
 
 /* ---------- small screens: a flowing cloud, stacked problems, no horizontal pin ---------- */
 @media (max-width: 768px) {
-  .ckp-story { grid-template-columns: 1fr; gap: 14px; }
   .ckp-asks, html.ck-motion .ckp-asks { position: static; height: auto; display: flex; flex-wrap: wrap; gap: 12px 16px; align-content: flex-start; }
   .ckp-ask { position: relative; left: auto; top: auto; }
   .ckp-ask-in { font-size: calc(11px + 5px * var(--d)); gap: 4px; }
