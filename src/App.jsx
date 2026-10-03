@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { TextAnimationCollection, TextPathStudies } from '@designcodeio/threeui'
 import '@designcodeio/threeui/style.css'
+import './global.css'
 import './App.css'
 import { products } from './site/products.js'
 import { footerHTML, WORDMARK_PROPS } from './site/footer.js'
 import './site/footer.css'
 import { mountMusic } from './music.js'
+import { mountGlass } from './glass.js'
 
 export default function App() {
   const [latest, setLatest] = useState([])
@@ -21,6 +23,7 @@ export default function App() {
 
   // Music and its mute button are shared with every site page (src/music.js).
   useEffect(mountMusic, [])
+  useEffect(() => mountGlass(document.querySelector('.nav')), [])
 
   return (
     <>

@@ -245,7 +245,7 @@ ${col(b.leftItems, 160, 150)}${col(b.rightItems, 480, 150)}${col(overlap, 320, 1
 // Topic, date and read time sit under the title, never above it.
 // "New" marks posts from the last 7 days, as of the build (the site rebuilds when posts are published).
 const isNew = (p) => Date.now() - new Date(`${p.published_at}T00:00:00Z`) < 7 * 864e5
-const metaLine = (p) => `<p class="meta">${isNew(p) ? '<span class="new">New</span>' : ''}<span class="topic" style="--t:${ACCENT[p.tag] || '#FF4407'}">${esc(titleCase(p.tag))}</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.read_minutes} min read</span></p>`
+const metaLine = (p) => `<p class="meta">${isNew(p) ? '<span class="new">New</span>' : ''}<span class="topic" style="--t:${ACCENT[p.tag] || '#161616'}">${esc(titleCase(p.tag))}</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.read_minutes} min read</span></p>`
 
 function card(p, h = 'h2') {
   return `<li class="card"><a href="${postPath(p)}">

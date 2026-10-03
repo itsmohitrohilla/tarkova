@@ -1,7 +1,10 @@
+import '../global.css'
 import './site.css'
 import { mountMusic } from '../music.js'
+import { mountGlass } from '../glass.js'
 
 mountMusic()
+mountGlass(document.querySelector('.pill'))
 
 // Diagrams ship as Mermaid source (readable without JS); render them only where a post has one.
 const diagrams = document.querySelectorAll('pre.mermaid')

@@ -1,0 +1,44 @@
+/* Site-wide rules shared by the landing page and every site page. */
+
+/* Smooth cross-page transitions: the browser fades between pages on same-site navigation
+   (Chrome, Edge, Safari). Other browsers just switch pages instantly. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: 0.28s cubic-bezier(0.4, 0, 0.2, 1) both vt-out; }
+::view-transition-new(root) { animation: 0.42s cubic-bezier(0.2, 0.7, 0.1, 1) both vt-in; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
+
+/* Hidden scrollbars (the owner's choice); scrolling itself still works everywhere. */
+html, * { scrollbar-width: none; }
+::-webkit-scrollbar { display: none; }
+
+/* Liquid Glass menu bar (both the landing nav and the site pill); behaviour lives in src/glass.js. */
+.pill[data-glass] { position: relative; } /* the landing .nav is already position: fixed */
+:is(.pill, .nav)[data-glass] { isolation: isolate; transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease; }
+/* Adaptive tone: a light lens with dark text over light content, a smoky lens with white text over dark content. */
+:is(.pill, .nav)[data-tone="light"] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.28)), rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.7); color: #161616; text-shadow: none;
+}
+:is(.pill, .nav)[data-tone="light"] :is(.pill-links a, .nav-links a) { color: #161616; }
+/* On the blog the nav accent is white; on a light lens it turns ink so the current-page underline stays visible. */
+body:has(.blog-wrap, .post) .pill[data-tone="light"] { --nav-accent: #161616; }
+:is(.pill, .nav)[data-tone="light"] :is(.pill-mark img, .nav > a img) { filter: invert(1); }
+:is(.pill, .nav)[data-tone="dark"] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.08)), rgba(18, 18, 22, 0.3);
+  color: #fff;
+}
+/* Lensing (Chromium): the backdrop bends at the rim instead of only blurring. */
+:is(.pill, .nav).lg-lens {
+  backdrop-filter: url(#lg-lens) blur(5px) saturate(190%) brightness(1.06);
+  -webkit-backdrop-filter: url(#lg-lens) blur(5px) saturate(190%) brightness(1.06);
+}
+/* Specular highlight that follows the pointer, plus a fixed glint along the top rim. */
+:is(.pill, .nav)[data-glass]::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(140px 70px at var(--mx, 28%) 0%, rgba(255, 255, 255, 0.45), transparent 72%);
+  opacity: 0.7; transition: opacity 0.3s;
+}

@@ -3,10 +3,10 @@
 // Flat, print-like compositions: one ground (paper, ink or the topic colour), a halftone
 // field and one crisp line motif. No blur filters, so a page of 25 covers paints cheaply.
 
-// Accent per topic, from the brand family: Tarkova orange, Crowkis red, Curva blue.
+// Accent per topic, from the brand family: graphite ink, Crowkis red, Curva blue (no orange on the blog).
 export const ACCENT = {
-  guides: '#FF4407', features: '#C41A1A', 'use cases': '#FF4407', 'vs the field': '#1800ad',
-  engineering: '#1800ad', economics: '#FF4407', security: '#C41A1A', reference: '#52555A',
+  guides: '#161616', features: '#C41A1A', 'use cases': '#161616', 'vs the field': '#1800ad',
+  engineering: '#1800ad', economics: '#161616', security: '#C41A1A', reference: '#52555A',
   operations: '#1800ad', benchmarks: '#C41A1A',
   'curva guides': '#1800ad', 'curva concepts': '#3324d6', 'curva use cases': '#1800ad',
   'curva vs jev': '#4a3df0', 'curva benchmarks': '#3324d6', 'curva engineering': '#4a3df0',
@@ -37,17 +37,17 @@ const f = (n) => Math.round(n)
 export function coverArt(slug, tag) {
   const r = rng(slug)
   const id = 'a' + slug.replace(/[^a-z0-9]/gi, '').slice(-10) + f(r() * 1e6)
-  const accent = ACCENT[tag] || '#FF4407'
+  const accent = ACCENT[tag] || '#161616'
   const W = 1200, H = 630
   const fx = 300 + r() * 600, fy = 170 + r() * 290 // focal point
 
   // Mostly paper, some ink, a few in the topic colour: a grid of them reads varied but related.
   const g = r()
   const ground = g < 0.55 ? 'paper' : g < 0.85 ? 'ink' : 'accent'
-  const cool = accent !== '#FF4407' && accent !== '#C41A1A' // the blues and grey: too dark to read on ink
+  const cool = accent !== '#C41A1A' // ink, the blues and grey: too dark to read on ink
   const bg = ground === 'paper' ? PAPER : ground === 'ink' ? INK : accent
   const fg = ground === 'paper' ? INK : PAPER
-  const hi = ground === 'accent' ? (cool ? '#FF4407' : INK) : ground === 'ink' && cool ? '#7d70ff' : accent
+  const hi = ground === 'accent' ? (cool ? '#f4f4f1' : INK) : ground === 'ink' && cool ? '#7d70ff' : accent
   const dots = ground === 'paper' ? accent : PAPER
 
   let motif = ''
