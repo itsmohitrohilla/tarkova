@@ -304,6 +304,12 @@ function listingPages({ site, posts, topics, base, topic, allCount }) {
 <header class="mast${n > 1 ? ' mast-sub' : ''}">
   <h1>${topic ? esc(titleCase(topic)) : 'Practical reads to help you spend less on AI.'}</h1>
   <div class="mast-foot"><p class="mast-lede">${lede}</p><a class="mast-rss" href="/rss.xml">Subscribe with RSS</a></div>
+  <form class="bsearch" role="search" action="https://www.google.com/search" data-bsearch>
+    <label class="sr" for="bsearch-q">Search the blog</label>
+    <input id="bsearch-q" type="search" name="q" placeholder="Search ${posts.length} articles" autocomplete="off" />
+    <input type="hidden" name="as_sitesearch" value="tarkova.com/blog" />
+    <div class="bsearch-out" aria-live="polite" hidden></div>
+  </form>
 </header>
 <nav class="topics" aria-label="Topics"><ul role="list">${tabs.map(([l, h, c, on]) => `<li><a href="${h}"${on ? ` aria-current="${n === 1 ? 'page' : 'true'}"` : ''}>${esc(l)}<span class="n">${c}</span></a></li>`).join('')}</ul></nav>
 ${n === 1 ? spread(lead, side) : ''}
@@ -733,6 +739,8 @@ export function buildSite(rows, { site }) {
     ['/rss.xml', rss(site, posts)],
     ['/llms.txt', llms(site, posts, topics)],
     ['/blog/latest.json', JSON.stringify({ posts: latest, topics })],
+    // Blog search runs in the browser over this small index (title, summary, topic, url), fetched on first focus.
+    ['/blog/search.json', JSON.stringify(posts.map((p) => [p.title, p.summary, p.tag, postPath(p)]))],
   ])
   return { pages, files }
 }

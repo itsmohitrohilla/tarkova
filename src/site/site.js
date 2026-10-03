@@ -79,3 +79,31 @@ document.addEventListener('click', (e) => {
     setTimeout(() => (btn.textContent = btn.dataset.label), 1400)
   })
 })
+
+// Blog search: filter /blog/search.json (fetched on first focus) as you type. Without JS the form
+// falls back to a Google site search, so the box always works.
+const bsearch = document.querySelector('[data-bsearch]')
+if (bsearch) {
+  const q = bsearch.querySelector('input[type=search]'), out = bsearch.querySelector('.bsearch-out')
+  let index = null
+  const load = () => (index ??= fetch('/blog/search.json').then((r) => r.json()))
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  const render = async () => {
+    const words = q.value.toLowerCase().trim().split(/\s+/).filter(Boolean)
+    if (!words.length) { out.hidden = true; out.innerHTML = ''; return }
+    const rows = await load()
+    // ponytail: every word must appear in title/summary/topic; title hits rank first. Swap for a ranked index if it ever feels weak.
+    const hits = rows
+      .map(([t, s, g, u]) => ({ t, s, g, u, hay: `${t} ${s} ${g}`.toLowerCase(), inTitle: words.every((w) => t.toLowerCase().includes(w)) }))
+      .filter((r) => words.every((w) => r.hay.includes(w)))
+      .sort((a, b) => b.inTitle - a.inTitle)
+    out.hidden = false
+    out.innerHTML = hits.length
+      ? `<p class="bsearch-n">${hits.length} result${hits.length === 1 ? '' : 's'}</p><ul role="list">${hits.slice(0, 12).map((r) => `<li><a href="${r.u}"><strong>${esc(r.t)}</strong><span>${esc(r.g)} · ${esc(r.s)}</span></a></li>`).join('')}</ul>`
+      : '<p class="bsearch-n">No articles match. Try fewer words.</p>'
+  }
+  q.addEventListener('focus', load, { once: true })
+  q.addEventListener('input', render)
+  q.addEventListener('keydown', (e) => { if (e.key === 'Escape') { q.value = ''; render() } })
+  bsearch.addEventListener('submit', (e) => { e.preventDefault(); const first = out.querySelector('a'); if (first) location.href = first.href })
+}
