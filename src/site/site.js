@@ -46,6 +46,28 @@ if (cv) import('./curva/motion.js').then((m) => m.start(cv))
 const ab = document.querySelector('[data-ab]')
 if (ab) import('./about/motion.js').then((m) => m.start(ab))
 
+// A post's outline marks the section being read: the last heading or figure to pass the upper
+// fifth of the viewport.
+const toc = document.querySelector('.toc')
+if (toc) {
+  const links = [...toc.querySelectorAll('a')]
+  const targets = links.map((a) => document.getElementById(decodeURIComponent(a.hash.slice(1))))
+  let current
+  const mark = () => {
+    let i = 0
+    targets.forEach((t, j) => t && t.getBoundingClientRect().top < innerHeight * 0.2 && (i = j))
+    if (links[i] === current) return
+    current?.removeAttribute('aria-current')
+    ;(current = links[i]).setAttribute('aria-current', 'location')
+  }
+  addEventListener('scroll', mark, { passive: true })
+  mark()
+}
+
+// On narrow screens the topic bar scrolls sideways; start it at the current topic.
+const tab = document.querySelector('.topics [aria-current]')
+if (tab) tab.parentElement.parentElement.scrollLeft = tab.offsetLeft - 20
+
 // Copy buttons: a code block's source, or the URL in data-copy.
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-copy]')

@@ -1,9 +1,9 @@
 // Static pages for the blog, products and legal routes. Runs in Node (vite.config.js),
 // in dev per request and at build time once, so every page ships as real HTML crawlers can read.
 import { readFileSync } from 'node:fs'
-import { coverArt } from './art.js'
+import { coverArt, ACCENT } from './art.js'
 import { products } from './products.js'
-import { footerHTML } from './footer.js'
+import { footerHTML, MARK } from './footer.js'
 import { crowkisMain, CK_HEAD } from './crowkis/page.js'
 import { curvaMain, CV_HEAD, CV_META } from './curva/page.js'
 import { vsJevMain, VJ_META, VJ_PATH, VJ_UPDATED } from './curva/vs-jev.js'
@@ -145,75 +145,103 @@ function inline(text, ctx) {
 
 /* ---------- post body blocks ---------- */
 
+// ctx.outline collects the h2s and titled figures for the post's "On this page" list.
 function block(b, ctx) {
   switch (b.kind) {
     case 'p':
       return `<p>${inline(b.text, ctx)}</p>`
     case 'plain':
-      return `<aside class="plain"><span class="kicker">In plain words</span><p>${inline(b.text, ctx)}</p></aside>`
+      return `<div class="callout" role="note"><p><strong>In plain words.</strong> ${inline(b.text, ctx)}</p></div>`
     case 'h2': {
       const id = topicSlug(b.text)
+      ctx.outline.push({ id, text: b.text })
       return `<h2 id="${id}"><a class="anchor" href="#${id}" aria-hidden="true" tabindex="-1">#</a>${esc(b.text)}</h2>`
     }
     case 'quote':
       return `<blockquote class="pull"><p>${esc(b.text)}</p></blockquote>`
     case 'code':
-      return `<figure class="code"><figcaption><span>${esc(b.title || 'code')}</span><button type="button" class="copy" data-copy>Copy</button></figcaption><pre><code>${esc(b.code)}</code></pre></figure>`
+      return `<figure class="code"><figcaption><span>${esc(b.title || 'code')}</span><button type="button" class="copy" data-copy aria-live="polite">Copy</button></figcaption><pre tabindex="0"><code>${highlight(b.code)}</code></pre></figure>`
+    case 'table':
+      return `<div class="table" role="region" tabindex="0" aria-label="${esc(b.title || 'Table')}"><table>${b.title ? `<caption>${esc(b.title)}</caption>` : ''}<thead><tr>${b.head.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${b.rows.map((r) => `<tr>${r.map((c) => `<td>${inline(String(c), ctx)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
     case 'diagram':
-      return `<figure class="diagram"><pre class="mermaid">${esc(b.chart)}</pre>${caption(b)}</figure>`
+      return `<figure class="diagram"${fig(b, ctx)}><pre class="mermaid">${esc(b.chart)}</pre>${caption(b, ctx.fig)}</figure>`
     case 'art':
       // ponytail: authored SVG from our own posts table (RLS: public read, owner write) is trusted as-is.
-      return `<figure class="art">${b.svg.trim()}${caption(b)}</figure>`
+      return `<figure class="art"${fig(b, ctx)}>${b.svg.trim()}${caption(b, ctx.fig)}</figure>`
     case 'bars':
-      return bars(b)
+      return bars(b, fig(b, ctx), ctx.fig)
     case 'venn':
-      return venn(b)
+      return venn(b, fig(b, ctx), ctx.fig)
     default:
       return ''
   }
 }
 
-const caption = (b) => (b.title || b.caption ? `<figcaption>${b.title ? `<strong>${esc(b.title)}</strong>` : ''}${b.caption ? ` ${esc(b.caption)}` : ''}</figcaption>` : '')
+// Figures are numbered in reading order; titled ones join the outline.
+function fig(b, ctx) {
+  const id = `figure-${++ctx.fig}`
+  if (b.title) ctx.outline.push({ id, text: b.title, fig: true })
+  return ` id="${id}"`
+}
+
+const caption = (b, n) => `<figcaption><span class="fig-n">Figure ${n}.</span> ${b.title ? `<strong>${esc(b.title)}</strong>` : ''}${b.caption ? ` ${esc(b.caption)}` : ''}</figcaption>`
+
+// Build-time syntax colour for the shell, Python, JS/TS, JSON and Rust samples in posts: comments,
+// strings, numbers and common keywords. Plain spans, so the copy button still gets the raw text.
+const TOKEN = /((?<=^|\s)#[^\n]*|(?<![:\w])\/\/[^\n]*)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(\d+(?:\.\d+)?)\b|\b(import|from|def|class|return|await|async|const|let|var|function|new|if|else|elif|for|in|of|while|try|except|catch|with|as|export|default|true|false|null|None|True|False|fn|pub|use|mut|impl|struct|match|docker|pip|npm|curl)\b/gm
+function highlight(code) {
+  let out = '', at = 0
+  for (const m of code.matchAll(TOKEN)) {
+    out += esc(code.slice(at, m.index)) + `<span class="t-${m[1] ? 'c' : m[2] ? 's' : m[3] ? 'n' : 'k'}">${esc(m[0])}</span>`
+    at = m.index + m[0].length
+  }
+  return out + esc(code.slice(at))
+}
 
 // One series, so no legend: the title names it, each bar carries its own value label,
 // and the highlighted bar is the one the post is about.
-function bars(b) {
+function bars(b, id, n) {
   const max = Math.max(...b.series.map((s) => s.value)) || 1
   const rows = b.series.map((s) => `<li class="${s.accent ? 'on' : ''}" title="${esc(`${s.label}: ${s.value}${b.unit || ''}`)}">
 <span class="bar-label">${esc(s.label)}${s.sub ? ` <small>${esc(s.sub)}</small>` : ''}</span>
 <span class="bar-track"><span class="bar-fill" style="--v:${(s.value / max).toFixed(3)}"></span></span>
 <span class="bar-val">${esc(String(s.value))}${esc(b.unit || '')}</span></li>`).join('')
-  return `<figure class="bars"><strong class="bars-title">${esc(b.title)}</strong><ul role="list">${rows}</ul>${b.caption ? `<figcaption>${esc(b.caption)}</figcaption>` : ''}</figure>`
+  return `<figure class="bars"${id}><strong class="bars-title">${esc(b.title)}</strong><ul role="list">${rows}</ul>${caption({ caption: b.caption }, n)}</figure>`
 }
 
-function venn(b) {
+function venn(b, id, n) {
   const col = (items, x, y0) => items.map((t, i) => `<text x="${x}" y="${y0 + i * 22}" text-anchor="middle" class="vi">${esc(t)}</text>`).join('')
   const overlap = (b.overlap || '').split('\n')
-  return `<figure class="venn"><svg viewBox="0 0 640 330" role="img" aria-label="${esc(`${b.left} versus ${b.right}. Only ${b.left}: ${b.leftItems.join(', ')}. Both: ${overlap.join(', ')}. Only ${b.right}: ${b.rightItems.join(', ')}.`)}">
+  return `<figure class="venn"${id}><svg viewBox="0 0 640 330" role="img" aria-label="${esc(`${b.left} versus ${b.right}. Only ${b.left}: ${b.leftItems.join(', ')}. Both: ${overlap.join(', ')}. Only ${b.right}: ${b.rightItems.join(', ')}.`)}">
 <circle cx="235" cy="170" r="145" class="vl"/><circle cx="405" cy="170" r="145" class="vr"/>
 <text x="165" y="92" text-anchor="middle" class="vh">${esc(b.left)}</text><text x="475" y="92" text-anchor="middle" class="vh">${esc(b.right)}</text>
 ${col(b.leftItems, 160, 150)}${col(b.rightItems, 480, 150)}${col(overlap, 320, 170 - (overlap.length - 1) * 11)}
-</svg>${caption(b)}</figure>`
+</svg>${caption(b, n)}</figure>`
 }
 
 /* ---------- cards & listings ---------- */
 
+// Topic, date and read time sit under the title, never above it.
+const metaLine = (p) => `<p class="meta"><span class="topic" style="--t:${ACCENT[p.tag] || '#FF4407'}">${esc(titleCase(p.tag))}</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.read_minutes} min read</span></p>`
+
 function card(p, h = 'h2') {
   return `<li class="card"><a href="${postPath(p)}">
-<div class="card-media">${coverArt(p.slug, p.tag)}<span class="chip chip-float">${esc(titleCase(p.tag))}</span></div>
-<div class="card-body"><${h}>${esc(p.title)}</${h}><p>${esc(p.summary)}</p></div>
+<div class="card-art">${coverArt(p.slug, p.tag)}</div>
+<div class="card-text"><${h}>${esc(p.title)}</${h}><p class="card-sum">${esc(p.summary)}</p>${metaLine(p)}</div>
 </a></li>`
 }
 
-function featured(p) {
-  return `<a class="featured" href="${postPath(p)}">
-<div class="featured-media">${coverArt(p.slug, p.tag)}</div>
-<div class="featured-body">
-  <span class="chip">${esc(titleCase(p.tag))}</span>
-  <h2>${esc(p.title)}</h2>
-  <p>${esc(p.summary)}</p>
-  <div class="featured-meta"><span><i class="dot"></i>${p.read_minutes} min read</span><span class="by">by Tarkova</span></div>
-</div></a>`
+// Page one opens with the newest post large, and the five after it alongside.
+function spread(lead, side) {
+  return `<section class="spread" aria-label="Newest articles">
+<a class="lead" href="${postPath(lead)}">
+  <div class="lead-art">${coverArt(lead.slug, lead.tag)}</div>
+  <h2>${esc(lead.title)}</h2>
+  <p class="lead-sum">${esc(lead.summary)}</p>
+  ${metaLine(lead)}
+</a>
+${side.length ? `<div class="side"><h2 class="side-h">Also new</h2><ul role="list">${side.map((p) => `<li><a href="${postPath(p)}"><div class="side-text"><h3>${esc(p.title)}</h3>${metaLine(p)}</div><div class="side-art">${coverArt(p.slug, p.tag)}</div></a></li>`).join('')}</ul></div>` : ''}
+</section>`
 }
 
 function pager(base, n, total) {
@@ -222,27 +250,45 @@ function pager(base, n, total) {
   const nums = [...new Set([1, n - 1, n, n + 1, total])].filter((i) => i >= 1 && i <= total).sort((a, b) => a - b)
   let out = '', last = 0
   for (const i of nums) {
-    if (i - last > 1) out += '<span class="gap">…</span>'
-    out += i === n ? `<span aria-current="page">${i}</span>` : `<a href="${href(i)}">${i}</a>`
+    if (i - last > 1) out += '<li class="gap" aria-hidden="true">…</li>'
+    out += i === n ? `<li><span aria-current="page">${i}</span></li>` : `<li><a href="${href(i)}" aria-label="Page ${i}">${i}</a></li>`
     last = i
   }
-  return `<nav class="pager" aria-label="Pagination">${n > 1 ? `<a rel="prev" href="${href(n - 1)}">← Newer</a>` : ''}${out}${n < total ? `<a rel="next" href="${href(n + 1)}">Older →</a>` : ''}</nav>`
+  return `<nav class="pager" aria-label="Pagination">${n > 1 ? `<a class="pg-edge" rel="prev" href="${href(n - 1)}">← Newer</a>` : '<span></span>'}<ol role="list">${out}</ol>${n < total ? `<a class="pg-edge pg-next" rel="next" href="${href(n + 1)}">Older →</a>` : '<span></span>'}</nav>`
+}
+
+// One line per topic for its page's masthead (and meta description).
+const TOPIC_LEDE = {
+  guides: 'Step-by-step setups for caching LLM calls and giving agents memory with Crowkis, one framework at a time.',
+  features: 'What Crowkis does under the hood, one capability at a time.',
+  'use cases': 'Where semantic caching and agent memory pay off in real products.',
+  'vs the field': 'How Crowkis compares with vector databases, gateways and other caches.',
+  engineering: 'How Crowkis is built: the Rust internals, the search engine and the decisions behind them.',
+  economics: 'The cost math of LLM workloads, and where repeated calls quietly add up.',
+  security: 'Keeping AI infrastructure safe: injection checks, poisoning defences and tenant isolation.',
+  reference: 'Short references for Crowkis commands, one command per page.',
+  operations: 'Running Crowkis in production: cache warming, rate limits, dedup and dashboards.',
+  benchmarks: 'Latency, throughput and memory results from our own test runs.',
 }
 
 function listingPages({ site, posts, topics, base, topic, allCount }) {
   const lead = posts.find((p) => p.indexable) || posts[0]
   const rest = posts.filter((p) => p !== lead)
-  const total = Math.max(1, Math.ceil(rest.length / PER_PAGE))
+  // Page one also carries the five "Also new" entries beside the lead, so its grid keeps rows of three.
+  const FIRST = PER_PAGE + 2
+  const total = 1 + Math.ceil(Math.max(0, rest.length - FIRST) / PER_PAGE)
   const out = []
   for (let n = 1; n <= total; n++) {
     const path = n === 1 ? base : `${base}page/${n}/`
-    const slice = rest.slice((n - 1) * PER_PAGE, n * PER_PAGE)
+    const from = n === 1 ? 0 : FIRST + (n - 2) * PER_PAGE
+    const slice = rest.slice(from, n === 1 ? FIRST : from + PER_PAGE)
+    const side = n === 1 ? slice.slice(0, 5) : []
     const name = topic ? `${titleCase(topic)} articles` : 'Blog'
     const title = `${name}${n > 1 ? ` · page ${n}` : ''} | Tarkova`
     const description = topic
-      ? `${posts.length} ${topic} articles from Tarkova on semantic caching, agent memory and cutting LLM costs with Crowkis.`
+      ? `${TOPIC_LEDE[topic] || `Tarkova articles on ${topic}.`} ${posts.length} articles from Tarkova.`
       : 'Practical reads on semantic caching, agent memory, LLM cost and the engineering behind Crowkis, from the team at Tarkova.'
-    const chips = [['All', '/blog/', allCount, !topic], ...topics.map(([t, c]) => [titleCase(t), topicPath(t), c, t === topic])]
+    const tabs = [['All', '/blog/', allCount, !topic], ...topics.map(([t, c]) => [titleCase(t), topicPath(t), c, t === topic])]
     const ld = {
       '@context': 'https://schema.org',
       '@graph': [
@@ -251,15 +297,20 @@ function listingPages({ site, posts, topics, base, topic, allCount }) {
         org(site),
       ],
     }
-    const main = `<div class="wrap">
-<header class="blog-hero">
-  <span class="chip chip-soft">${topic ? 'Topic' : 'Tarkova Blog'}</span>
-  <h1>${topic ? riseTitle(`${titleCase(topic)}, *explained.*`) : riseTitle('Practical reads to help you spend *less* on AI.')}</h1>
-  <p class="lede">${topic ? `${posts.length} articles in ${esc(topic)}.` : 'Guides, benchmarks and deep dives on semantic caching, agent memory and LLM cost, from the team building Crowkis.'}</p>
+    const lede = topic
+      ? `${esc(TOPIC_LEDE[topic] || '')} ${posts.length} articles.`
+      : 'Guides, benchmarks and deep dives on semantic caching, agent memory and LLM cost, from the team building Crowkis.'
+    const main = `<div class="blog-wrap">
+<header class="mast${n > 1 ? ' mast-sub' : ''}">
+  <h1>${topic ? esc(titleCase(topic)) : 'Practical reads to help you spend less on AI.'}</h1>
+  <div class="mast-foot"><p class="mast-lede">${lede}</p><a class="mast-rss" href="/rss.xml">Subscribe with RSS</a></div>
 </header>
-<nav class="topics" aria-label="Topics">${chips.map(([l, h, c, on]) => `<a href="${h}"${on ? ' aria-current="page"' : ''}>${esc(l)} <span>${c}</span></a>`).join('')}</nav>
-${n === 1 ? featured(lead) : ''}
-<ul class="grid" role="list">${slice.map((p) => card(p)).join('')}</ul>
+<nav class="topics" aria-label="Topics"><ul role="list">${tabs.map(([l, h, c, on]) => `<li><a href="${h}"${on ? ` aria-current="${n === 1 ? 'page' : 'true'}"` : ''}>${esc(l)}<span class="n">${c}</span></a></li>`).join('')}</ul></nav>
+${n === 1 ? spread(lead, side) : ''}
+${slice.length > side.length ? `<section class="more" aria-labelledby="more-h">
+<div class="sec-head"><h2 id="more-h">${n === 1 ? 'More articles' : 'Older articles'}</h2>${total > 1 ? `<span>Page ${n} of ${total}</span>` : ''}</div>
+<ul class="grid" role="list">${slice.slice(side.length).map((p) => card(p, 'h3')).join('')}</ul>
+</section>` : ''}
 ${pager(base, n, total)}
 </div>`
     out.push([path, { head: head({ site, title, description, path, ld }), body: page('blog', topics, main) }])
@@ -296,7 +347,7 @@ function related(p, posts, idx, n = 3) {
 function postPage({ site, p, posts, idx, topics, prev, next }) {
   const path = postPath(p)
   const url = site + path
-  const ctx = { terms: idx.terms, linked: new Set(), self: p.slug, crowkisLinked: false }
+  const ctx = { terms: idx.terms, linked: new Set(), self: p.slug, crowkisLinked: false, fig: 0, outline: [] }
   const body = p.body.map((b) => block(b, ctx)).join('\n')
   const wordCount = p.body.reduce((n, b) => n + String(b.text || b.code || '').split(/\s+/).length, 0)
   const fw = idx.frameworkOf(p)
@@ -336,39 +387,60 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
 <meta property="article:modified_time" content="${p.updated_at.toISOString()}" />
 <meta property="article:section" content="${esc(p.tag)}" />
 `
+  // The closing pitch is for the product the post is about.
+  const prod = products.find((x) => x.id === (/\bcurva\b/i.test(`${p.title} ${p.summary}`) ? 'curva' : 'crowkis'))
+  const pitch = prod.id === 'curva'
+    ? [`${CV_META.title.replace(/^Curva: /, '').replace(/^\w/, (c) => c.toUpperCase())}.`, CV_META.description]
+    : ['Stop paying twice for the same answer.', 'Crowkis is a semantic cache for LLM workloads, built in Rust. Free community edition, one Docker image.']
+  const [wm, ww, wh] = prod.wordmark
+  const topic = titleCase(p.tag)
+  const shareTo = [
+    ['X', `https://x.com/intent/post?text=${encodeURIComponent(p.title)}&amp;url=${share}`],
+    ['LinkedIn', `https://www.linkedin.com/sharing/share-offsite/?url=${share}`],
+    ['Hacker News', `https://news.ycombinator.com/submitlink?u=${share}&amp;t=${encodeURIComponent(p.title)}`],
+    ['Reddit', `https://www.reddit.com/submit?url=${share}&amp;title=${encodeURIComponent(p.title)}`],
+  ]
+  // An outline of one entry is noise, so short posts skip it and the rail holds only sharing.
+  const toc = ctx.outline.length > 1
+    ? `<nav class="toc" aria-labelledby="toc-h"><h2 id="toc-h" class="rail-h">On this page</h2><ol role="list">${ctx.outline.map((o) => `<li${o.fig ? ' class="toc-fig"' : ''}><a href="#${o.id}">${esc(o.text)}</a></li>`).join('')}</ol></nav>`
+    : ''
   const main = `<article class="post">
-<header class="post-head narrow">
-  <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/">Home</a></li><li><a href="/blog/">Blog</a></li><li><a href="${topicPath(p.tag)}">${esc(titleCase(p.tag))}</a></li></ol></nav>
+<header class="post-head">
+  <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li><li><a href="${topicPath(p.tag)}">${esc(topic)}</a></li></ol></nav>
   <h1>${esc(p.title)}</h1>
-  <p class="lede">${esc(p.summary)}</p>
-  <div class="byline"><span class="by">by Tarkova</span><span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time></span><span>${p.read_minutes} min read</span></div>
+  <p class="post-lede">${esc(p.summary)}</p>
+  <p class="post-meta"><span class="by"><span class="by-mark">${MARK}</span>Tarkova</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.read_minutes} min read</span></p>
 </header>
-<figure class="post-banner">${coverArt(p.slug, p.tag, { label: esc(p.tag.toUpperCase()) + ' · TARKOVA' })}</figure>
-<div class="prose narrow">
+<div class="post-art">${coverArt(p.slug, p.tag)}</div>
+<div class="post-body">
+<div class="prose">
 ${body}
 </div>
-<div class="narrow">
-${family.length ? `<section class="family"><h2>${esc(fw)}, by use case</h2><ul>${family.map((q) => `<li><a href="${postPath(q)}">${esc(q.title.replace(/ with Crowkis$/, ''))}</a></li>`).join('')}</ul></section>` : ''}
-${hub && hub !== p ? `<p class="hub-link">New to ${esc(fw)} with Crowkis? Start with <a href="${postPath(hub)}">${esc(hub.title)}</a>.</p>` : ''}
-<aside class="cta">
-  <img src="/products/crowkis.png" alt="Crowkis logo" width="72" height="72" />
-  <div><strong>Stop paying twice for the same answer.</strong><p>Crowkis is a semantic cache for LLM workloads, built in Rust. Free community edition, one Docker image.</p></div>
-  <a class="btn" href="/crowkis/">Meet Crowkis <span aria-hidden="true">→</span></a>
+<aside class="rail" aria-label="On this page and sharing">
+${toc}
+<div class="share"><h2 class="rail-h">Share</h2><ul role="list">${shareTo.map(([l, h]) => `<li><a href="${h}" rel="noopener" target="_blank">${l}<span class="sr"> (opens in a new tab)</span></a></li>`).join('')}<li><button type="button" data-copy="${url}" aria-live="polite">Copy link</button></li></ul></div>
 </aside>
-<div class="share"><span>Share</span>
-  <a href="https://x.com/intent/post?text=${encodeURIComponent(p.title)}&amp;url=${share}" rel="noopener" target="_blank">X</a>
-  <a href="https://www.linkedin.com/sharing/share-offsite/?url=${share}" rel="noopener" target="_blank">LinkedIn</a>
-  <a href="https://news.ycombinator.com/submitlink?u=${share}&amp;t=${encodeURIComponent(p.title)}" rel="noopener" target="_blank">Hacker News</a>
-  <a href="https://www.reddit.com/submit?url=${share}&amp;title=${encodeURIComponent(p.title)}" rel="noopener" target="_blank">Reddit</a>
-  <button type="button" data-copy="${url}">Copy link</button>
 </div>
-<nav class="prevnext" aria-label="More posts">
-  ${next ? `<a href="${postPath(next)}"><small>← Newer</small>${esc(next.title)}</a>` : '<span></span>'}
-  ${prev ? `<a href="${postPath(prev)}" class="older"><small>Older →</small>${esc(prev.title)}</a>` : ''}
+<footer class="post-end">
+  <p class="filed">Filed under <a href="${topicPath(p.tag)}">${esc(topic)}</a>. Published <time datetime="${p.published_at}">${fmtDate(p.published_at)}</time>.</p>
+  ${family.length ? `<section class="family" aria-labelledby="family-h"><h2 id="family-h">${esc(fw)}, by use case</h2><ul>${family.map((q) => `<li><a href="${postPath(q)}">${esc(q.title.replace(/ with Crowkis$/, ''))}</a></li>`).join('')}</ul></section>` : ''}
+  ${hub && hub !== p ? `<p class="hub-link">New to ${esc(fw)} with Crowkis? Start with <a href="${postPath(hub)}">${esc(hub.title)}</a>.</p>` : ''}
+</footer>
+<aside class="post-cta" style="--brand:${prod.color}" aria-labelledby="cta-h">
+  <img src="${wm}" alt="${esc(prod.name)}" width="${Math.round((28 * ww) / wh)}" height="28" />
+  <h2 id="cta-h">${esc(pitch[0])}</h2>
+  <p>${esc(pitch[1])}</p>
+  <div class="cta-links"><a class="cta-btn" href="/${prod.id}/">Meet ${esc(prod.name)} <span aria-hidden="true">→</span></a>${prod.url ? `<a class="cta-btn cta-ghost" href="${prod.url}" rel="noopener">Visit ${esc(new URL(prod.url).hostname.replace('www.', ''))} <span aria-hidden="true">↗</span></a>` : ''}</div>
+</aside>
+<nav class="prevnext" aria-label="Newer and older posts">
+  ${next ? `<a href="${postPath(next)}"><small>Newer</small>${esc(next.title)}</a>` : '<span></span>'}
+  ${prev ? `<a href="${postPath(prev)}" class="older"><small>Older</small>${esc(prev.title)}</a>` : ''}
 </nav>
-</div>
 </article>
-<section class="wrap related" aria-labelledby="keep"><h2 id="keep">Keep reading</h2><ul class="grid" role="list">${related(p, posts, idx).map((q) => card(q, 'h3')).join('')}</ul></section>`
+<section class="blog-wrap related" aria-labelledby="keep">
+<div class="sec-head"><h2 id="keep">Keep reading</h2><a href="${topicPath(p.tag)}">More in ${esc(topic)} <span aria-hidden="true">→</span></a></div>
+<ul class="grid" role="list">${related(p, posts, idx).map((q) => card(q, 'h3')).join('')}</ul>
+</section>`
   return [path, { head: head({ site, title, description, path, type: 'article', noindex: !p.indexable, ld, extra }), body: page('blog', topics, main, '<div class="progress" aria-hidden="true"></div>') }]
 }
 
