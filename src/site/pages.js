@@ -90,17 +90,13 @@ function head({ site, title, description, path, type = 'website', noindex, ld, e
 ${extra}${ld ? jsonld(ld) : ''}`
 }
 
-// Same glass pill as the landing page; the logo always leads home. Products show their wordmark.
-const NAV_MARK = {
-  crowkis: '<img class="pill-wm" src="/products/crowkis-wordmark-white.png" alt="Crowkis" width="73" height="14" />',
-  curva: '<img class="pill-wm" src="/products/curva-wordmark-white.png" alt="Curva" width="55" height="14" />',
-}
+// Same glass pill as the landing page; the logo always leads home.
 function nav(active) {
   const link = (href, label, key, extra = '') => `<a href="${href}"${active === key ? ' aria-current="page"' : ''}>${label}${extra}</a>`
   return `<a class="skip" href="#main">Skip to content</a>
 <header class="topbar"><nav class="pill" aria-label="Main">
 <a class="pill-mark" href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" width="38" height="38" /></a>
-<div class="pill-links">${link('/about/', 'About', 'about')}${products.map((p) => link(`/${p.id}/`, NAV_MARK[p.id] || p.name, p.id)).join('')}${link('/blog/', 'Blog', 'blog', '<span class="nav-dot" aria-hidden="true"></span>')}</div>
+<div class="pill-links">${link('/about/', 'About', 'about')}${products.map((p) => link(`/${p.id}/`, p.name, p.id)).join('')}${link('/blog/', 'Blog', 'blog', '<span class="nav-dot" aria-hidden="true"></span>')}</div>
 </nav></header>`
 }
 

@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TextAnimationCollection, TextPathStudies } from '@designcodeio/threeui'
 import '@designcodeio/threeui/style.css'
 import './App.css'
 import { products } from './site/products.js'
 import { footerHTML, WORDMARK_PROPS } from './site/footer.js'
 import './site/footer.css'
-
-// Products show their wordmark in the menu, same as the site pages' nav.
-const NAV_MARK = { crowkis: '/products/crowkis-wordmark-white.png', curva: '/products/curva-wordmark-white.png' }
+import { mountMusic } from './music.js'
 
 export default function App() {
-  const audioRef = useRef(null)
-  const [muted, setMuted] = useState(false)
   const [latest, setLatest] = useState([])
   const [topics, setTopics] = useState([])
 
@@ -23,27 +19,8 @@ export default function App() {
       .catch(() => {})
   }, [])
 
-  // Autoplay, falling back to first user gesture if the browser blocks it.
-  useEffect(() => {
-    const audio = audioRef.current
-    const tryPlay = () => audio.play().catch(() => {})
-    tryPlay()
-    const onGesture = () => { tryPlay(); cleanup() }
-    const cleanup = () => {
-      window.removeEventListener('pointerdown', onGesture)
-      window.removeEventListener('keydown', onGesture)
-    }
-    window.addEventListener('pointerdown', onGesture)
-    window.addEventListener('keydown', onGesture)
-    return cleanup
-  }, [])
-
-  const toggleMute = () => {
-    const next = !muted
-    audioRef.current.muted = next
-    setMuted(next)
-    if (!next) audioRef.current.play().catch(() => {})
-  }
+  // Music and its mute button are shared with every site page (src/music.js).
+  useEffect(mountMusic, [])
 
   return (
     <>
@@ -54,7 +31,7 @@ export default function App() {
           <a href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" /></a>
           <div className="nav-links">
             <a href="/about/">About</a>
-            {products.map((p) => <a key={p.id} href={`/${p.id}/`}>{NAV_MARK[p.id] ? <img className="nav-wm" src={NAV_MARK[p.id]} alt={p.name} /> : p.name}</a>)}
+            {products.map((p) => <a key={p.id} href={`/${p.id}/`}>{p.name}</a>)}
             <div className="nav-blog">
               <a href="/blog/">Blog<span className="nav-dot" aria-hidden="true" /></a>
               {latest[0] && (
@@ -69,16 +46,6 @@ export default function App() {
           </div>
         </nav>
 
-        <audio ref={audioRef} src="/music.mp3" loop preload="auto" />
-
-        <button
-          className="mute"
-          onClick={toggleMute}
-          aria-label={muted ? 'Unmute music' : 'Mute music'}
-          aria-pressed={muted}
-        >
-          {muted ? <MutedIcon /> : <SoundIcon />}
-        </button>
       </main>
 
       <section id="about" className="section">
@@ -104,17 +71,3 @@ export default function App() {
   )
 }
 
-const SoundIcon = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 9v6h4l5 4V5L8 9H4z" />
-    <path d="M16 9a3.5 3.5 0 0 1 0 6" />
-    <path d="M18.5 6.5a7 7 0 0 1 0 11" />
-  </svg>
-)
-
-const MutedIcon = () => (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 9v6h4l5 4V5L8 9H4z" />
-    <path d="M17 9l4 6M21 9l-4 6" />
-  </svg>
-)
