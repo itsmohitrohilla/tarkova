@@ -1,121 +1,122 @@
-/* scene: pipeline (How it works). Paper ground, ink type, one red signal. Motion is a single pinned stage whose
-   canvas reads its geometry from the step art below; static (reduced motion) shows the same art as a sequence. */
+/* scene: pipeline (PAPER, #how). Static = four finished panels stacked (copy left 40%, art right 60%);
+   html.ck-motion on desktop = one pinned viewport: headline top-left, step copy bottom-left, the art right,
+   panels layered and crossfaded by scroll (pipeline.js). Then the Try-it panel. */
 .ck-pipeline {
-  --pl-line: rgba(17, 17, 17, 0.14);
-  --pl-soft: #4a4d52;
+  --pl-dim: rgba(26, 28, 37, 0.64);
+  --pl-line: rgba(26, 28, 37, 0.14);
+  --pl-wash: color-mix(in srgb, var(--ck-red) 16%, var(--ck-paper));
+  --pl-colgap: clamp(28px, 4vw, 72px);
   background: var(--ck-paper); color: var(--ck-ink);
-  padding: clamp(96px, 16vh, 200px) var(--ck-gutter) clamp(96px, 16vh, 200px);
+  padding: 0 var(--ck-gutter) clamp(96px, 16vh, 200px);
 }
-.ck-pl-head { max-width: min(1400px, 160vh); margin: 0 auto clamp(48px, 9vh, 112px); }
-.ck-pl-head h2 {
-  margin: 22px 0 0; max-width: 11ch;
-  font: 600 clamp(44px, 7.6vw, 128px)/0.94 var(--ck-sans); letter-spacing: -0.04em;
+.ck-pl-pin :where(h2, h3, p, ol, dl, dd) { margin: 0; }
+.ck-pl-pin { padding: clamp(104px, 15vh, 168px) 0 0; }
+.ck-pl-head { margin-bottom: clamp(56px, 9vh, 112px); }
+.ck-pl-head h2 { max-width: 14ch; font: 600 clamp(38px, 5vw, 76px)/0.98 var(--ck-sans); letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
+.ck-pl-head p { margin-top: 18px; max-width: 34ch; color: var(--pl-dim); font-size: 18px; line-height: 1.5; }
+.ck-pl-steps { list-style: none; padding: 0; display: grid; gap: clamp(88px, 13vh, 150px); }
+.ck-pl-step { display: grid; grid-template-columns: minmax(0, 40fr) minmax(0, 60fr); gap: var(--pl-colgap); align-items: center; }
+.ck-pl-copy h3 { margin-bottom: 12px; font: 600 clamp(26px, 2.6vw, 40px)/1.06 var(--ck-sans); letter-spacing: -0.022em; }
+.ck-pl-copy p { max-width: 34ch; color: var(--pl-dim); font-size: 18px; line-height: 1.5; }
+.ck-pl-rail { display: none; }
+
+/* shared marks */
+.ck-pl-art { min-width: 0; }
+.ck-pl-lbl { font: 500 15px/1.2 var(--ck-sans); color: var(--pl-dim); }
+.ck-pl-chip, .ck-pl-via b, .ck-pl-tpl {
+  display: inline-block; padding: 8px 12px 7px; border: 1.5px solid var(--ck-ink); border-radius: 4px;
+  font: 500 15px/1 var(--ck-mono); letter-spacing: 0; white-space: nowrap; color: var(--ck-ink);
 }
-.ck-pl-head h2 em { font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--ck-red); padding-right: 0.06em; }
-
-/* ---------- Steps + their art. Static: a typographic sequence, copy beside art. ---------- */
-.ck-pl-stage { max-width: min(1400px, 160vh); margin-inline: auto; }
-.ck-pl-cv, .ck-pl-count { display: none; }
-.ck-pl-steps { list-style: none; margin: 0; padding: 0; }
-.ck-pl-step { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: clamp(32px, 5vw, 96px); align-items: center; }
-.ck-pl-step + .ck-pl-step { margin-top: clamp(64px, 12vh, 140px); }
-.ck-pl-step :is(p, ol) { margin: 0; }
-.ck-pl-num { display: block; font: italic 400 clamp(56px, 6vw, 96px)/1 var(--ck-serif); color: var(--ck-red); }
-.ck-pl-copy h3 { margin: 10px 0 12px; font: 600 clamp(28px, 3vw, 48px)/1 var(--ck-sans); letter-spacing: -0.035em; }
-.ck-pl-copy p { font-size: clamp(15px, 1.15vw, 18px); line-height: 1.55; color: var(--pl-soft); max-width: 36ch; }
-.ck-pl-lbl, .ck-pl-q small, .ck-pl-served, .ck-pl-miss, .ck-pl-why {
-  font: 500 12px/1 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase;
+/* The shared meaning: the topic washed in Ember, the asked-for slot underlined in Dried Wine.
+   --m / --s are how far each mark has drawn (pipeline.js scrubs them on the question pair; 1 = drawn). */
+.ck-pl-und { --m: 1; --s: 1; }
+.ck-pl-topic, .ck-pl-slot { position: relative; z-index: 0; font-weight: inherit; }
+.ck-pl-slot { z-index: 1; } /* its underline stays above the next line's wash */
+.ck-pl-topic::before {
+  content: ''; position: absolute; z-index: -1; inset: 0.08em -0.08em 0.02em; background: var(--pl-wash);
+  border-bottom: 0.08em solid var(--ck-red); transform: scaleX(var(--m, 1)); transform-origin: left;
+}
+.ck-pl-slot::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -0.04em; height: 0.07em; min-height: 2px;
+  background: repeating-linear-gradient(90deg, var(--ck-red-deep) 0 0.22em, transparent 0.22em 0.34em);
+  transform: scaleX(var(--s, 1)); transform-origin: left;
 }
 
-/* 01 Ask: the question, set huge. */
-.ck-pl-q { font: 600 clamp(40px, 6vw, 104px)/0.92 var(--ck-sans); letter-spacing: -0.045em; overflow-wrap: anywhere; }
-.ck-pl-q small { display: flex; align-items: center; gap: 10px; margin-bottom: 0.5em; color: var(--ck-red); font-size: 13px; }
-.ck-pl-q small::before { content: ''; width: 8px; height: 8px; background: currentColor; }
-.ck-pl-line { display: block; }
+/* 1 Ask: the answered wording, quiet; the new wording, big; the ways in. */
+.ck-pl-ask { display: grid; gap: clamp(28px, 5vh, 56px); }
+.ck-pl-old { padding-bottom: clamp(24px, 4vh, 40px); border-bottom: 1px solid var(--pl-line); }
+.ck-pl-oq { margin-top: 10px; font: 500 clamp(24px, 2.4vw, 36px)/1.15 var(--ck-sans); letter-spacing: -0.02em; color: var(--pl-dim); }
+.ck-pl-oa { margin-top: 8px; font-size: 17px; line-height: 1.4; color: var(--pl-dim); }
+.ck-pl-oa::before { content: '→ '; color: var(--ck-red); }
+.ck-pl-nq { margin-top: 10px; font: 600 clamp(44px, 5.6vw, 92px)/0.98 var(--ck-sans); letter-spacing: -0.045em; overflow-wrap: anywhere; }
+.ck-pl-wm { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.08em; margin-bottom: -0.08em; }
+.ck-pl-wm > span { display: inline-block; }
+.ck-pl-via { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: clamp(20px, 3.5vh, 36px); }
+.ck-pl-via .ck-pl-lbl { margin-right: 4px; }
 
-/* 02 Understand: a 32 × 12 embedding, its intent row in red. */
-.ck-pl-grid {
-  position: relative; display: block; aspect-ratio: 32 / 12;
-  background: radial-gradient(circle, var(--ck-ink) 0 1.5px, transparent 2px) 0 0 / calc(100% / 32) calc(100% / 12);
+/* 2 Understand: the two wordings side by side, the same meaning marked in both. */
+.ck-pl-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: clamp(16px, 2.4vw, 40px); align-items: start; }
+.ck-pl-side { font: 600 clamp(30px, 3.4vw, 56px)/1.12 var(--ck-sans); letter-spacing: -0.035em; overflow-wrap: anywhere; }
+.ck-pl-side .ck-pl-lbl { display: block; margin-bottom: 14px; letter-spacing: 0; }
+.ck-pl-eq { align-self: center; font: 400 clamp(56px, 6vw, 104px)/1 var(--ck-serif); color: var(--ck-red); }
+.ck-pl-tags { display: flex; flex-wrap: wrap; gap: 16px clamp(28px, 4vw, 64px); margin-top: clamp(36px, 7vh, 72px); padding-top: clamp(20px, 3.5vh, 32px); border-top: 1px solid var(--pl-line); }
+.ck-pl-tags div { display: flex; align-items: center; gap: 14px; }
+.ck-pl-tags .ck-pl-chip { font-size: clamp(15px, 1.3vw, 19px); }
+
+/* 3 Check: the scorecard. A passed row is ink with an Ember tick; --t is how far its tick has landed. */
+.ck-pl-card { list-style: none; padding: 0; margin-top: 16px; }
+.ck-pl-card li {
+  --t: 1; display: grid; grid-template-columns: 6.2em minmax(0, 1fr) auto; gap: clamp(14px, 1.8vw, 28px); align-items: center;
+  padding: clamp(10px, 1.9vh, 18px) 0; border-top: 1px solid var(--pl-line);
+  font: 500 clamp(22px, 2.2vw, 34px)/1.1 var(--ck-sans); letter-spacing: -0.02em; transition: color 0.3s var(--ck-ease);
 }
-.ck-pl-grid::after {
-  content: ''; position: absolute; left: 0; right: 0; top: calc(100% / 12 * 5); height: calc(100% / 12);
-  background: radial-gradient(circle, var(--ck-red) 0 3.5px, var(--ck-paper) 4px 5px, transparent 5.5px) 0 0 / calc(100% / 32) 100%;
+.ck-pl-card li:last-child { border-bottom: 1px solid var(--pl-line); }
+.ck-pl-card li.is-off { color: var(--pl-dim); }
+.ck-pl-m { display: flex; align-items: center; gap: clamp(12px, 1.4vw, 20px); min-width: 0; }
+.ck-pl-bar { position: relative; flex: 1; height: 6px; background: var(--pl-line); }
+.ck-pl-bar i { position: absolute; inset: 0 auto 0 0; width: calc(var(--v) * 100%); background: var(--ck-red); transform-origin: left; }
+.ck-pl-bar u { position: absolute; left: calc(var(--v) * 100%); top: -7px; bottom: -7px; width: 2px; background: var(--ck-ink); } /* the bar to clear */
+.ck-pl-val { flex: none; min-width: 6.4em; font: 500 15px/1 var(--ck-mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--pl-dim); }
+.ck-pl-val b { color: var(--ck-ink); font-weight: 600; }
+.ck-pl-tpl { font-size: 14px; letter-spacing: -0.01em; }
+.ck-pl-lead { flex: 1; height: 0; border-top: 2px dotted var(--pl-line); }
+.ck-pl-tick { width: clamp(30px, 2.6vw, 40px); height: auto; }
+.ck-pl-tick circle { fill: var(--ck-red); fill-opacity: var(--t); stroke: var(--ck-red); stroke-width: 1.5; stroke-opacity: calc(0.3 + 0.7 * var(--t)); }
+.ck-pl-tick path { fill: none; stroke: var(--ck-white); stroke-width: 3; stroke-linecap: square; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--t)); }
+.ck-pl-pass { margin-top: 18px; font-size: 18px; line-height: 1.4; color: var(--pl-dim); }
+.ck-pl-pass b { color: var(--ck-red); font-weight: 600; }
+
+/* 4 Answer: the time, the answer, and the path not taken. */
+.ck-pl-ms { overflow: hidden; padding-bottom: 0.04em; font-size: clamp(120px, min(17vw, 30vh), 280px); line-height: 0.9; white-space: nowrap; }
+.ck-pl-ms > span { display: inline-block; font-family: var(--ck-serif); font-style: italic; font-weight: 400; letter-spacing: -0.02em; color: var(--ck-red); } /* "ms": the brand serif ships italic only */
+.ck-pl-ms b { margin-right: 0.04em; font: 600 1em/1 var(--ck-sans); letter-spacing: -0.06em; color: var(--ck-ink); }
+.ck-pl-reply { margin-top: clamp(16px, 3vh, 28px); font: 500 clamp(22px, 2.2vw, 32px)/1.2 var(--ck-sans); letter-spacing: -0.02em; }
+.ck-pl-free { margin-top: 10px; font-size: 18px; color: var(--pl-dim); }
+.ck-pl-free b { color: var(--ck-red); font-weight: 600; }
+.ck-pl-miss { display: flex; align-items: center; gap: 14px; margin-top: clamp(28px, 5vh, 48px); max-width: 46ch; font-size: 15px; line-height: 1.45; color: var(--pl-dim); }
+.ck-pl-miss i { flex: none; width: 48px; border-top: 1.5px dashed var(--pl-dim); transform-origin: left; }
+
+/* motion, desktop: the pinned stage (pre-motion state: only panel 1 shows) */
+@media (min-width: 901px) {
+  html.ck-motion .ck-pl-pin { --pt: clamp(92px, 13vh, 132px); --pb: clamp(28px, 5vh, 52px); position: relative; box-sizing: border-box; height: 100vh; height: 100svh; padding: 0; }
+  html.ck-motion .ck-pl-head { position: absolute; top: var(--pt); left: 0; width: calc((100% - var(--pl-colgap)) * 0.4); margin: 0; }
+  html.ck-motion .ck-pl-head h2 { font-size: clamp(32px, min(4vw, 6.6vh), 64px); }
+  html.ck-motion .ck-pl-head p { font-size: clamp(16px, 1.25vw, 18px); }
+  html.ck-motion .ck-pl-steps { position: absolute; inset: var(--pt) 0 var(--pb); display: block; }
+  html.ck-motion .ck-pl-step { position: absolute; inset: 0; align-items: stretch; will-change: opacity, transform; }
+  html.ck-motion .ck-pl-step:not(:first-child) { opacity: 0; visibility: hidden; }
+  html.ck-motion .ck-pl-copy { align-self: end; padding-bottom: 72px; }
+  html.ck-motion .ck-pl-art { min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+  html.ck-motion .ck-pl-ask { display: flex; gap: clamp(24px, 5vh, 56px); }
+  html.ck-motion .ck-pl-rail { position: absolute; left: 0; bottom: var(--pb); display: flex; align-items: center; gap: 16px; font: 500 15px/1 var(--ck-mono); color: rgba(26, 28, 37, 0.36); }
+  html.ck-motion .ck-pl-rail span.on { color: var(--ck-red); font-weight: 700; }
+  html.ck-motion .ck-pl-rail i { order: 9; width: 160px; height: 2px; margin-left: 8px; background: var(--ck-ink); transform: scaleX(0); transform-origin: left; }
 }
-.ck-pl-lbl { margin-top: 20px !important; color: var(--pl-soft); }
-.ck-pl-lbl b { color: var(--ck-red); font-weight: 600; }
-
-/* 03 Check: a scorecard. The candidate answer (a red dot cluster) beside five checks, each a score bar, an example
-   value where one helps, and a tick. Static shows it finished: all five passed. */
-.ck-pl-check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 4vw, 72px); align-items: center; }
-.ck-pl-cluster { /* static only: the cluster, already red */
-  display: block; width: clamp(120px, 13vw, 220px); aspect-ratio: 1; border-radius: 50%;
-  background: radial-gradient(circle, var(--ck-red) 0 1.7px, transparent 2.2px) 50% 50% / 8px 8px;
+@media (min-width: 901px) and (max-height: 760px) {
+  html.ck-motion .ck-pl-card li { padding: 7px 0; }
+  html.ck-motion .ck-pl-tags { margin-top: 24px; }
 }
-.ck-pl-eg { margin-bottom: 12px !important; font: 500 12px/1.5 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--pl-soft); }
-.ck-pl-eg span { margin-left: 0.6em; text-transform: none; letter-spacing: 0.01em; color: var(--ck-ink); }
-.ck-pl-checks { list-style: none; padding: 0; }
-.ck-pl-checks li {
-  display: grid; grid-template-columns: 5.6em minmax(0, 1fr) 6.4rem 0.9em; gap: clamp(12px, 1.2vw, 20px); align-items: center;
-  padding: 0.45em 0; border-top: 1px solid color-mix(in srgb, var(--ck-ink) 14%, transparent);
-  font: 500 clamp(20px, 2vw, 30px)/1.1 var(--ck-sans); letter-spacing: -0.015em; color: var(--ck-ink); transition: color 0.3s;
-}
-.ck-pl-checks li:last-child { border-bottom: 1px solid color-mix(in srgb, var(--ck-ink) 14%, transparent); }
-.ck-pl-bar { position: relative; height: 3px; background: color-mix(in srgb, var(--ck-ink) 10%, transparent); }
-.ck-pl-bar i { position: absolute; inset: 0 auto 0 0; width: calc(var(--v) * 100%); background: var(--ck-red); transform-origin: 0 50%; transition: background-color 0.3s; }
-.ck-pl-bar[data-min]::after { /* the threshold the score must clear */ content: ''; position: absolute; left: calc(var(--min) * 100%); top: -6px; bottom: -6px; width: 1px; background: var(--ck-ink); }
-.ck-pl-val { justify-self: start; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ck-red); transition: color 0.3s; }
-.ck-pl-tick { width: 0.9em; height: 0.9em; fill: none; stroke: var(--ck-red); stroke-width: 2.4; stroke-linecap: square; stroke-dasharray: 1; }
-.ck-pl-pass { margin-top: 16px !important; font: 500 12px/1 var(--ck-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ck-red); }
-.ck-pl-pass b { font-weight: 700; }
-.ck-pl-why { margin-top: 10px !important; color: var(--pl-soft); text-transform: none; letter-spacing: 0.02em; }
-.ck-pl-why code { font: inherit; color: var(--ck-ink); }
 
-/* 04 Answer: one red dot, and the time it took. */
-.ck-pl-ans { display: flex; align-items: baseline; gap: clamp(18px, 2.4vw, 36px); }
-.ck-pl-dot { flex: none; width: clamp(16px, 1.6vw, 24px); aspect-ratio: 1; border-radius: 50%; background: var(--ck-red); }
-.ck-pl-ms { font: 600 clamp(72px, 11vw, 200px)/0.9 var(--ck-sans); letter-spacing: -0.055em; white-space: nowrap; }
-.ck-pl-ms em { font: italic 400 1em/1 var(--ck-serif); letter-spacing: -0.02em; color: var(--ck-red); }
-.ck-pl-served { margin-top: 18px !important; color: var(--ck-red); font-weight: 600; }
-.ck-pl-miss { display: flex; align-items: center; gap: 10px; margin-top: 12px !important; color: var(--ck-dim); text-transform: none; letter-spacing: 0.02em; }
-.ck-pl-miss::before { content: ''; width: 28px; border-top: 1px dashed currentColor; }
-
-/* ---------- Motion: one pinned full-viewport stage. Everything is placed on the stage; the canvas sits on top. ---------- */
-html.ck-motion .ck-pl-stage { position: relative; max-width: none; width: 100vw; height: 100vh; margin-left: calc(50% - 50vw); overflow: hidden; }
-html.ck-motion .ck-pl-cv { display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-html.ck-motion .ck-pl-steps, html.ck-motion .ck-pl-step { position: absolute; inset: 0; margin: 0; display: block; }
-html.ck-motion .ck-pl-num { display: none; } /* the rolling counter carries the number */
-html.ck-motion .ck-pl-copy { position: absolute; left: var(--ck-gutter); bottom: clamp(28px, 7vh, 72px); max-width: 34ch; }
-html.ck-motion .ck-pl-copy h3 { margin-top: 0; }
-html.ck-motion .ck-pl-count { display: flex; align-items: flex-start; gap: 12px; position: absolute; right: var(--ck-gutter); top: clamp(76px, 12vh, 120px); }
-.ck-pl-roll { display: block; height: 1em; overflow: hidden; font: italic 400 clamp(88px, min(11vw, 20vh), 190px)/1 var(--ck-serif); color: var(--ck-red); letter-spacing: -0.02em; }
-.ck-pl-roll > span { display: block; }
-.ck-pl-roll b { display: block; height: 1em; font-weight: 400; padding-right: 0.08em; }
-.ck-pl-count small { padding-top: 0.9em; font: 500 13px/1 var(--ck-mono); letter-spacing: 0.1em; color: var(--pl-soft); }
-
-html.ck-motion .ck-pl-q { position: absolute; left: var(--ck-gutter); right: var(--ck-gutter); top: 50%; transform: translateY(-50%); font-size: clamp(56px, 9.6vw, 184px); }
-html.ck-motion .ck-pl-embed { position: absolute; left: 50%; top: 48%; width: min(58vw, 900px); transform: translate(-50%, -50%); }
-html.ck-motion .ck-pl-grid { background: none; }
-html.ck-motion .ck-pl-grid::after { display: none; }
-/* 03 + 04 share one centre: the cluster sits at --cx/--cy (radius --cr), the scorecard --cg to its right (width --cl),
-   the pair centred on the stage; step 04's dot lands on the same centre, so the collapse reads as one move. */
-html.ck-motion .ck-pl-stage {
-  --cr: min(17vh, 160px); --cg: clamp(40px, 6vw, 104px); --cl: min(36vw, 520px); --cy: 47%;
-  --cx: calc(50vw + var(--cr) - (2 * var(--cr) + var(--cg) + var(--cl)) / 2);
-}
-html.ck-motion .ck-pl-check { position: absolute; inset: 0; display: block; }
-html.ck-motion .ck-pl-cluster { position: absolute; left: calc(var(--cx) - var(--cr)); top: calc(var(--cy) - var(--cr)); width: calc(2 * var(--cr)); background: none; }
-html.ck-motion .ck-pl-card { position: absolute; left: calc(var(--cx) + var(--cr) + var(--cg)); top: var(--cy); width: var(--cl); transform: translateY(-50%); }
-html.ck-motion .ck-pl-checks li:not(.is-on) { color: var(--pl-soft); }
-html.ck-motion .ck-pl-checks li:not(.is-on) .ck-pl-bar i { background: var(--ck-ink); }
-/* The dot sits on the cluster's centre; the readout hangs to its right. */
-html.ck-motion .ck-pl-ans { position: absolute; left: var(--cx); top: var(--cy); align-items: center; transform: translate(calc(clamp(16px, 1.6vw, 24px) / -2), -50%); }
-html.ck-motion .ck-pl-read { position: relative; }
-html.ck-motion .ck-pl-served, html.ck-motion .ck-pl-miss { position: absolute; left: 0.3em; white-space: nowrap; }
-html.ck-motion .ck-pl-served { top: 100%; }
-html.ck-motion .ck-pl-miss { top: calc(100% + 30px); }
-
-/* Code */
 /* Try-it panel: heading row, then one full-width terminal whose rows carry their plain-words notes. */
 .ck-pl-code { max-width: 1120px; margin: clamp(64px, 10vh, 120px) auto 0; padding: 0 var(--ck-gutter); }
 .ck-pl-try { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr); gap: clamp(20px, 4vw, 64px); align-items: end; margin-bottom: clamp(24px, 4vh, 40px); }
@@ -141,30 +142,23 @@ html.ck-motion .ck-pl-miss { top: calc(100% + 30px); }
 .ck-pl-caret { display: block; width: 9px; height: 18px; margin: 0 0 18px 64px; background: var(--ck-red); animation: ck-pl-blink 1.1s steps(1) infinite; }
 @keyframes ck-pl-blink { 50% { opacity: 0; } }
 
-
-/* ≤900px: static stacks copy over art; motion keeps the same stage, re-laid for a narrow screen. */
+/* ≤900px: stacked panels (each scrubbed on its own in motion) */
 @media (max-width: 900px) {
-  .ck-pl-step { display: block; }
-  .ck-pl-copy { margin-bottom: 28px; }
-  .ck-pl-copy p { font-size: 16px; }
-  html.ck-motion .ck-pl-copy { right: var(--ck-gutter); bottom: clamp(24px, 5vh, 48px); margin: 0; max-width: none; }
-  html.ck-motion .ck-pl-copy h3 { font-size: 28px; margin-bottom: 8px; }
-  html.ck-motion .ck-pl-copy p { font-size: 14px; line-height: 1.5; }
-  html.ck-motion .ck-pl-count { top: 76px; }
-  .ck-pl-roll { font-size: 72px; }
-  html.ck-motion .ck-pl-q { top: 44%; font-size: 15vw; }
-  html.ck-motion .ck-pl-embed { top: 42%; width: calc(100vw - 2 * var(--ck-gutter)); }
-  .ck-pl-check { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .ck-pl-cluster { width: 120px; }
-  .ck-pl-checks li { grid-template-columns: 5.6em minmax(0, 1fr) auto 0.9em; gap: 10px; }
-  .ck-pl-val { font-size: 12px; }
-  /* Narrow: the cluster centred up top, the scorecard full width beneath it; step 04 stacks on the same centre. */
-  html.ck-motion .ck-pl-stage { --cr: min(12vh, 24vw); --cx: 50vw; --cy: 26%; }
-  html.ck-motion .ck-pl-card { left: var(--ck-gutter); right: var(--ck-gutter); width: auto; top: calc(var(--cy) + var(--cr) + 24px); transform: none; }
-  html.ck-motion .ck-pl-ans { flex-direction: column; gap: 22px; transform: translate(-50%, calc(clamp(16px, 1.6vw, 24px) / -2)); text-align: center; }
-  html.ck-motion .ck-pl-read { display: flex; flex-direction: column; align-items: center; }
-  html.ck-motion .ck-pl-ms { font-size: 26vw; }
-  html.ck-motion :is(.ck-pl-served, .ck-pl-miss) { position: static; }
+  .ck-pl-pin { padding-top: 96px; }
+  .ck-pl-head { margin-bottom: 52px; }
+  .ck-pl-steps { gap: 80px; }
+  .ck-pl-step { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .ck-pl-copy p, .ck-pl-head p { font-size: 16px; }
+  .ck-pl-nq { font-size: clamp(40px, 11vw, 64px); }
+  .ck-pl-pair { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .ck-pl-side { font-size: clamp(28px, 7.4vw, 44px); }
+  .ck-pl-eq { justify-self: start; font-size: 56px; }
+  .ck-pl-card li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; font-size: 22px; }
+  .ck-pl-m { grid-column: 1 / -1; grid-row: 2; }
+  .ck-pl-m:has(.ck-pl-lead) { display: none; }
+  .ck-pl-val { min-width: 0; font-size: 13px; }
+  .ck-pl-tick { width: 30px; }
+  .ck-pl-ms { font-size: clamp(88px, 30vw, 160px); }
   .ck-pl-try { grid-template-columns: 1fr; }
   .ck-pl-row { grid-template-columns: 20px minmax(0, 1fr); padding: 12px 16px; }
   .ck-pl-row code { font-size: 13px; }

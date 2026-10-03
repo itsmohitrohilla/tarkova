@@ -85,10 +85,10 @@ export const products = [
         ],
       },
       how: [
-        ['Ask', 'Your app asks Crowkis over RESP3, gRPC, REST or MCP.'],
-        ['Understand', 'It reads the meaning and the intent of the question.'],
-        ['Check', 'Five checks: similarity, structure, confidence, trust, freshness.'],
-        ['Answer', 'A safe hit returns in about 0.4 ms. A miss calls your model once.'],
+        ['Ask', 'Your app sends a question over RESP3, gRPC, REST or MCP.'],
+        ['Understand', 'Crowkis reads what the question means and how it is built, not just its words.'],
+        ['Check', 'Five checks decide if a cached answer is safe to reuse.'],
+        ['Answer', 'A safe match returns in about 0.4 ms. A miss calls your model once.'],
       ],
       forYou: [
         ['Cut your LLM bill', 'Pay for an answer once, however it is asked.'],

@@ -239,7 +239,7 @@ export function init(el, { gsap, ScrollTrigger }) {
   const $ = (s) => el.querySelector(s), $$ = (s) => [...el.querySelectorAll(s)]
   const mm = gsap.matchMedia()
   // Refresh after the pinned scenes above so our starts include their spacing.
-  const st = (o) => ({ refreshPriority: -1, ...o })
+  const st = (o) => o
 
   // Sentence: words go faint → solid in reading order; each red group's rule draws as it's reached.
   const tl = gsap.timeline({ scrollTrigger: st({ trigger: $('.ck-ex-sentence'), start: 'top 80%', end: 'bottom 55%', scrub: 0.8 }) })

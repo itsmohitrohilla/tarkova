@@ -2,11 +2,17 @@
 @import './scenes/hero.css';
 @import './scenes/problem.css';
 @import './scenes/curve.css';
+@import './scenes/architecture.css';
+@import './scenes/demo.css';
 @import './scenes/handover.css';
 @import './scenes/usecases.css';
+@import './scenes/workflows.css';
+@import './scenes/typed.css';
 @import './scenes/proof.css';
+@import './scenes/models.css';
 @import './scenes/start.css';
 @import './scenes/close.css';
+@import './vs-jev.css';
 
 @font-face {
   font-family: 'Pixelify Sans';
@@ -38,3 +44,5 @@
 }
 .cv-scene { position: relative; }
 body:has(.cv) .foot { margin-top: 0; }
+/* The footer's rounded top corners show the body; match the blue close scene above it. */
+body:has(.cv) { background-color: #1800ad; }

@@ -6,6 +6,8 @@
   position: absolute; inset: 0;
   background:
     radial-gradient(ellipse 70% 60% at 12% 0%, rgba(255, 255, 255, 0.09), transparent 70%),
+    /* The bottom melts into the problem scene's ink, so there is no hard edge between them. */
+    linear-gradient(180deg, transparent 52%, color-mix(in srgb, var(--ck-ink) 55%, transparent) 80%, var(--ck-ink) 100%),
     linear-gradient(115deg, var(--ck-red) 10%, var(--ck-red-deep) 100%);
 }
 /* Fine grain, so the gradient reads as a surface, not a fill. */

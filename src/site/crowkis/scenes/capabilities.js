@@ -56,7 +56,7 @@ export const html = ({ c, esc, serif }) => `<section class="ck-scene ck-capabili
 export function init(el, { gsap, ScrollTrigger, lenis }) {
   const $ = (s) => el.querySelector(s), $$ = (s) => [...el.querySelectorAll(s)]
   // Refresh after the scenes above, whose pins may be created later (async inits), so our starts include their spacing.
-  const st = (o) => ({ refreshPriority: -1, ...o })
+  const st = (o) => o
 
   // Kinetic title: words wipe from outline to solid, one after another, scrubbed.
   const tl = gsap.timeline({ scrollTrigger: st({ trigger: $('.ck-cap-title'), start: 'top 85%', end: 'center 40%', scrub: 0.8 }) })

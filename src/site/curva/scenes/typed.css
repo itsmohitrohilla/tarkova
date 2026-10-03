@@ -1,0 +1,76 @@
+/* scene: typed (PAPER). Two panels: a Choice's label set (with the escape option) and extraction values run
+   through a type check, the rejected one struck through. The checks resolve in turn on scroll. */
+.cv-typed {
+  --ty-rule: rgba(8, 6, 28, 0.12);
+  --ty-ink-dim: rgba(8, 6, 28, 0.66);
+  --ty-bad: #a1173a; /* rejection mark, 7:1 on paper; always beside the word "Rejected", never alone */
+  background: var(--cv-paper);
+  color: var(--cv-ink);
+  padding: clamp(96px, 12vw, 176px) var(--cv-gutter);
+}
+.cv-ty-in { max-width: 1320px; margin: 0 auto; }
+.cv-typed h2 {
+  margin: 0;
+  max-width: 18ch;
+  font: 600 clamp(40px, 6.4vw, 96px)/0.95 var(--cv-sans);
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+.cv-ty-lede { margin: 24px 0 0; max-width: 58ch; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: var(--cv-dim); }
+.cv-typed code { font-family: var(--cv-mono); font-size: 0.88em; }
+.cv-typed p code { color: var(--cv-blue); }
+
+.cv-ty-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(32px, 4vw, 64px); margin-top: clamp(56px, 7vw, 96px); }
+.cv-ty-panel { min-width: 0; padding-top: 18px; border-top: 2px solid var(--cv-ink); }
+.cv-ty-panel h3 { margin: 0 0 22px; font: 600 clamp(22px, 2.1vw, 30px)/1.12 var(--cv-sans); letter-spacing: -0.02em; text-wrap: balance; }
+.cv-ty-panel > p { margin: 18px 0 0; max-width: 56ch; font-size: 16px; line-height: 1.5; color: var(--ty-ink-dim); }
+
+/* The label set: solid chips for yours, a dashed one for the escape option Curva adds. */
+.cv-ty-labels { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.cv-ty-labels li { padding: 9px 14px 8px; background: var(--cv-blue); color: var(--cv-white); border-radius: 4px; font: 500 14px/1.2 var(--cv-mono); }
+.cv-ty-labels .is-escape { background: transparent; color: var(--cv-blue); outline: 1.5px dashed var(--cv-blue); outline-offset: -1.5px; }
+.cv-ty-labels small { margin-left: 8px; font: 12px/1 var(--cv-sans); color: var(--cv-dim); }
+/* The TypeScript line wraps inside its slab (text stays byte-exact). */
+.cv-ty-code {
+  margin: 12px 0 0; padding: 16px 18px;
+  background: var(--cv-ink); color: #e6e4f5;
+  border-radius: 6px;
+  font: 13px/1.6 var(--cv-mono);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.cv-ty-code code { font: inherit; }
+
+/* The document the values come from. */
+.cv-ty-panel > .cv-ty-doc { max-width: none; margin: 0 0 18px; padding: 14px 16px; background: var(--cv-white); border: 1px solid var(--ty-rule); border-radius: 6px; font: 13.5px/1.5 var(--cv-mono); overflow-wrap: anywhere; }
+.cv-ty-doc span { display: block; margin-bottom: 4px; font-size: 12px; color: var(--cv-dim); }
+
+/* Type check rows: key and declared type | what came back | why. */
+.cv-ty-checks { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ty-rule); }
+.cv-ty-checks li {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 4px 16px; align-items: center;
+  padding: 14px 0 14px 16px;
+  border-bottom: 1px solid var(--ty-rule);
+  border-left: 3px solid var(--cv-blue);
+}
+.cv-ty-checks li.is-bad { border-left-color: var(--ty-bad); }
+.cv-ty-key { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.cv-ty-key code { font-weight: 600; color: var(--cv-ink); }
+.cv-ty-key span { font-size: 13.5px; color: var(--cv-dim); }
+.cv-ty-val { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.cv-ty-val b { font: 500 22px/1 var(--cv-pixel); color: var(--cv-blue); }
+.cv-ty-val i { font: 12.5px/1 var(--cv-mono); font-style: normal; color: var(--cv-dim); }
+.cv-ty-note { grid-column: 1 / -1; margin: 0; font-size: 14.5px; line-height: 1.4; color: var(--ty-ink-dim); }
+.is-bad .cv-ty-key span { color: var(--ty-bad); }
+.is-bad .cv-ty-val b { color: var(--ty-bad); }
+
+.cv-ty-nuance { margin: clamp(40px, 5vw, 64px) 0 0; padding-top: 20px; border-top: 1px solid var(--ty-rule); max-width: 78ch; font-size: 15.5px; line-height: 1.55; color: var(--ty-ink-dim); }
+.cv-ty-nuance b { color: var(--cv-ink); }
+
+@media (max-width: 960px) {
+  .cv-ty-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .cv-ty-checks li { grid-template-columns: minmax(0, 1fr); padding-left: 12px; }
+  .cv-ty-code { padding: 14px; font-size: 12px; }
+  .cv-ty-panel > p, .cv-ty-nuance { font-size: 15px; }
+}

@@ -1,0 +1,39 @@
+/* scene: architecture (WHITE). Heading, one line, the archify diagram restyled to Ember / Raven Ink / Warm Sand. */
+.ck-arch { --ar-dim: rgba(26, 28, 37, 0.66); background: var(--ck-white); color: var(--ck-ink); }
+.ck-ar-in { max-width: 1320px; margin: 0 auto; padding: clamp(96px, 14vh, 168px) var(--ck-gutter); }
+.ck-arch h2 { margin: 0 0 22px; max-width: 16ch; font: 600 clamp(40px, 5.6vw, 96px)/0.95 var(--ck-sans); letter-spacing: -0.045em; text-wrap: balance; overflow-wrap: anywhere; }
+.ck-ar-lede { margin: 0 0 clamp(40px, 5vw, 64px); max-width: 56ch; color: var(--ar-dim); font-size: 18px; line-height: 1.5; }
+
+/* The diagram: a framed Warm Sand plate. Below about 800px it keeps its size and scrolls sideways inside the frame. */
+.ck-ar-fig { margin: 0; padding: clamp(12px, 2.4vw, 36px); background: var(--ck-paper); border: 1.5px solid var(--ck-ink); border-radius: 6px; overflow-x: auto; }
+.ck-ar-fig:focus-visible { outline: 3px solid var(--ck-red); outline-offset: 3px; }
+.ck-ar-fig svg { display: block; width: 100%; max-width: 1100px; min-width: 760px; height: auto; margin: 0 auto; font-family: var(--ck-sans); }
+.ck-ar-fig .c-mask { fill: var(--ck-paper); }
+.ck-ar-fig [data-graph-role='automatic-crossover-underlay'] { stroke: var(--ck-paper); }
+.ck-ar-fig .c-region { fill: none; stroke: var(--ck-red); stroke-dasharray: 6 5; }
+.ck-ar-fig .c-frontend { fill: var(--ck-white); stroke: var(--ck-ink); }
+.ck-ar-fig .c-backend { fill: var(--ck-white); stroke: var(--ck-red); }
+.ck-ar-fig .c-database { fill: var(--ck-white); stroke: var(--ck-red); stroke-dasharray: 4 3; }
+.ck-ar-fig .c-security { fill: var(--ck-red); stroke: var(--ck-red); }
+.ck-ar-fig .c-external { fill: var(--ck-white); stroke: var(--ck-ink); stroke-width: 2.5; }
+.ck-ar-fig .t-primary { fill: var(--ck-ink); font-size: 14px; }
+.ck-ar-fig .t-muted { fill: var(--ar-dim); font-size: 10.5px; }
+.ck-ar-fig :is([data-node-id='checks'], [data-node-id='write']) text { fill: var(--ck-white); }
+.ck-ar-fig :is([data-node-id='checks'], [data-node-id='write']) .t-muted { fill: rgba(255, 255, 255, 0.82); }
+.ck-ar-fig .t-cloud { fill: var(--ck-red); font-size: 11.5px; }
+.ck-ar-fig path[data-edge-id] { fill: none; }
+.ck-ar-fig .a-emphasis { stroke: var(--ck-red); }
+.ck-ar-fig .a-default { stroke: var(--ck-ink); }
+.ck-ar-fig .a-dashed { stroke: var(--ck-red-deep); stroke-dasharray: 5 4; }
+.ck-ar-fig .m-emphasis { fill: var(--ck-red); }
+.ck-ar-fig .m-default { fill: var(--ck-ink); }
+.ck-ar-fig .m-dashed { fill: var(--ck-red-deep); }
+/* Route labels: archify sizes them at 8px; scale each label plate as a unit so its mask still covers the text. */
+.ck-ar-fig g[data-detail][data-edge-id] { transform-box: fill-box; transform-origin: center; transform: scale(1.3); }
+.ck-ar-fig .t-edge-emphasis { fill: var(--ck-red); font-weight: 600; }
+.ck-ar-fig .t-edge-default { fill: var(--ck-ink); }
+.ck-ar-fig .t-edge-dashed { fill: var(--ck-red-deep); }
+
+@media (max-width: 600px) {
+  .ck-ar-lede { font-size: 16px; }
+}

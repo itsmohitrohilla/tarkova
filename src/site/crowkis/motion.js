@@ -30,7 +30,9 @@ export function start(root) {
     if (!el) return
     try { await s.init(el, m) } catch (err) { console.error(`crowkis scene "${s.id}" failed`, err) }
   })
-  Promise.all([...ready, document.fonts.ready]).then(() => ScrollTrigger.refresh())
+  // Scenes init concurrently, so triggers register out of page order; sort them top to bottom before measuring,
+  // so every trigger below a pin is measured after the pin adds its spacing.
+  Promise.all([...ready, document.fonts.ready]).then(() => { ScrollTrigger.sort(); ScrollTrigger.refresh() })
 
   cursor(gsap)
 }

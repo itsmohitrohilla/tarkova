@@ -92,7 +92,7 @@ export function init(el, { gsap }) {
   const $$ = (s) => [...el.querySelectorAll(s)]
   const mm = gsap.matchMedia()
   // Refresh after the pinned scenes above so our starts include their spacing.
-  const st = (o) => ({ refreshPriority: -1, scrub: 0.8, ...o })
+  const st = (o) => ({ scrub: 0.8, ...o })
 
   // Header: title and lede rise into place at staggered depths; the registry logos stay still.
   gsap.fromTo(el.querySelectorAll('.ck-in-head h2, .ck-in-lede'), { y: (i) => 40 + i * 30, opacity: 0.1 }, {

@@ -180,7 +180,7 @@ export function init(el, { gsap }) {
     }
     gsap.to(st, {
       p: 1, ease: 'none', onUpdate: render,
-      scrollTrigger: { trigger: el.querySelector('.cv-cu-pin'), pin: true, start: 'top top', end: () => `+=${innerHeight * 3.4}`, scrub: 0.8, refreshPriority: -2, invalidateOnRefresh: true },
+      scrollTrigger: { trigger: el.querySelector('.cv-cu-pin'), pin: true, start: 'top top', end: () => `+=${innerHeight * 3.4}`, scrub: 0.8, invalidateOnRefresh: true },
     })
     render()
     return () => { steps.forEach((s) => { s.style.cssText = '' }); draws.forEach((d) => d(1)) }
@@ -190,7 +190,7 @@ export function init(el, { gsap }) {
   mm.add('(max-width: 600px)', () => {
     steps.forEach((s, i) => {
       const st = { k: 0 }
-      gsap.to(st, { k: 1, ease: 'none', onUpdate: () => draws[i](st.k), scrollTrigger: { trigger: s.querySelector('.cv-cu-art'), start: 'top 88%', end: 'bottom 55%', scrub: 0.6, refreshPriority: -2 } })
+      gsap.to(st, { k: 1, ease: 'none', onUpdate: () => draws[i](st.k), scrollTrigger: { trigger: s.querySelector('.cv-cu-art'), start: 'top 88%', end: 'bottom 55%', scrub: 0.6 } })
       draws[i](0)
     })
     return () => draws.forEach((d) => d(1))
