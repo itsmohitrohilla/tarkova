@@ -1,0 +1,223 @@
+{
+  "slug": "ollama-llm-classification",
+  "title": "Ollama classification with probabilities, fully local",
+  "summary": "Run typed LLM classification on your own machine with Ollama: no key, no network hop, privacy strict allowed, and a cost of $0 per call.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/providers.md",
+    "site/reference/http-api.md",
+    "site/getting-started.md",
+    "site/reference/cli.md",
+    "site/guides/explain.md",
+    "site/concepts/projects.md",
+    "site/concepts/trust.md",
+    "site/guides/speed-and-cost.md",
+    "site/self-hosting.md",
+    "site/guides/multi-model.md",
+    "site/concepts/questions.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Ollama classification with Curva gives you typed answers from a model on your own machine: one of your labels per question, with a probability for every option, and no API key, no network hop and no per-call price. You pull a small model with `ollama pull qwen3:4b`, set `CURVA_MODEL=@ollama/qwen3:4b`, and call `curva.decide`. Because the model's URL is on your machine, Curva also accepts `privacy: \"strict\"`, which turns \"nothing leaves the machine\" from a habit into a rule. This guide covers the setup, why strict works locally and fails on a remote provider, how to test a small model before you trust it, and how to move Ollama to another port or host."
+    },
+    {
+      "kind": "p",
+      "text": "Some data shouldn't leave the building: customer messages under contract, internal tickets, anything your legal team has opinions about. Some teams just don't want a per-call bill or a rate limit. For both, the answer is a model you run yourself. Curva is free to use under the Curva Free License, and a local model has no per-call price, so the running cost is your hardware."
+    },
+    {
+      "kind": "h2",
+      "text": "ollama pull qwen3:4b and CURVA_MODEL"
+    },
+    {
+      "kind": "p",
+      "text": "Ollama serves an OpenAI-compatible API on `http://127.0.0.1:11434/v1`, which is the default URL of Curva's built-in `ollama` provider. Two commands set it up:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "ollama pull qwen3:4b\nexport CURVA_MODEL=@ollama/qwen3:4b"
+    },
+    {
+      "kind": "p",
+      "text": "Then install the Python package, which includes the Curva server: `pip install curva-ai`. That is the whole configuration. Model ids that start with `@ollama/` go to the built-in Ollama provider, which needs no key, so you don't set `OPENROUTER_API_KEY` or any other provider key. `qwen3:4b` is the docs' example; any instruct model you have pulled works the same way."
+    },
+    {
+      "kind": "h2",
+      "text": "Your first Ollama classification with privacy strict"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"The app crashes on launch\", {\"team\": [\"billing\", \"technical\"]}, privacy=\"strict\")"
+    },
+    {
+      "kind": "p",
+      "text": "`curva.decide` starts a private Curva server for this Python process on a free localhost port, reuses it for later calls, and stops it when Python exits. The model call goes to Ollama on localhost. The answer is typed: `d.team` is `billing` or `technical`, and `d[\"team\"]` holds the confidence and a probability for each option. `d[\"team\"]` can also be `none_of_these`, the escape option every Choice gets, when the text fits neither team."
+    },
+    {
+      "kind": "p",
+      "text": "The local database lives at `~/.curva/curva.db`, so calibration learned in one run is there in the next. On disk, the audit log keeps only a salted hash of each state, never the state itself."
+    },
+    {
+      "kind": "h2",
+      "text": "Why strict works locally and fails on a remote provider"
+    },
+    {
+      "kind": "p",
+      "text": "`privacy: \"strict\"` routes the model call only to providers that neither store nor train on prompts. How Curva enforces it depends on the provider:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "On OpenRouter, strict sets `data_collection: deny`.",
+        "On a named provider such as `@ollama`, `@openai` or `@groq`, strict is accepted only when the provider's URL is on this machine. Prompts never leave it.",
+        "Otherwise the request gets 422."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "That last line is the point. If someone later points the model at a hosted API by mistake, a strict request fails loudly instead of quietly sending data out. Strict also returns extracted values (Text, Number, Integer) without storing them; the audit log shows them as `redacted`."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  A[\"curva.decide(..., privacy=strict)\"] --> B{\"provider URL on this machine?\"}\n  B -- \"yes: @ollama on 127.0.0.1\" --> C[\"call Ollama locally, typed answer\"]\n  B -- \"no: a hosted API\" --> D[\"422, nothing sent\"]",
+      "title": "Ollama classification with privacy strict",
+      "caption": "Strict passes for a provider URL on this machine and is refused with 422 for a remote one."
+    },
+    {
+      "kind": "p",
+      "text": "Local models also change the bookkeeping. `cost_usd` is always 0 on your own machine. If you want decisions to carry your GPU cost, give a named provider a price with `CURVA_PROVIDER_<NAME>_PRICE` (input and output dollars per million tokens). And a provider URL on this machine has no rate limit by default."
+    },
+    {
+      "kind": "h2",
+      "text": "Speed and accuracy: test a small local model first"
+    },
+    {
+      "kind": "p",
+      "text": "A 4B model is not a frontier model. Measure it on your data before you route anything on it."
+    },
+    {
+      "kind": "p",
+      "text": "**Check the probabilities.** Curva reads probabilities in `logprobs` mode (one label token per question, probabilities from the token log-probabilities) or `verbal` mode (JSON limited to your labels, with a probability for each). The default, `auto`, tries logprobs first, falls back to verbal, and remembers the result per model id. Whether a local model returns logprobs varies, so check it:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva spike @ollama/qwen3:4b",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "`curva spike` reports whether a model gives usable label probabilities. Either mode works. The response's `mode` field tells you which one answered."
+    },
+    {
+      "kind": "p",
+      "text": "**Measure accuracy.** Run `curva bench` on a labeled set with `--model @ollama/qwen3:4b` to see accuracy, calibration error, latency and cost, or replay your own logged traffic with `curva shadow`."
+    },
+    {
+      "kind": "p",
+      "text": "**Help the small model.** A few settings matter more locally:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Order debiasing is on by default. Each question is asked with the options in both orders and averaged, which cancels a small model's lean towards one position. It costs two local calls; `debias=\"auto\"` drops to one once a question has shown no position bias.",
+        "Few-shot examples, up to 10 per question, fix the cases it keeps getting wrong:"
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Noul, Choice\n\nurgent = Noul(\"Is this urgent?\", examples=[\n    ({\"ticket\": \"The production server is down\"}, True),\n    ({\"ticket\": \"Typo on the pricing page\"}, False),\n])\n\nteam = Choice(\"Which team?\", [\"billing\", \"technical\"], examples=[\n    ({\"ticket\": \"Refund my last invoice\"}, \"billing\"),\n])"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Feedback calibrates it. Send true answers with `client.feedback(d.id, \"team\", label)`. After 30 labels per question, Curva fits a calibrator and keeps it when it improves held-out accuracy of the probabilities. The calibrator lives in the local SQLite file like everything else.",
+        "`min_confidence` on questions that route work sends unsure answers to a person."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Moving Ollama to another port or host"
+    },
+    {
+      "kind": "p",
+      "text": "If Ollama listens somewhere else, move the built-in provider with one variable:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "export CURVA_PROVIDER_OLLAMA_URL=http://127.0.0.1:9999/v1 # moves the built-in @ollama"
+    },
+    {
+      "kind": "p",
+      "text": "The same works for a GPU box on your network: `CURVA_PROVIDER_GPU_URL=http://gpu-box:8000/v1` adds a provider named `gpu`, and model ids become `@gpu/<model>`. Remember that `privacy: strict` passes only when that URL is on this machine, so a model on another host is a remote provider as far as strict is concerned."
+    },
+    {
+      "kind": "p",
+      "text": "For more than one script, run one Curva server and point clients at it:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva serve --model @ollama/qwen3:4b --db curva.db",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Without API keys, `curva serve` listens only on localhost. To serve other machines, create a key with `curva keys create`, restart the server, and put a reverse proxy with TLS in front."
+    },
+    {
+      "kind": "p",
+      "text": "The same pattern works for the other local servers Curva knows:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Provider",
+        "Default URL",
+        "Model id"
+      ],
+      "rows": [
+        [
+          "ollama",
+          "`http://127.0.0.1:11434/v1`",
+          "`@ollama/qwen3:4b`"
+        ],
+        [
+          "lmstudio",
+          "`http://127.0.0.1:1234/v1`",
+          "`@lmstudio/qwen3-4b`"
+        ],
+        [
+          "vllm",
+          "`http://127.0.0.1:8000/v1`",
+          "`@vllm/Qwen/Qwen3-4B`"
+        ],
+        [
+          "llamacpp",
+          "`http://127.0.0.1:8080/v1`",
+          "`@llamacpp/model`"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "When to add a hosted model"
+    },
+    {
+      "kind": "p",
+      "text": "Some teams keep everything local. Others want a stronger model for the hard minority. A cascade asks the local model first and sends only the questions it is unsure about, below `escalate_below` (default 0.8), to the next model. A council can mix a local and a hosted model too. Be clear about what that means: those states leave the machine, and a strict request will refuse a named hosted provider. Decide per project which data may go out."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [model providers](https://itsmohitrohilla.github.io/curva-docs/guides/providers/) and [getting started](https://itsmohitrohilla.github.io/curva-docs/getting-started/). To compare a local model with hosted ones, read [choose a model for LLM classification](/blog/choose-a-model-for-llm-classification/). For the free hosted route, see [free LLM APIs for classification](/blog/free-llm-api-classification/), and to check logprobs support first, [check LLM logprobs support](/blog/check-llm-logprobs-support/)."
+    }
+  ]
+}

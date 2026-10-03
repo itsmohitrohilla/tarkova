@@ -1,0 +1,270 @@
+{
+  "slug": "llm-calibration-explained",
+  "title": "LLM calibration explained: when 0.9 means 90%",
+  "summary": "What LLM calibration means, how ECE and Brier measure it, and how Curva fits a calibrator from 30 feedback labels, with held-out before and after numbers.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/calibration.md",
+    "site/guides/feedback.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/reference/http-api.md",
+    "site/concepts/projects.md",
+    "site/guides/guaranteed-accuracy.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "LLM calibration means that a model's confidence matches how often it is right: of all the answers given at 0.9, about 90% should be correct. Raw LLM probabilities usually miss that mark, most often by being too sure. You measure the gap with expected calibration error (ECE) and the Brier score, and you close it by fitting a small calibrator on labels from your own data. Curva does this per question once it has 30 feedback labels, and applies the calibrator only when it improves on the raw probabilities on held-out labels. This post explains each step, with real before and after numbers, including runs where the right call was to change nothing."
+    },
+    {
+      "kind": "h2",
+      "text": "A 0.9 that is right 70% of the time breaks every threshold"
+    },
+    {
+      "kind": "p",
+      "text": "Say your classifier returns a confidence with every answer, and you automate everything at 0.9 or above. That rule is only as good as the 0.9. If the model says 0.9 on answers it gets right 70% of the time, three in ten of your \"safe\" automations are wrong. Nothing errors. The wrong items just move on with a high score attached."
+    },
+    {
+      "kind": "p",
+      "text": "That model is overconfident, and it is the common case. Language models are trained to produce likely text, not honest probabilities. A confidence the model writes in its reply is generated text, and tends to be high. Token log-probabilities are better, but they still reflect how the model reads your prompt and options, not how often it is right on your data. And the same question can be well calibrated on one model and badly overconfident on another."
+    },
+    {
+      "kind": "h2",
+      "text": "Reliability bins: checking a model against the diagonal"
+    },
+    {
+      "kind": "p",
+      "text": "To check calibration, group answers by confidence and compare each group's confidence with its accuracy. Take every answer given at about 0.8: roughly 80% of them should be right. The same holds low in the range and near the top."
+    },
+    {
+      "kind": "p",
+      "text": "Plot average confidence against accuracy, bin by bin, and you get the calibration curve, also called a reliability diagram. Curva is named after that curve. A calibrated model sits on the diagonal. An overconfident one sits below it: it says 0.9 and is right far less often. Curva's calibration report includes the `reliability` bins, and the built-in dashboard draws the diagram."
+    },
+    {
+      "kind": "h2",
+      "text": "ECE, Brier and accuracy when automated in one table"
+    },
+    {
+      "kind": "p",
+      "text": "Curva reports three numbers, before and after calibration:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Metric",
+        "What it measures",
+        "Better"
+      ],
+      "rows": [
+        [
+          "ECE (expected calibration error)",
+          "The average gap between confidence and accuracy, weighted by how many answers fall in each bin",
+          "Lower; 0 is perfect"
+        ],
+        [
+          "Brier score",
+          "The mean squared error of the probabilities against what happened",
+          "Lower"
+        ],
+        [
+          "Accuracy when automated",
+          "Accuracy on answers at or above 0.9, and the share of answers that reach 0.9",
+          "Higher, on a larger share"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A made-up example makes ECE concrete. Of 100 answers, 60 land in the 0.9 bin and 42 of those are right: accuracy 0.70, a gap of 0.20. The other 40 land in the 0.6 bin and 24 are right: accuracy 0.60, no gap. ECE is 0.6 × 0.20 + 0.4 × 0 = 0.12. The whole error comes from the confident bin, which is exactly the one you would automate. These numbers are invented for illustration.",
+      "example": true
+    },
+    {
+      "kind": "p",
+      "text": "ECE tells you whether the scores are honest. Accuracy when automated tells you what the scores are worth: if you automate at 0.9, how much traffic is that, and how often is it right."
+    },
+    {
+      "kind": "h2",
+      "text": "How LLM calibration works in Curva"
+    },
+    {
+      "kind": "p",
+      "text": "Calibration needs one thing from you: the true answer, whenever you learn it. Every decision has an `id`. When an agent closes the ticket or a reviewer fixes a label, send it back with `client.feedback(decision_id, \"team\", \"billing\")`. The label is the option key for a Choice, the level index for a Score, and `True` or `False` for a Noul."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  A[\"decide: raw probabilities\"] --> B[\"you learn the true answer\"]\n  B --> C[\"POST /v1/feedback\"]\n  C --> D{\"30 labels for this exact question?\"}\n  D -- no --> A\n  D -- yes --> E[\"fit calibrator, test on held-out folds\"]\n  E --> F{\"clear gain in log-loss and Brier?\"}\n  F -- yes --> G[\"answers return calibrated: true\"]\n  F -- no --> H[\"answers stay raw, calibrated: false\"]",
+      "title": "The LLM calibration loop in Curva",
+      "caption": "Labels flow back per question; from 30 of them a calibrator is fitted and kept only if it helps on held-out labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Temperature, bias and Platt scaling fitted after 30 labels"
+    },
+    {
+      "kind": "p",
+      "text": "After 30 labels for the same exact question in a project, Curva fits one of three small calibrators:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Temperature scaling** for Choice and Score: one parameter that softens or sharpens the whole distribution.",
+        "**Bias scaling** for Choice and Score with up to 20 options: temperature plus a small offset per answer. It fixes a model that favours one answer, such as always \"not the asshole\", or 5 stars too often. Because it shifts answers relative to each other, it can change which answer comes first, not only how sure Curva is. It is used only when held-out labels show it beats temperature alone.",
+        "**Platt scaling** for Noul: a logistic fit on P(yes)."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "These are deliberately small models, with one or two parameters, or one per answer for bias scaling. They fit well from a few dozen labels and can't overfit the way a large model would. With few labels they also move cautiously: about a third of the way to what the labels suggest at 30 labels, nearly all the way at 1,000."
+    },
+    {
+      "kind": "h2",
+      "text": "Kept only when held-out log-loss and Brier both improve"
+    },
+    {
+      "kind": "p",
+      "text": "A calibrator that makes things worse is worse than none. So Curva tests before it applies. It fits on four fifths of the labels and scores on the fifth it has not seen, five times over. It keeps the calibrator only if all three hold:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "log-loss drops by at least 1%;",
+        "the gain in both log-loss and Brier score is above 1.28 standard errors of its own noise, so a lucky fold can't switch it on;",
+        "a score test at the 1% level says the raw probabilities are off by more than chance."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "Otherwise answers stay raw, with `calibrated: false`. An already well-calibrated model is left alone. Curva's unit tests cover the mechanics: an overconfident model goes from ECE 0.25 to under 0.03 with 1,000 labels, a yes/no model that always says 1.0 moves to its true 70%, and a calibrated model keeps its raw probabilities."
+    },
+    {
+      "kind": "p",
+      "text": "Calibrators belong to a fingerprint of the question's type, wording and options, and to a project. Reword a question and its calibration starts over. Settle the wording before you collect labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Read the calibration report"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "`before` is the raw model. `after` is held out: each half of the labels is calibrated by a fit on the other half, so the number isn't flattered by testing on the data the calibrator was fitted to. Both include `accuracy`, `ece`, `brier`, `automated` and `accuracy_when_automated`, plus `reliability` bins. `calibrator` shows the fitted parameters."
+    },
+    {
+      "kind": "h2",
+      "text": "Real runs: AITA 0.404 to 0.149, Groq phishing 0.283 to 0.209, quiz sets left raw"
+    },
+    {
+      "kind": "p",
+      "text": "These are held-out results from Curva's public benchmark runs on free-tier models, with order debiasing on, dated 2026-10-01. The benchmark fits each half on the other half's labels."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "Dataset",
+        "n",
+        "Raw ECE",
+        "ECE after calibration"
+      ],
+      "rows": [
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "AITA",
+          "100",
+          "0.404",
+          "0.149"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "Yelp",
+          "100",
+          "0.259",
+          "0.138"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "AITA",
+          "100",
+          "0.475",
+          "0.221"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "BANKING77",
+          "69",
+          "0.252",
+          "0.157"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "PhishNChips",
+          "100",
+          "0.283",
+          "0.209"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "PhishNChips",
+          "100",
+          "0.138",
+          "0.138 (left raw)"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "BoolQ",
+          "127",
+          "0.081",
+          "0.081 (left raw)"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "CommonsenseQA",
+          "100",
+          "0.118",
+          "0.118 (left raw)"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Three readings. Bias scaling fixed models that lean: Gemini's AITA error fell from 0.404 to 0.149 (0.230 with temperature alone), and on Yelp from 0.259 to 0.138, with accuracy up from 54% to 59%. Calibration improved an overconfident model without making it good: Groq on phishing went from 0.283 to 0.209, still above the 0.154 Jev publishes for that set. And the gate left good models alone. An earlier, looser gate let a harmful fit through on Gemini CommonsenseQA (0.118 to 0.176); the stricter gate keeps it raw.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "These are samples of 69 to 127 rows. Treat them as first measurements on public data, not a promise for yours. Calibration can't create information that isn't in the labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Send feedback from the whole confidence range"
+    },
+    {
+      "kind": "p",
+      "text": "Four rules follow from all this:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**A fresh install is not calibrated.** Out of the box you get the model's own probabilities, debiased. Treat thresholds as rough until the question has labels.",
+        "**Label confident answers too.** If you only send back the abstained ones, the calibrator learns only from hard cases. Label a sample of automated answers as well.",
+        "**Pick thresholds from the report.** `accuracy_when_automated` and `automated` tell you what a 0.9 cut-off buys on your data. Set `min_confidence` from that.",
+        "**Need a promise, not an average?** Set `coverage` on the question. After 30 labels, each answer carries a set of options that holds the right one at the rate you asked for."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/) and [calibrate with feedback](https://itsmohitrohilla.github.io/curva-docs/guides/feedback/). Go deeper on [expected calibration error](/blog/expected-calibration-error-llm/), the [held-out gate](/blog/llm-calibration-held-out-gate/) and [temperature scaling vs Platt scaling](/blog/temperature-scaling-vs-platt-scaling/). To act on calibrated scores, read [LLM confidence threshold and abstain](/blog/llm-confidence-threshold-abstain/), and for the full picture, [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/). Install with `pip install curva-ai`."
+    }
+  ]
+}

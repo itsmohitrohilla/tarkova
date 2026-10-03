@@ -1,0 +1,245 @@
+{
+  "slug": "bias-scaling-llm-calibration",
+  "title": "Bias scaling: fix an LLM that always picks one answer",
+  "summary": "When an LLM favours one class, temperature scaling cannot reorder answers. Bias scaling adds a per-answer offset; measured on AITA and Yelp, held out.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/calibration.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/guides/feedback.md",
+    "site/reference/http-api.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "When an LLM is biased toward one class, it picks that answer far more often than the data justifies: \"not the asshole\" on almost every post, five stars on reviews that deserve four. Temperature scaling can't fix this, because it changes how sure the model is but never which answer comes first. Bias scaling can. It adds one small offset per answer on top of temperature, fitted on your feedback labels, so calibration can move a favoured answer down and a neglected one up. Curva uses it for Choice and Score questions with up to 20 options, and only when held-out labels show it beats temperature alone. On Gemini flash-lite it cut AITA calibration error from 0.404 to 0.149 and lifted Yelp accuracy from 54% to 59% (n = 100 each, 2026-10-01).",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "The symptom: always 'not the asshole', five stars too often"
+    },
+    {
+      "kind": "p",
+      "text": "The lean shows up in Curva's own public runs:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "On Reddit AITA, with four verdicts, Gemini flash-lite never picked the rare verdicts ESH or NAH on the balanced sample. Their recall was 0.",
+        "On Yelp's 1 to 5 stars (n = 100), the same model was perfect on 1 and 5 stars and weak on 2 and 4.",
+        "Small OpenAI models answered \"not the asshole\" almost always, and scored about 41% on AITA's natural mix of verdicts (early, n = 20)."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A model like this is not just miscalibrated. It is wrong in a systematic direction. Its raw calibration error is large too: 0.404 for Gemini on AITA and 0.259 on Yelp, both n = 100 on 2026-10-01.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Prompting doesn't reliably fix it. Clearer AITA verdict definitions did not help: Groq scored 52.4% with them against 55.7% without, on the same 100 posts."
+    },
+    {
+      "kind": "p",
+      "text": "The lean is a property of the model on your question, so the fix has to be learned from your labels.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "An LLM biased toward one class: temperature alone cannot reorder answers"
+    },
+    {
+      "kind": "p",
+      "text": "Temperature scaling, Curva's default calibrator for Choice and Score, is one parameter that softens or sharpens the whole distribution. Think of it as a dial on confidence. Turn it one way and every answer moves towards equal probabilities. Turn it the other way and the leader pulls further ahead."
+    },
+    {
+      "kind": "p",
+      "text": "What the dial can't do is change the order. The answer with the highest probability before temperature scaling is still the highest after it. So if a model puts \"not the asshole\" first on a post where \"everyone sucks here\" is right, temperature can make it less sure of the wrong answer, but the wrong answer still wins. For a model biased toward one class, that leaves both the accuracy and much of the calibration error in place."
+    },
+    {
+      "kind": "h2",
+      "text": "Bias scaling: temperature plus one offset per answer, up to 20 options"
+    },
+    {
+      "kind": "p",
+      "text": "Bias scaling keeps the temperature and adds a small offset per answer. The offset for a favoured answer pulls it down, and the offset for a neglected answer lifts it. Because the offsets differ per answer, they can change which answer comes first, not only how sure Curva is."
+    },
+    {
+      "kind": "p",
+      "text": "The docs list the three calibrators side by side:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Question type",
+        "Calibrator",
+        "Can change the top answer"
+      ],
+      "rows": [
+        [
+          "Choice, Score",
+          "Temperature scaling: one parameter",
+          "No"
+        ],
+        [
+          "Choice, Score with up to 20 options",
+          "Bias scaling: temperature plus a per-answer offset",
+          "Yes"
+        ],
+        [
+          "Noul",
+          "Platt scaling: a logistic fit on P(yes)",
+          "Shifts the yes/no balance"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "These are deliberately small models: one parameter, or one per answer for bias scaling. That is what lets them fit from a few dozen labels without overfitting. Bias scaling needs one offset per answer, and Curva offers it only for questions with up to 20 options; a Choice with more options gets temperature scaling."
+    },
+    {
+      "kind": "h2",
+      "text": "Chosen only when held-out labels beat temperature alone"
+    },
+    {
+      "kind": "p",
+      "text": "Extra parameters can overfit. So Curva does not use bias scaling by default. It fits it after the question has 30 feedback labels, and keeps it only when held-out labels show it beats temperature alone. The held-out check is the same gate every calibrator passes: fit on four fifths of the labels, score on the fifth, five times over, and apply only when the gain in both log-loss and Brier score is clearly larger than its own noise."
+    },
+    {
+      "kind": "p",
+      "text": "When bias scaling wins that test, the calibrated answers can come back with a different `choice` than the raw model would have given. The answer carries `calibrated: true`, and the calibration report shows the before and after numbers."
+    },
+    {
+      "kind": "h2",
+      "text": "AITA 0.404 to 0.149, Yelp 0.259 to 0.138 with accuracy 54% to 59%"
+    },
+    {
+      "kind": "p",
+      "text": "These are held-out results from Curva's public benchmark runs on 2026-10-01, with order debiasing on. Each half of the rows is calibrated by a fit on the other half."
+    },
+    {
+      "kind": "bars",
+      "series": [
+        {
+          "label": "AITA, raw",
+          "value": 0.404
+        },
+        {
+          "label": "AITA, temperature only",
+          "value": 0.23
+        },
+        {
+          "label": "AITA, with bias scaling",
+          "value": 0.149,
+          "accent": true
+        },
+        {
+          "label": "Yelp, raw",
+          "value": 0.259
+        },
+        {
+          "label": "Yelp, temperature only",
+          "value": 0.253
+        },
+        {
+          "label": "Yelp, with bias scaling",
+          "value": 0.138,
+          "accent": true
+        }
+      ],
+      "title": "Gemini flash-lite ECE before and after bias scaling (held out, n = 100 each, 2026-10-01)",
+      "caption": "Lower is better. \"Temperature only\" is the calibrated result before bias scaling was added.",
+      "numbers": true
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "Dataset",
+        "n",
+        "ECE raw",
+        "Temperature only",
+        "With bias scaling"
+      ],
+      "rows": [
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "AITA",
+          "100",
+          "0.404",
+          "0.230",
+          "0.149"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "Yelp",
+          "100",
+          "0.259",
+          "0.253",
+          "0.138"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "AITA",
+          "100",
+          "0.475",
+          "not reported",
+          "0.221"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "BANKING77",
+          "69",
+          "0.252",
+          "0.157",
+          "0.157"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Read the Yelp row closely. Temperature alone barely moved it, from 0.259 to 0.253, because the problem was the order of the middle stars, not the overall confidence. Bias scaling cut it to 0.138, and accuracy after calibration rose from 54% to 59%. That is the case bias scaling exists for: a calibrator that changed which answer comes first.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "BANKING77 shows the limit. It has 77 options, beyond bias scaling's 20, and its result was the same before and after bias scaling was added."
+    },
+    {
+      "kind": "p",
+      "text": "These are samples of 69 to 100 rows. Treat them as first measurements on public data, not a promise for yours."
+    },
+    {
+      "kind": "h2",
+      "text": "Not yet measured: small OpenAI models stuck near 41% on AITA (early, n = 20)"
+    },
+    {
+      "kind": "p",
+      "text": "The strongest lean in the runs belongs to the small OpenAI models: gpt-4.1-mini, gpt-4o-mini and gpt-4.1-nano all scored about 41% on AITA's natural mix, because they answer \"not the asshole\" almost always. Curva's improvement log names bias scaling from feedback as the fix for models like these. It has not been measured on them: their paid runs have only 20 rows per set, below the 30 rows the benchmark needs before it reports a calibrated figure. Until there is a held-out number, it is a hypothesis, not a result.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "What you can do on your own data is the same in every case. Send feedback, including for answers the model got right. Once a question has 30 labels, check the report:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "If `after` accuracy is higher than `before`, a calibrator that reorders answers has been at work. The `calibrator` field shows which kind was fitted."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs describe all three calibrators in [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/). Compare the other two in [temperature scaling vs Platt scaling](/blog/temperature-scaling-vs-platt-scaling/), and see why a calibrator must earn its place in [the held-out calibration gate](/blog/llm-calibration-held-out-gate/). For the bigger picture, read [LLM calibration explained](/blog/llm-calibration-explained/) and [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

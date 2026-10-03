@@ -1,0 +1,164 @@
+{
+  "slug": "conditional-llm-questions-when",
+  "title": "Conditional LLM questions: skip what does not apply",
+  "summary": "Add when to a question and it is asked only when the state matches. Skipped questions are never sent, stored or paid for, and calibration survives.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/conditional.md",
+    "recipes/rag-check.json",
+    "site/guides/rules.md",
+    "site/reference/http-api.md",
+    "site/guides/recipes.md",
+    "site/concepts/calibration.md",
+    "site/reference/python-sdk.md",
+    "site/guides/dependencies.md",
+    "CHANGELOG.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Conditional LLM questions are questions that are only asked when the data calls for them. In Curva you add `when` to a question, naming one or more top-level fields of the state and the values they must have, and the question is asked only when they match. A question that doesn't apply comes back as `{\"skipped\": true}`: it is never sent to the model, never stored and never paid for. Two details make `when` safer than an `if` in your own code: changing a condition doesn't reset the question's calibration, and one question file can serve several moments of a workflow. This guide shows how matching works and what skipping costs."
+    },
+    {
+      "kind": "h2",
+      "text": "Conditional LLM questions: when matches a value, a list or an operator"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"state\": {\"department\": \"billing\", \"ticket\": \"I was charged twice\"},\n  \"questions\": {\n    \"refund\": {\"type\": \"noul\", \"instructions\": \"The customer asks for a refund\",\n               \"when\": {\"department\": \"billing\"}},\n    \"bug_area\": {\"type\": \"choice\", \"instructions\": \"Which part of the product is broken?\",\n                 \"options\": {\"app\": \"\", \"api\": \"\", \"website\": \"\"},\n                 \"when\": {\"department\": [\"technical\", \"security\"]}}\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "`when` is an object of `{\"<state field>\": value}`. The state must be a JSON object, otherwise the request gets 422, and the named fields are its top-level fields. Each field can be matched three ways:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Condition",
+        "Matches when the field"
+      ],
+      "rows": [
+        [
+          "a value, such as `\"billing\"`",
+          "equals the value"
+        ],
+        [
+          "a list, such as `[\"technical\", \"security\"]`",
+          "equals any of the values"
+        ],
+        [
+          "an operator object",
+          "passes the operator: `exists`, `gt`, `gte`, `lt`, `lte`, `contains`, `starts_with`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The operators are the same as in rules. `{\"contains\": \"refund\"}` matches a string containing the text, ignoring case. `{\"gte\": 3}` compares a number. `{\"exists\": false}` matches a field that is missing or null. An unknown operator gets 422. Any question type can have `when`."
+    },
+    {
+      "kind": "p",
+      "text": "From Python, `.when(**fields)` adds the condition:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Noul\n\nd = Curva().decide(\n    {\"department\": \"billing\", \"amount\": 250, \"ticket\": \"I was charged twice\"},\n    {\n        \"refund\": Noul(\"The customer asks for a refund\").when(department=\"billing\"),\n        \"review\": Noul(\"A person should check this refund\").when(amount={\"gte\": 100}),\n    },\n)"
+    },
+    {
+      "kind": "h2",
+      "text": "Several fields must all match"
+    },
+    {
+      "kind": "p",
+      "text": "With several fields in one `when`, every one must match. Several operators in one object must all hold too, so `{\"gte\": 1, \"lt\": 5}` is a range. A missing field, or a field of the wrong type, never matches, except `{\"exists\": false}`."
+    },
+    {
+      "kind": "p",
+      "text": "That gives you an AND across fields and an OR within a list. For anything more complex, compute a field in code and put it in the state. A top-level field written by your code, such as a customer segment or a VIP flag, is easier to read in a condition than a chain of operators, and easier to test."
+    },
+    {
+      "kind": "h2",
+      "text": "What skipped looks like, and what it costs: nothing"
+    },
+    {
+      "kind": "p",
+      "text": "A skipped question keeps its place in `answers`:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"bug_area\": {\"skipped\": true}"
+    },
+    {
+      "kind": "p",
+      "text": "It costs nothing. It is not sent to the model, so it adds no tokens to the call. It is not stored for calibration. If every question in a request is skipped, no model is called at all and the decision costs $0."
+    },
+    {
+      "kind": "p",
+      "text": "Because a skipped question has no answer to correct, feedback for it gets 404. Code that sends feedback should check for `skipped` first."
+    },
+    {
+      "kind": "p",
+      "text": "Skipping is also how you keep a long question file cheap. Instead of one file per department, keep one file and gate the department-specific questions. Each ticket pays only for the questions that apply to it."
+    },
+    {
+      "kind": "h2",
+      "text": "One question file for two moments: rag-check and exists"
+    },
+    {
+      "kind": "p",
+      "text": "The built-in `rag-check` recipe shows the most useful `when` pattern. Its state is `{question, passages, answer?}`, and the same file is used twice: once before an answer exists, to decide whether the passages are enough, and once after, to check the answer against them."
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "  \"answerable\": {\n    \"type\": \"noul\",\n    \"instructions\": \"The passages together contain enough information to answer the question fully and correctly.\",\n    \"when\": {\"answer\": {\"exists\": false}}\n  },\n  \"grounded\": {\n    \"type\": \"noul\",\n    \"instructions\": \"Every factual claim in the answer is supported by the passages.\",\n    \"when\": {\"answer\": {\"exists\": true}}\n  },"
+    },
+    {
+      "kind": "p",
+      "text": "Before generation, the state has no `answer`, so `answerable` is asked and `grounded` is skipped. After generation, you send the same state with `answer` filled in, and the opposite happens. `needs_retrieval` and `next_step` have no condition, so they run both times. One file, one set of calibrators, two checkpoints, and no question is paid for at the wrong moment."
+    },
+    {
+      "kind": "p",
+      "text": "`curva recipe show rag-check > questions.json` prints it. From Python, the recipe loads straight from JSON, `when` included."
+    },
+    {
+      "kind": "h2",
+      "text": "Changing a condition keeps the calibration"
+    },
+    {
+      "kind": "p",
+      "text": "Calibration in Curva belongs to a fingerprint of the question's type, wording and options. Rewording a question starts its calibration over. But `when` is not part of the fingerprint: calibration is keyed by the question without its condition. So you can widen a condition from `\"billing\"` to `[\"billing\", \"payments\"]`, or add a threshold, without losing the labels the question has collected."
+    },
+    {
+      "kind": "p",
+      "text": "There is one thing to watch. A calibrator learns from the inputs it was fitted on. If a new condition sends a very different kind of input to the question, the old labels describe it less well. Keep sending feedback after a change, and check the calibration report."
+    },
+    {
+      "kind": "h2",
+      "text": "when runs before rules"
+    },
+    {
+      "kind": "p",
+      "text": "`when` and `rules` combine, and `when` is checked first. A question whose `when` fails is `{\"skipped\": true}`, even if one of its rules would match. Think of `when` as \"does this question apply?\" and `rules` as \"do we already know the answer?\". Both read top-level state fields, both avoid model calls, and both are written to the audit log as returned."
+    },
+    {
+      "kind": "p",
+      "text": "`when` can also read an earlier answer in the same request: a field written `@<key>` reads the answer to question `<key>` instead of the state. That turns a flat question file into a decision tree, covered in the next post in this series."
+    },
+    {
+      "kind": "p",
+      "text": "Since a fix after 0.1.0, the batch commands (`curva map`, `curva shadow`, `curva bench` and `curva tune`) run `when` exactly like the API, so a conditional question file behaves the same on a backfill as it does live."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [conditional questions](https://itsmohitrohilla.github.io/curva-docs/guides/conditional/). To branch on earlier answers, read [an LLM decision tree in one request](/blog/llm-decision-tree-one-request/), and to chain questions in stages, [chain LLM questions with depends_on](/blog/chain-llm-questions-depends-on/). For answers you already know, see [LLM rules with no model call](/blog/llm-rules-no-model-call/), and for the product overview, [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

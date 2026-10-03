@@ -1,0 +1,171 @@
+{
+  "slug": "customer-frustration-score",
+  "title": "Score customer frustration on a scale you define",
+  "summary": "Use an ordered Score instead of positive or negative: define the levels, read the expected level (0.65 sits between calm and annoyed), and act on it.",
+  "tag": "curva use cases",
+  "source_check": [
+    "site/concepts/questions.md",
+    "recipes/support-triage.json",
+    "sdk/python/README.md",
+    "site/guides/feedback.md",
+    "site/concepts/calibration.md",
+    "site/concepts/trust.md",
+    "site/guides/rules.md",
+    "site/guides/recipes.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "A customer frustration score works better as an ordered scale than as \"positive or negative\". Define the levels yourself, from calm to threatening to leave, and ask them as a Curva Score question. The answer is the expected level: with probabilities of 0.36, 0.62 and 0.02 over \"calm\", \"annoyed\" and \"angry\", the score is 0.65, between calm and annoyed. That number keeps the model's doubt visible, so you can set a threshold between levels and escalate on it. This post shows the level design, how to read the expected level, thresholds, feedback and how to combine frustration with urgency."
+    },
+    {
+      "kind": "plain",
+      "text": "Ask frustration as an ordered scale, read the expected level as a number, and draw your escalation line wherever your team needs it."
+    },
+    {
+      "kind": "h2",
+      "text": "Customer frustration score levels: from calm to threatening to leave"
+    },
+    {
+      "kind": "p",
+      "text": "A Score places the input on an ordered scale. You give 2 to 20 levels, lowest first. Each level is a description, and the descriptions are what the model reads. Curva's built-in `support-triage` recipe uses four:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"frustration\": {\n    \"type\": \"score\",\n    \"instructions\": \"How frustrated is the customer, judged from their tone?\",\n    \"levels\": [\"Calm\", \"Mildly annoyed\", \"Frustrated but civil\", \"Very angry or threatening to leave\"]\n  },"
+    },
+    {
+      "kind": "p",
+      "text": "Notice two choices in that wording. The instruction says \"judged from their tone\", which keeps the model on how the customer writes, not on how bad the problem is. A calm message about a serious outage is still calm. And the top level joins anger with a threat to leave, because both call for the same action: someone senior replies."
+    },
+    {
+      "kind": "p",
+      "text": "Write your levels to match actions. If your team does the same thing for \"mildly annoyed\" and \"frustrated but civil\", merge them. If a manager must see every threat to cancel, you may want that as its own yes/no question instead (the recipe has `churn_risk` for this)."
+    },
+    {
+      "kind": "h2",
+      "text": "The expected level, not the top label"
+    },
+    {
+      "kind": "p",
+      "text": "A sentiment label rounds away the doubt. A message that is somewhere between calm and annoyed gets one of the two, and you can't tell a clear case from a coin flip."
+    },
+    {
+      "kind": "p",
+      "text": "A Score answer keeps it. `score` is the expected level, where 0 is the lowest. Curva's docs give the worked example: probabilities `[0.36, 0.62, 0.02]` over three levels give a score of `0.65`. Level 1 is most likely, but a third of the probability sits on level 0, so the score lands closer to 1 than to 0 and well short of it."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Score\n\nclient = Curva()\n\nq = {\"frustration\": Score(\"How frustrated is the customer, judged from their tone?\",\n                          [\"Calm\", \"Mildly annoyed\", \"Frustrated but civil\",\n                           \"Very angry or threatening to leave\"])}\n\nd = client.decide({\"ticket\": \"Third time asking. Still no answer about my order.\"}, q, project=\"support\")\na = d[\"frustration\"]\nprint(a.score)           # expected level, 0 = lowest\nprint(a.probabilities)   # one probability per level\nprint(a.level)           # name of the most likely level\nprint(a.confidence)      # probability of the most likely level",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Each field has a job. Use `score` to sort and threshold. Use `level` to show a label to a person. Use `probabilities` when you want to know how spread out the answer is, and `confidence` for the probability of the most likely level."
+    },
+    {
+      "kind": "h2",
+      "text": "Thresholds on a fractional score"
+    },
+    {
+      "kind": "p",
+      "text": "Because the score is a number, you can draw your line between levels. \"Escalate at Very angry\" as a label rule misses the message that is split between frustrated and very angry. A threshold on the expected level catches it:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "s = d[\"frustration\"].score\nif s >= 2.5:\n    assign_to_senior(ticket, decision_id=d.id)      # leaning to \"Very angry or threatening to leave\"\nelif s >= 1.5:\n    flag_tone(ticket)                               # leaning to \"Frustrated but civil\"",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Pick the line by what a miss costs. If losing an angry customer is expensive, move the escalation line lower and accept more escalations."
+    },
+    {
+      "kind": "p",
+      "text": "You can also stop the model from guessing on unclear tone. Set `min_confidence` on the Score, and when the most likely level's probability is below it, the answer comes back with `abstain: true`. Send those to a person, or treat them as \"unknown tone\" in your reports."
+    },
+    {
+      "kind": "p",
+      "text": "Two cautions. First, an expected level halfway between 1 and 2 can come from a split between levels 1 and 2, or from a split between 0 and 3. Look at `probabilities` if that difference matters to you. Second, until the question is calibrated, the probabilities are the model's raw view. A threshold you choose on day one is a guess about the model, so check it once labels arrive."
+    },
+    {
+      "kind": "h2",
+      "text": "Feedback with a level index"
+    },
+    {
+      "kind": "p",
+      "text": "When a support lead reads the thread and decides how frustrated the customer really was, that is a label. For a Score, the feedback label is the level index, counted from 0:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"frustration\", 3)   # \"Very angry or threatening to leave\"",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Sending feedback again for the same decision and question replaces the earlier label. From 30 labels for the same exact question in a project, Curva fits a calibrator: temperature scaling, or bias scaling when held-out labels show it beats temperature alone. Bias scaling adds a per-answer offset, which fixes a model that leans to one level, such as calling everything \"mildly annoyed\". Curva keeps a calibrator only when it makes the probabilities more accurate on labels it hasn't seen; otherwise answers stay raw with `calibrated: false`."
+    },
+    {
+      "kind": "p",
+      "text": "Calibration belongs to the exact wording and levels of the question. Changing a level description starts it over, so settle the levels before you collect labels. And label a sample of calm tickets too, not only the escalated ones, so calibration sees the whole scale."
+    },
+    {
+      "kind": "h2",
+      "text": "Combine frustration with urgency"
+    },
+    {
+      "kind": "p",
+      "text": "Frustration measures tone. Urgency measures the problem. They are different questions, and the recipe asks both:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Frustration",
+        "Urgency",
+        "Typical action"
+      ],
+      "rows": [
+        [
+          "High",
+          "High",
+          "Senior agent, now"
+        ],
+        [
+          "High",
+          "Low",
+          "Fast, careful reply; the tone is the problem"
+        ],
+        [
+          "Low",
+          "High",
+          "Fix first; the customer is patient, the issue is not"
+        ],
+        [
+          "Low",
+          "Low",
+          "Normal queue"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Ask them in the same request. All questions are answered together, so a second Score doesn't add a second round trip. The recipe's `urgency` question has four levels from \"a question with no time pressure\" to \"an outage, a security or data-loss issue, or many users affected\". You can sort the queue on a mix of the two scores, for example urgency first and frustration as the tie-breaker."
+    },
+    {
+      "kind": "p",
+      "text": "If a known fact already settles a level, such as an account flagged as having asked three times, a rule can answer the question with no model call. A rule's answer for a Score is a level index, and it carries all the probability on that level."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [questions reference](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/) in the docs and install with `pip install curva-ai`. For ordered scales in general, see [LLM ordinal scoring](/blog/llm-ordinal-scoring/). For the cancellation signal, read [churn risk in support tickets](/blog/churn-risk-support-tickets/), and for the problem side, [ticket urgency and SLA rules](/blog/ticket-urgency-sla-rules/). More ideas are in [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

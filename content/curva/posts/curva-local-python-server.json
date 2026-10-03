@@ -1,0 +1,201 @@
+{
+  "slug": "curva-local-python-server",
+  "title": "curva.local() vs Curva(): running the server from Python",
+  "summary": "Three ways to get a Curva client in Python: module-level decide, curva.local() with its own server, or Curva() for a shared one. What each does.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/reference/python-sdk.md",
+    "site/getting-started.md",
+    "sdk/python/README.md",
+    "site/self-hosting.md",
+    "site/scaling.md",
+    "site/reference/cli.md",
+    "site/concepts/projects.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Curva runs a local LLM classification server from Python in three ways. The module-level `curva.decide` starts a private server on its first call and stops it when Python exits. `curva.local()` does the same but hands you the lifecycle: a client bound to a server on a free `127.0.0.1` port, its own database file, and a `with` block to stop it. `Curva()`, given a base URL, starts nothing and talks to a shared server you run with `curva serve` or Docker. All three run the same `curva` binary, which ships inside the Python wheel. This guide shows what each one does with your environment, your database and your keys, and when to move from one to the next."
+    },
+    {
+      "kind": "h2",
+      "text": "A local LLM classification server from Python: three entry points"
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  A[\"curva.decide(...)\"] --> P1[\"private server, started on first call\"]\n  B[\"curva.local()\"] --> P2[\"private server on a free 127.0.0.1 port\"]\n  C[\"Curva(base_url)\"] --> S[\"shared server: curva serve or Docker\"]\n  P2 --> DB[\"~/.curva/curva.db or db=\"]\n  S --> DB2[\"the server's own --db file\"]",
+      "title": "Three ways to run a local LLM classification server from Python",
+      "caption": "The first two start a private server inside your Python process's lifetime; the third connects to one you run yourself."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Entry point",
+        "Starts a server",
+        "Lifecycle",
+        "Fits"
+      ],
+      "rows": [
+        [
+          "`curva.decide`",
+          "yes, on the first call",
+          "stops when Python exits",
+          "scripts, notebooks, the three-line demo"
+        ],
+        [
+          "`curva.local()`",
+          "yes",
+          "Python exit, `close()`, or the end of a `with` block",
+          "tests, local tools, anything that wants its own database"
+        ],
+        [
+          "`Curva()` with a base URL",
+          "no",
+          "yours",
+          "services, teams, anything with more than one process"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "curva.decide: a private server on the first call, stopped when Python exits"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "There is nothing to set up. The first `curva.decide` starts a private server for this Python process, reuses it for every later call, and stops it when Python exits. `curva.feedback` and `curva.calibration` at module level use the same server."
+    },
+    {
+      "kind": "p",
+      "text": "One switch changes that: with `CURVA_BASE_URL` set, the module-level functions talk to that server instead of starting their own. So the same script can run against a private server on a laptop and a shared one in production, with only an environment variable between them."
+    },
+    {
+      "kind": "h2",
+      "text": "curva.local(): a free 127.0.0.1 port, startup_timeout=15.0 and the with block"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "curva.local(model=None, db=None, *, startup_timeout=15.0, **client_options)"
+    },
+    {
+      "kind": "p",
+      "text": "`curva.local()` starts `curva serve` on a free `127.0.0.1` port and returns a client bound to it. Because it listens only on localhost, nothing outside your machine can reach it, and it needs no API key."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`model` sets the server's default model.",
+        "`db` picks the SQLite file for decisions, feedback and calibrators.",
+        "`startup_timeout` is how long to wait for the server to come up, 15 seconds by default.",
+        "`client_options` go to the client: `timeout`, `max_retries`, `api_key`."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The server stops when Python exits, when you call `close()`, or at the end of a `with` block:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "with curva.local() as client:\n    ..."
+    },
+    {
+      "kind": "p",
+      "text": "The full first decision from the docs uses it this way:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nfrom curva import Choice, Score, Noul\n\nclient = curva.local()\nd = client.decide(\n    state={\"ticket\": \"I was charged twice for order A-104. Please refund the duplicate!\"},\n    questions={\n        \"team\": Choice(\"Which team should handle this?\",\n                       {\"billing\": \"payments, refunds\", \"technical\": \"bugs\", \"sales\": \"pricing\"}),\n        \"frustration\": Score(\"How frustrated is the customer?\", [\"calm\", \"annoyed\", \"angry\"]),\n        \"refund\": Noul(\"The customer explicitly asks for a refund\"),\n    },\n)\n\nprint(d[\"team\"].choice, d[\"team\"].confidence)   # billing 0.9999\nprint(d[\"frustration\"].score)                   # 0.65\nprint(d[\"refund\"].noul)                         # 0.999\nprint(d.mode, d.latency_ms, d.cost_usd, d.cached)"
+    },
+    {
+      "kind": "h2",
+      "text": "Where calibration lives: ~/.curva/curva.db and the db= argument"
+    },
+    {
+      "kind": "p",
+      "text": "Calibration is only useful if it survives. `curva.local()` keeps its database at `~/.curva/curva.db` by default, so calibration learned in one run is there in the next. Feedback you send today fits a calibrator that tomorrow's script uses."
+    },
+    {
+      "kind": "p",
+      "text": "Pass `db=` to keep separate databases: one per experiment, a throwaway file in tests, or a fixed path in a container. Calibrators are also kept per `project` inside one database, so two use cases can share a file without mixing labels."
+    },
+    {
+      "kind": "h2",
+      "text": "The server inherits your environment: OPENROUTER_API_KEY, CURVA_MODEL, CURVA_RPM"
+    },
+    {
+      "kind": "p",
+      "text": "The private server is a child of your Python process, and it inherits the process's environment. So set provider variables before you start it:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "export OPENROUTER_API_KEY=sk-or-v1-...     # any OpenRouter key; free models work"
+    },
+    {
+      "kind": "p",
+      "text": "Without `OPENROUTER_API_KEY`, the first key set among `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` and a few others picks a small, fast model of that provider. `CURVA_MODEL` chooses one yourself, for example `CURVA_MODEL=@ollama/qwen3:4b` for a fully local setup. Server settings such as `CURVA_RPM` pass through the same way. With no key at all, `curva.decide` raises an error naming the variables to set."
+    },
+    {
+      "kind": "h2",
+      "text": "Moving to a shared server with CURVA_BASE_URL and CURVA_API_KEY"
+    },
+    {
+      "kind": "p",
+      "text": "A private server per process is right for a script. For a service, it means one database, one decision cache and one set of calibrators per process, and none of them shared. Move to one shared server:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva serve --addr 127.0.0.1:7777 --db curva.db\ncurva keys create --name my-service",
+      "original": true
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva\n\nclient = Curva(\"http://your-server:7777\")   # or set CURVA_BASE_URL"
+    },
+    {
+      "kind": "p",
+      "text": "`Curva()` reads `CURVA_BASE_URL`, default `http://localhost:7777`, and `CURVA_API_KEY` when they aren't passed. Once the server has API keys, every request needs one. A shared server keeps one audit log, one set of calibrators per project, and one decision cache, so a repeat from any client comes back in about a millisecond. For production, the Docker image runs the same binary with its data in a volume."
+    },
+    {
+      "kind": "h2",
+      "text": "Three mistakes to avoid"
+    },
+    {
+      "kind": "p",
+      "text": "**A private server per request.** `curva.local()` starts a whole server. Calling it inside a web request handler starts one per request, each with its own cache and its own view of the database. Create one client when your process starts and reuse it, or point every process at one shared server with `Curva()`."
+    },
+    {
+      "kind": "p",
+      "text": "**Tests that write to your real calibration.** By default `curva.local()` writes to `~/.curva/curva.db`. A test suite that sends feedback would then fit calibrators your scripts later use. Give tests their own file with `db=`, and their own `project`."
+    },
+    {
+      "kind": "p",
+      "text": "**Several processes, one file, no server.** Two scripts that each start `curva.local()` on the same database file each run their own server against it. If several processes need the same calibrators and cache, that is the moment to run one `curva serve` and connect with `Curva()`. The server has one writer, one cache and one audit log, which is what a team needs."
+    },
+    {
+      "kind": "h2",
+      "text": "Which wheels ship the curva binary: Linux, macOS and Windows"
+    },
+    {
+      "kind": "p",
+      "text": "`curva.local()` and module-level `curva.decide` need the `curva` binary, and `pip install curva-ai` provides it. Platform wheels for Linux (x86_64, aarch64), macOS (Apple Silicon, Intel) and Windows include the server binary, so you don't need Rust. The SDK itself uses only the standard library, on Python 3.9 or newer. `curva --version` should print `curva 0.1.0`."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover the clients in the [Python SDK reference](https://itsmohitrohilla.github.io/curva-docs/reference/python-sdk/) and [getting started](https://itsmohitrohilla.github.io/curva-docs/getting-started/). Start with the [Python LLM classification tutorial](/blog/python-llm-classification/), learn the shorthand in [Python LLM shorthand questions](/blog/python-llm-shorthand-questions/), and tune the client in [LLM client retries and timeouts in Python](/blog/llm-client-retries-timeouts-python/). When you outgrow a private server, read [self-host an LLM decision API](/blog/self-host-llm-decision-api/)."
+    }
+  ]
+}

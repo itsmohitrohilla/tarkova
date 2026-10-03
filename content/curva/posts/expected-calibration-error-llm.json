@@ -1,0 +1,226 @@
+{
+  "slug": "expected-calibration-error-llm",
+  "title": "Expected calibration error (ECE) for LLM classifiers",
+  "summary": "How expected calibration error is computed, worked by hand on 100 answers, and why an LLM can match on accuracy yet lose on ECE, with measured numbers.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/calibration.md",
+    "site/reference/http-api.md",
+    "site/guides/feedback.md",
+    "Content Box/4 Benchmarks/benchmarks.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Expected calibration error (ECE) is the average gap between how confident a classifier says it is and how often it is actually right, weighted by how many answers fall at each confidence level. You sort answers into bins by confidence, take the absolute difference between each bin's average confidence and its accuracy, and average those gaps by bin size. 0 is perfect; lower is better. For an LLM classifier, ECE is the number that tells you whether a threshold like \"automate above 0.9\" means what it says. This post computes it by hand, shows why accuracy and ECE are separate verdicts, and shows where it appears in Curva's calibration report."
+    },
+    {
+      "kind": "h2",
+      "text": "ECE in one sentence: the weighted gap between confidence and hit rate"
+    },
+    {
+      "kind": "p",
+      "text": "Written out, for answers split into bins b:"
+    },
+    {
+      "kind": "p",
+      "text": "ECE = sum over bins of (answers in b ÷ all answers) × |accuracy in b − average confidence in b|"
+    },
+    {
+      "kind": "p",
+      "text": "Three things follow from the formula. The gap is absolute, so overconfidence and underconfidence both count. Bins with more answers weigh more, so a few odd answers at 0.5 barely move it. And it says nothing about accuracy itself: a model that is right half the time and always says 0.5 has an ECE near 0."
+    },
+    {
+      "kind": "p",
+      "text": "Curva's docs define it the same way: \"the average gap between confidence and accuracy, weighted by how many answers fall in each bin\". Lower is better, and 0 is perfect."
+    },
+    {
+      "kind": "h2",
+      "text": "Worked example: expected calibration error by hand"
+    },
+    {
+      "kind": "p",
+      "text": "Take a made-up run of 100 answers that fall into two confidence bins. The numbers are invented to show the arithmetic.",
+      "example": true
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Bin",
+        "Answers",
+        "Weight",
+        "Avg confidence",
+        "Right",
+        "Accuracy",
+        "Gap",
+        "Weight × gap"
+      ],
+      "rows": [
+        [
+          "High",
+          "60",
+          "0.6",
+          "0.9",
+          "42",
+          "0.70",
+          "0.20",
+          "0.12"
+        ],
+        [
+          "Middle",
+          "40",
+          "0.4",
+          "0.6",
+          "24",
+          "0.60",
+          "0",
+          "0"
+        ],
+        [
+          "ECE",
+          "100",
+          "",
+          "",
+          "66",
+          "0.66",
+          "",
+          "0.12"
+        ]
+      ],
+      "example": true
+    },
+    {
+      "kind": "art",
+      "svg": "<svg viewBox=\"0 0 640 330\" role=\"img\" aria-label=\"Bar chart of a made-up example. High-confidence bin: 60 answers, average confidence 0.9, accuracy 0.70, gap 0.20. Middle bin: 40 answers, confidence 0.6, accuracy 0.60, no gap. ECE equals 0.6 times 0.20 plus 0.4 times 0, which is 0.12.\" font-family=\"system-ui, sans-serif\" font-size=\"14\">\n  <line x1=\"60\" y1=\"250\" x2=\"600\" y2=\"250\" stroke=\"currentColor\" stroke-opacity=\"0.5\"/>\n  <line x1=\"60\" y1=\"50\" x2=\"60\" y2=\"250\" stroke=\"currentColor\" stroke-opacity=\"0.5\"/>\n  <text x=\"52\" y=\"54\" text-anchor=\"end\" fill=\"currentColor\">1.0</text>\n  <text x=\"52\" y=\"154\" text-anchor=\"end\" fill=\"currentColor\">0.5</text>\n  <text x=\"52\" y=\"254\" text-anchor=\"end\" fill=\"currentColor\">0</text>\n  <rect x=\"110\" y=\"70\" width=\"70\" height=\"180\" fill=\"#FF4407\"/>\n  <rect x=\"190\" y=\"110\" width=\"70\" height=\"140\" fill=\"currentColor\" fill-opacity=\"0.35\"/>\n  <line x1=\"268\" y1=\"70\" x2=\"268\" y2=\"110\" stroke=\"currentColor\" stroke-width=\"2\"/>\n  <text x=\"276\" y=\"95\" fill=\"currentColor\">gap 0.20</text>\n  <text x=\"185\" y=\"275\" text-anchor=\"middle\" fill=\"currentColor\">High bin: 60 answers, 42 right</text>\n  <rect x=\"380\" y=\"130\" width=\"70\" height=\"120\" fill=\"#FF4407\"/>\n  <rect x=\"460\" y=\"130\" width=\"70\" height=\"120\" fill=\"currentColor\" fill-opacity=\"0.35\"/>\n  <text x=\"540\" y=\"125\" fill=\"currentColor\">gap 0</text>\n  <text x=\"455\" y=\"275\" text-anchor=\"middle\" fill=\"currentColor\">Middle bin: 40 answers, 24 right</text>\n  <rect x=\"110\" y=\"20\" width=\"14\" height=\"14\" fill=\"#FF4407\"/>\n  <text x=\"130\" y=\"32\" fill=\"currentColor\">stated confidence</text>\n  <rect x=\"290\" y=\"20\" width=\"14\" height=\"14\" fill=\"currentColor\" fill-opacity=\"0.35\"/>\n  <text x=\"310\" y=\"32\" fill=\"currentColor\">actual accuracy</text>\n  <text x=\"320\" y=\"315\" text-anchor=\"middle\" fill=\"currentColor\">ECE = 0.6 × 0.20 + 0.4 × 0 = 0.12</text>\n</svg>",
+      "title": "Expected calibration error, worked by hand",
+      "caption": "Made-up example: the high bin claims 0.9 and is right 70% of the time, the middle bin claims 0.6 and is right 60% of the time, so ECE is 0.12.",
+      "example": true
+    },
+    {
+      "kind": "p",
+      "text": "Step by step: the high bin holds 60 of 100 answers, so its weight is 0.6. Its answers claim 0.9 and 42 of 60 are right, an accuracy of 0.70 and a gap of 0.20. The middle bin's 40 answers claim 0.6 and 24 are right, so its gap is 0. ECE = 0.6 × 0.20 + 0.4 × 0 = 0.12.",
+      "example": true
+    },
+    {
+      "kind": "h2",
+      "text": "Why the overconfident bin is the one you automate"
+    },
+    {
+      "kind": "p",
+      "text": "Look at where the error sits. All of it comes from the high bin, the answers at 0.9. That is exactly the bin a rule like \"automate at 0.9 or above\" sends straight through. In the example, three in ten of those automated answers are wrong, and nothing in a log of confidences would tell you."
+    },
+    {
+      "kind": "p",
+      "text": "This is why ECE matters more for LLM classifiers than a single accuracy number does. Raw LLM probabilities tend to run high. A model that says 0.95 on answers it gets right 70% of the time is overconfident, and every threshold built on its numbers fails quietly. ECE measures that failure directly."
+    },
+    {
+      "kind": "p",
+      "text": "Pair it with the third number Curva reports, accuracy when automated: the accuracy on answers at or above 0.9, next to the share of answers that reach 0.9. ECE says whether the scores are honest. Accuracy when automated says what an honest 0.9 buys you."
+    },
+    {
+      "kind": "h2",
+      "text": "Tie on accuracy, loss on ECE: BoolQ 88.9% with ECE 0.081 (n = 127)"
+    },
+    {
+      "kind": "p",
+      "text": "Accuracy and calibration are separate verdicts, and Curva's own public runs show it."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "Dataset",
+        "n",
+        "Accuracy (95% range)",
+        "vs published Jev",
+        "ECE",
+        "Jev ECE"
+      ],
+      "rows": [
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "BoolQ",
+          "127",
+          "88.9% (83%–94%)",
+          "matches 89.7%",
+          "0.081",
+          "0.038"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "PhishNChips",
+          "100",
+          "72.8% (64%–82%)",
+          "wins over 62.6%",
+          "0.283",
+          "0.154"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "PhishNChips",
+          "100",
+          "80.8% (73%–89%)",
+          "wins over 62.6%",
+          "0.138",
+          "0.154"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "All three rows are from 2026-10-01, with order debiasing on. On BoolQ, Gemini flash-lite matches Jev's published accuracy within the margin but has twice the calibration error: it is right as often, but its confidence is less honest. On PhishNChips, Groq beats Jev's published accuracy and still loses on ECE. Only Gemini on PhishNChips wins both. Jev's numbers are published by others on different samples, so compare with care.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "The lesson for your own evaluation: report both. An accuracy number alone can hide a model whose high-confidence answers are right far less often than they claim."
+    },
+    {
+      "kind": "h2",
+      "text": "Reading ece in the before and after blocks of GET /v1/calibration"
+    },
+    {
+      "kind": "p",
+      "text": "Curva computes ECE for every question that has feedback labels. From Python:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "Over HTTP it is `GET /v1/calibration?question=<key>&project=<name>`. `before` holds the raw probabilities. `after` is held out: each half of the labels is calibrated by a fit on the other half, so the ECE isn't flattered by testing on the data the calibrator was fitted to. Both blocks also carry `accuracy`, `brier`, `automated`, `accuracy_when_automated` and the `reliability` bins, which are the per-bin numbers ECE is built from."
+    },
+    {
+      "kind": "p",
+      "text": "A gap between `before` and `after` tells you what calibration would do. If the calibrator didn't clear Curva's held-out gate, answers stay raw and say `calibrated: false`, even when `after` looks a little better: a small gain that could be noise doesn't count."
+    },
+    {
+      "kind": "h2",
+      "text": "The 0.03 target and where measured runs are today"
+    },
+    {
+      "kind": "p",
+      "text": "How low is low enough? Curva's unit tests give one reference point: with 1,000 labels, an overconfident model goes from ECE 0.25 to under 0.03. That is what calibration can do with plenty of labels on a clean signal."
+    },
+    {
+      "kind": "p",
+      "text": "Measured runs on public sets are not there yet. On the quiz-style sets, raw ECE for the free models was 0.032 to 0.118 (n = 98 to 127, 2026-10-01), against published Jev numbers of 0.024 to 0.038. Calibration left those sets raw, because it couldn't show a clear held-out gain. Where a model leaned hard on one answer, calibration moved a lot: Gemini on AITA went from 0.404 to 0.149 held out (n = 100). Samples this size carry wide error bars, so treat them as first measurements.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "The practical target is relative, not absolute: an ECE low enough that `accuracy_when_automated` at your threshold is the accuracy you need."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs define the metrics in [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/). For the full mechanism, read [LLM calibration explained](/blog/llm-calibration-explained/). For the other two lenses, see the [Brier score for LLMs](/blog/brier-score-llm/) and [reliability diagrams](/blog/reliability-diagram-llm/). For how it all drives automation, read [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

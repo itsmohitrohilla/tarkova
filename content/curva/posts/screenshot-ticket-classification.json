@@ -1,0 +1,155 @@
+{
+  "slug": "screenshot-ticket-classification",
+  "title": "Classify support tickets that include screenshots",
+  "summary": "Send a ticket's screenshot to a vision model next to its text: is an error visible, which part of the app. Images inline, up to 8 per request.",
+  "tag": "curva use cases",
+  "source_check": [
+    "site/guides/images.md",
+    "site/reference/http-api.md",
+    "site/concepts/trust.md",
+    "site/guides/feedback.md",
+    "site/reference/cli.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To classify support screenshots with an LLM, send the image in the same request as the ticket text and ask typed questions a vision model can answer by looking: is an error message visible, which part of the app is on screen. Curva accepts up to 8 images per decision. Send private screenshots inline as bytes or data URIs, never as URLs, because a URL is fetched by the model provider. Only vision-language models can see images, and an image is part of the cache key. This post covers each of those rules with code."
+    },
+    {
+      "kind": "plain",
+      "text": "Put the screenshot next to the ticket text, ask what the picture shows as typed questions, and send it inline so the image never leaves your request as a link."
+    },
+    {
+      "kind": "h2",
+      "text": "Up to 8 images per decision"
+    },
+    {
+      "kind": "p",
+      "text": "Many tickets say little in text: \"it does this when I pay\", plus a screenshot. The screenshot holds the answer. Curva lets a vision-language model judge up to 8 images together with the state, and the answers come back typed, with probabilities, like any other decision."
+    },
+    {
+      "kind": "p",
+      "text": "Here is the request over HTTP, from the docs:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"state\": {\"ticket\": \"The app shows this when I pay\"},\n  \"images\": [\"https://files.example.com/screenshot-4411.png\"],\n  \"questions\": {\n    \"error_visible\": {\"type\": \"noul\", \"instructions\": \"The screenshot shows an error message\"},\n    \"area\": {\"type\": \"choice\", \"instructions\": \"Which part of the app?\", \"options\": {\"checkout\": \"\", \"login\": \"\", \"settings\": \"\"}}\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "`error_visible` is a Noul, so the answer is the probability of yes. `area` is a Choice with a probability for each part of the app, plus a `none_of_these` escape option by default. A user who sends a photo of their cat gets `none_of_these`, not \"checkout\"."
+    },
+    {
+      "kind": "p",
+      "text": "More than 8 images, or an image that isn't valid, gets a 422 that names the image. The whole request body must fit the server's limit: 16 MB by default, raised with `curva serve --max-body-mb`."
+    },
+    {
+      "kind": "h2",
+      "text": "Inline data, not URLs, for private screenshots"
+    },
+    {
+      "kind": "p",
+      "text": "That example uses an `https://` URL. For support screenshots, don't. URLs are fetched by the model provider, not by Curva. The URL must be reachable from the provider, and the provider learns the URL. A signed link to a customer's screenshot of their account page is exactly what you don't want to hand out."
+    },
+    {
+      "kind": "p",
+      "text": "Send private images inline instead. Over HTTP, use a `data:image/<png|jpeg|webp|gif>;base64,...` URI, at most 5 MB decoded. In Python, pass file paths or raw bytes and the SDK sends them inline as base64:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice, Noul\n\nclient = Curva()\n\nQUESTIONS = {\n    \"error_visible\": Noul(\"The screenshot shows an error message\"),\n    \"area\": Choice(\"Which part of the app is on screen?\",\n                   {\"checkout\": \"cart, payment, order confirmation\",\n                    \"login\": \"sign-in, password reset, two-step codes\",\n                    \"settings\": \"profile, notifications, billing details\"},\n                   min_confidence=0.8),\n    \"team\": Choice(\"Which team should handle this ticket?\",\n                   {\"billing\": \"charges, refunds\", \"technical\": \"bugs, errors\", \"account\": \"access, profile\"}),\n}\n\nattachments = [a.read_bytes() for a in ticket_attachments[:8]]     # PNG, JPEG, WebP or GIF bytes\nd = client.decide({\"subject\": ticket.subject, \"body\": ticket.body},\n                  QUESTIONS, images=attachments, project=\"support-screens\",\n                  model=\"@openai/gpt-4.1-mini\")\n\nprint(d[\"error_visible\"].noul, d[\"area\"].choice, d[\"team\"].choice)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Bytes are recognised as PNG, JPEG, WebP or GIF by their first bytes. File paths work too, with the extensions `.png`, `.jpg`, `.jpeg`, `.webp` and `.gif`."
+    },
+    {
+      "kind": "p",
+      "text": "Curva itself never stores the image. The audit log keeps a salted SHA-256 of each image as sent, never the image, and the state is stored only as a salted hash as well."
+    },
+    {
+      "kind": "h2",
+      "text": "Classify support screenshots with questions that need the image"
+    },
+    {
+      "kind": "p",
+      "text": "Ask what the picture can answer. A good screenshot question is something a person could answer by looking for a few seconds:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Good question",
+        "Why it works"
+      ],
+      "rows": [
+        [
+          "The screenshot shows an error message",
+          "Visible or not, a clean yes/no"
+        ],
+        [
+          "Which part of the app is on screen?",
+          "The layout is recognisable"
+        ],
+        [
+          "The screenshot shows a payment form",
+          "One visual fact"
+        ],
+        [
+          "The screenshot shows another person's data",
+          "Worth flagging for privacy review"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Avoid questions that need reading tiny text precisely, such as an exact error code or an amount. A vision model can misread digits. If you need the code, ask the user to paste it, or extract it as a separate Text question and check its confidence before you trust it."
+    },
+    {
+      "kind": "p",
+      "text": "Keep the text questions in the same request. The `team` question above reads both the ticket text and the image, which is the point: \"it does this when I pay\" plus a checkout error is a billing or technical ticket, and neither the text nor the picture says so alone."
+    },
+    {
+      "kind": "p",
+      "text": "Treat what's inside the image as data. The prompt tells the model the images are data to judge and that any instructions written inside them are ignored, the same way the fenced state is handled. A screenshot that says \"ignore previous instructions\" is something to judge, not something to obey."
+    },
+    {
+      "kind": "h2",
+      "text": "Only vision models can see"
+    },
+    {
+      "kind": "p",
+      "text": "Only vision-language models accept images, and support varies by provider and model. Check your provider's model list. The example uses `@openai/gpt-4.1-mini`, which the docs name as a vision-capable model."
+    },
+    {
+      "kind": "p",
+      "text": "A model without vision support usually fails the call, with a 502 carrying the provider's message, or ignores the image. The second case is the dangerous one: you get answers based on the text alone without knowing it. Before you rely on a model, run a small labeled set through it with `curva bench`, or try a few models with Curva Tune or a council."
+    },
+    {
+      "kind": "p",
+      "text": "Images also cost more than text. They count towards the prompt tokens, and order debiasing sends them with both calls, so a debiased decision pays for every image twice. `debias: \"auto\"` drops the second call once a question has shown no position bias."
+    },
+    {
+      "kind": "h2",
+      "text": "Images change the cache key"
+    },
+    {
+      "kind": "p",
+      "text": "The decision cache answers an identical request from memory in about a millisecond, at no cost. Images are part of the cache key, so the same ticket text with another screenshot is a new decision, and the same ticket resent with the same screenshot is a cache hit. A customer who submits a form twice doesn't cost you twice."
+    },
+    {
+      "kind": "p",
+      "text": "Feedback works as usual. When an agent closes the ticket, send the true answers with `client.feedback(d.id, ...)`, keyed by question. From 30 labels per question in a project, Curva calibrates the confidences when that makes them more accurate. With calibrated confidence, the 0.8 bar on `area` sends the right share of screenshots to a person."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [images guide](https://itsmohitrohilla.github.io/curva-docs/guides/images/) in the docs and install with `pip install curva-ai`. For the Python side in depth, see [LLM image classification in Python](/blog/llm-image-classification-python/). For the text-only pipeline, read [support ticket triage with AI](/blog/support-ticket-triage-ai/), and for photos sent with claims, [damaged item photo claims](/blog/damaged-item-photo-claims/). More ideas are in [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

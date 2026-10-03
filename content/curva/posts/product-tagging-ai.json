@@ -1,0 +1,166 @@
+{
+  "slug": "product-tagging-ai",
+  "title": "Product catalog tagging with multi-label LLM questions",
+  "summary": "Tag products with a Multi question: an independent probability per tag, a threshold you tune, and up to 20 tags per question across a whole catalog.",
+  "tag": "curva use cases",
+  "source_check": [
+    "site/concepts/questions.md",
+    "site/guides/guaranteed-accuracy.md",
+    "site/guides/batch.md",
+    "site/reference/http-api.md",
+    "site/reference/python-sdk.md",
+    "site/guides/rules.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Product tagging with AI works when each tag is its own yes or no. A product can be both \"waterproof\" and \"lightweight\", so a single-label classifier is the wrong shape. In Curva you ask a Multi question: every tag gets an independent probability in the same model call, tags at or above a threshold you choose come back as `selected`, and one question holds up to 20 tags. Run the same questions over a whole catalog file with `curva map`. This post covers the question design, how to pick the threshold, and what the coverage guarantee does and doesn't do for multi-label tags yet."
+    },
+    {
+      "kind": "plain",
+      "text": "Tags aren't exclusive, so ask a Multi: one independent probability per tag, a threshold you tune, and a JSONL run over the catalog."
+    },
+    {
+      "kind": "h2",
+      "text": "Multi: independent probabilities for product tagging AI"
+    },
+    {
+      "kind": "p",
+      "text": "Curva has four label question types. A Choice picks exactly one option. A Score places the item on an ordered scale. A Noul is a single yes or no. A Multi picks any subset. For tags, the Multi is the right fit."
+    },
+    {
+      "kind": "p",
+      "text": "Each option of a Multi is scored as its own yes or no, all in the same model call. The probabilities are independent, so they don't sum to 1. A product can score 0.9 on \"waterproof\" and 0.8 on \"lightweight\" at once, and that is the honest answer."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Multi\n\nclient = Curva()   # reads CURVA_BASE_URL and CURVA_API_KEY\n\nQUESTIONS = {\n    \"use\": Multi(\"Which uses does this product suit?\",\n                 [\"hiking\", \"running\", \"commuting\", \"travel\", \"camping\"]),\n    \"features\": Multi(\"Which features does the listing state?\",\n                      [\"waterproof\", \"lightweight\", \"packable\", \"reflective\", \"insulated\"],\n                      threshold=0.6),\n}\n\nd = client.decide({\"title\": \"Trail shell jacket\",\n                   \"description\": \"Seam-sealed 2.5-layer shell, 210 g, packs into its own pocket.\"},\n                  QUESTIONS, project=\"catalog\")\n\nprint(d[\"features\"].selected)        # tags at or above the threshold\nprint(d[\"features\"].probabilities)   # one independent probability per tag",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "`selected` holds the options at or above the threshold. `probabilities` holds every option, so you keep the near misses too. Both questions go in one request, and the state is fenced as data, so text inside a supplier's description can't act as instructions to the model."
+    },
+    {
+      "kind": "p",
+      "text": "Write the question so the model judges what the listing says. \"Which features does the listing state?\" is easier to get right, and easier to check, than \"Which features does this product have?\". The model only sees the text you send."
+    },
+    {
+      "kind": "h2",
+      "text": "Choosing the threshold"
+    },
+    {
+      "kind": "p",
+      "text": "The default threshold is 0.5. Set it per question with `threshold=` in Python, or the `threshold` field in the HTTP shape. Change it according to what a wrong tag costs you."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Tag mistake",
+        "What it costs",
+        "Lean"
+      ],
+      "rows": [
+        [
+          "A wrong tag shows the product in the wrong filter",
+          "Shoppers lose trust in the filter",
+          "Higher threshold"
+        ],
+        [
+          "A missing tag hides the product from a filter",
+          "Lost views and sales",
+          "Lower threshold"
+        ],
+        [
+          "Tags feed a human merchandiser's queue",
+          "Reviewer time",
+          "Lower threshold, the person filters"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Because every response carries the full `probabilities`, you don't have to fix one threshold forever. Store the probabilities with the product. Then you can use 0.8 for the public filter and 0.5 for a \"you may also like\" shelf without asking the model again."
+    },
+    {
+      "kind": "p",
+      "text": "To choose with evidence, label a sample. Take a few hundred products, mark the tags a merchandiser agrees with, and compare the hit and miss rates at a few thresholds. If your tags have clear rules, such as a weight limit for \"lightweight\", put the rule in code or in `rules` instead of asking the model. Language models are poor at arithmetic and comparisons, so compute the weight check and pass the result in the state."
+    },
+    {
+      "kind": "h2",
+      "text": "Up to 20 tags per question"
+    },
+    {
+      "kind": "p",
+      "text": "A Multi takes 1 to 20 options. Most taxonomies have more tags than that, so split them by facet: one Multi for use, one for features, one for materials, one for style. A request can hold up to 64 questions, and they are all answered together, so splitting by facet doesn't multiply your requests."
+    },
+    {
+      "kind": "p",
+      "text": "Splitting also makes each question easier. A model asked \"which of these five uses fit?\" is judging one thing. A model asked about dozens of unrelated tags at once is judging many. If a facet is exclusive (a product has exactly one main category), use a Choice for it instead, with a probability per category and a `none_of_these` escape option by default."
+    },
+    {
+      "kind": "p",
+      "text": "Rules work on a Multi as well. A rule's answer is a list of option keys, and when its conditions hold the question is answered with no model call:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"features\": {\n  \"type\": \"multi\",\n  \"instructions\": \"Which features does the listing state?\",\n  \"options\": {\"waterproof\": \"\", \"lightweight\": \"\", \"packable\": \"\", \"reflective\": \"\", \"insulated\": \"\"},\n  \"threshold\": 0.6,\n  \"rules\": [{\"if\": {\"supplier_tags\": {\"contains\": \"gore-tex\"}}, \"answer\": [\"waterproof\"]}]\n}",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Rules are tried in order and the first match wins, so put the most specific first. Keep rules to facts your feed already states; leave the reading between the lines to the model."
+    },
+    {
+      "kind": "h2",
+      "text": "Tag a catalog with curva map"
+    },
+    {
+      "kind": "p",
+      "text": "For a catalog, put one product per line in a JSONL file and the questions in a JSON file in the `/v1/decide` shape:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva map tickets.jsonl -q questions.json -o answers.jsonl"
+    },
+    {
+      "kind": "p",
+      "text": "The file names are the docs' example; use your own. `curva map` streams the file, stays within your rate limits, and writes one result per line with the input line number, the model that answered and the typed answers. If the run stops (a daily quota, a network error, Ctrl-C), rerun the same command and it continues after the last line written, so nothing is scored or paid for twice. Repeated states within a run come from the cache."
+    },
+    {
+      "kind": "p",
+      "text": "Two options matter for large catalogs. `--no-debias` skips the second, reversed-order call and halves the calls, at the price of keeping any position bias the model has. `--cascade a,b --escalate-below 0.8` sends only unsure questions to a second, stronger model. Measure either change on your labeled sample before running the full file. To cap spend on a free tier, set `CURVA_DAILY_LIMIT` to the number of model calls allowed per day."
+    },
+    {
+      "kind": "p",
+      "text": "For an app that tags new products as they arrive, call `client.decide` from your import job instead, against a shared server, so every decision lands in one audit log."
+    },
+    {
+      "kind": "h2",
+      "text": "Coverage on Multi: not guaranteed yet"
+    },
+    {
+      "kind": "p",
+      "text": "Curva can attach a prediction set with a coverage guarantee to Choice, Noul and Multi questions. Once a question has 30 feedback labels, the set contains the true answer with probability at least the `coverage` you asked for, as long as new inputs look like the labeled ones."
+    },
+    {
+      "kind": "p",
+      "text": "For a Multi, that guarantee isn't available yet. Feedback currently labels a Multi as a whole, not tag by tag, so there is no per-tag calibration set. A Multi with `coverage` returns `guaranteed: false` until per-tag labels exist. It is still a normal answer, not an error. If you need a guaranteed set today, ask the tag as a Noul with `coverage`, one question per tag that matters, or use a Choice for an exclusive facet."
+    },
+    {
+      "kind": "p",
+      "text": "You can still send feedback for a Multi: the label is the list of option keys that apply. Collect it when merchandisers fix tags, so the labels are there when you need them."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [questions reference](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/) and the [batch guide](https://itsmohitrohilla.github.io/curva-docs/guides/batch/) in the docs. Install with `pip install curva-ai`. For the general pattern, see [multi-label classification with an LLM](/blog/multi-label-classification-llm/). For related catalog work, read [return reason classification](/blog/return-reason-classification/) and [expense categorization with AI](/blog/expense-categorization-ai/), or browse more [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

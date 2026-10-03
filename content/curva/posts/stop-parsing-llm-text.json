@@ -1,0 +1,199 @@
+{
+  "slug": "stop-parsing-llm-text",
+  "title": "Stop parsing LLM text for decisions",
+  "summary": "Decisions need types and probabilities, not prose. Why parsing a model's sentence fails quietly, and what a typed, calibrated decision gives you instead.",
+  "tag": "curva concepts",
+  "source_check": [
+    "Content Box/1 Product/what-is-curva.md",
+    "site/concepts/questions.md",
+    "site/concepts/trust.md",
+    "site/concepts/calibration.md",
+    "site/concepts/projects.md",
+    "site/guides/rules.md",
+    "site/getting-started.md",
+    "site/self-hosting.md",
+    "site/reference/http-api.md",
+    "Content Box/4 Benchmarks/benchmarks.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "LLM structured decisions are answers you get back as a declared type (a label, a yes or no, a level on a scale, a number) with a probability attached, instead of a sentence you parse. Routing a ticket, flagging an email or checking whether an answer is grounded are decisions with a fixed set of outcomes. Asking a text generator to write them in prose and then reading them back is where the bugs hide, because a parser fails quietly. This post spells out how prompt-and-parse breaks, and what a typed decision with a checked probability gives you instead."
+    },
+    {
+      "kind": "p",
+      "text": "Count the LLM calls in a production codebase. Some produce text a person reads. Many produce text that a function immediately turns back into a label, a boolean or a number. The second group is the one to fix."
+    },
+    {
+      "kind": "h2",
+      "text": "The prompt-and-parse pattern"
+    },
+    {
+      "kind": "p",
+      "text": "Here is a pattern most teams have written, in some form:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "reply = llm(\"Which team should handle this ticket? Reply with one of: billing, technical, sales.\\n\\n\" + ticket)\nteam = reply.strip().lower().rstrip(\".\")\nif team not in {\"billing\", \"technical\", \"sales\"}:\n    team = \"technical\"",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Each line patches a failure someone saw once: trailing punctuation, capital letters, \"Billing team\", an explanation before the answer. The last line is the dangerous one. When the reply doesn't parse, the code picks an answer and moves on. That choice never shows up in a metric."
+    },
+    {
+      "kind": "p",
+      "text": "The fix is not a better regex. It is not asking for text at all."
+    },
+    {
+      "kind": "h2",
+      "text": "Four ways it fails quietly"
+    },
+    {
+      "kind": "p",
+      "text": "None of these raise an exception. They show up weeks later as a skew in your data."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Free text you can't route on.** The model names a team that doesn't exist, or wraps the right one in a sentence. The parser's fallback swallows it.",
+        "**Confidence you can't trust.** Ask the model \"how sure are you?\" and it writes a number. That number is generated text like the rest, and models tend to write high ones. Curva's docs put it plainly: a model that answers 0.95 on questions it gets right 70% of the time is overconfident, and every rule like \"automate above 0.9\" will quietly fail.",
+        "**Answers that shift.** Reorder the options and many models change their answer. Reword the question and accuracy moves.",
+        "**Nothing to audit.** A free-text judgement leaves no record of which model decided, under which settings, with what confidence."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "h2",
+      "text": "Why LLM structured decisions need types"
+    },
+    {
+      "kind": "p",
+      "text": "A typed decision declares its outcomes up front, and the answer always comes back as one of them. In Curva you declare questions such as Choice, Score, Noul (yes or no), Multi, and Text, Number and Integer for extraction. Answers are only ever mapped onto the labels you declared, never parsed from free text, so there is nothing to validate on your side."
+    },
+    {
+      "kind": "p",
+      "text": "The three-line version, from the docs:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "`d.team` is always one of your options. `d.refund` is `True` when P(yes) is at least 0.5. `d.total` is a number, or `None` when the text has none. And `d[\"team\"]` holds the full answer, with `confidence` and a probability for every option."
+    },
+    {
+      "kind": "p",
+      "text": "Types also give the model two honest exits, which free text never has."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**None of these.** A Choice gets an extra option, `none_of_these`, by default. A ticket about a partnership is not forced into billing.",
+        "**Not sure.** Set `min_confidence` on a question, and answers below it come back with `abstain: true`. Send those to a person."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Both are routing decisions in their own right. And the person's answer is the most reliable label you will get, so send it back."
+    },
+    {
+      "kind": "h2",
+      "text": "Probabilities you can check"
+    },
+    {
+      "kind": "p",
+      "text": "\"Billing\" and \"billing, but only a little more likely than technical\" are different answers. The first gets routed. The second deserves a second look. A label without a probability forces you to treat every answer as equally sure."
+    },
+    {
+      "kind": "p",
+      "text": "The probability has to come from the model, not from text it writes. Curva reads it from token log-probabilities when the model returns them (`logprobs` mode), or asks for JSON limited to your labels with a probability for each (`verbal` mode). It also asks every question in two option orders and averages them, which cancels position bias."
+    },
+    {
+      "kind": "p",
+      "text": "Even a probability read from logprobs is not yet a probability that is right. The only way to know is to compare stated confidence with outcomes on your own data, and adjust. That is calibration. Send the true answer when you learn it; after 30 labels for a question, Curva fits a small calibrator, keeps it only when it improves on the raw probabilities on held-out labels, and reports before and after. Once calibrated, a 0.9 means right about 90% of the time on your data. Before that, it is the model's raw estimate."
+    },
+    {
+      "kind": "p",
+      "text": "Measure the model too, not just the system around it. Two small findings from Curva's own runs show why:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Asked \"is X?\" and \"is not X?\" about the same 3 tickets, Ling 3.0 Flash gave probabilities that summed to 1.33, 0.14 and 0.56. They should sum to 1. Nemotron 3 Super, asked the same way, summed to 1.000 on all three (2026-09-27, a tiny probe). Curva changed its default model because of this.",
+        "In early runs (n = 20, 2026-10-01), three small OpenAI models answered \"not the asshole\" on almost every AITA post and scored about 41% on the natural mix of verdicts."
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "The second result is why \"confident\" and \"right\" need separate evidence."
+    },
+    {
+      "kind": "h2",
+      "text": "A record for every decision"
+    },
+    {
+      "kind": "p",
+      "text": "When a decision is wrong, someone will ask why it was made, by which model, under which prompt. Every Curva decision is written to an audit log with its id, project, model, mode, config, answers, latency and cost, and a salted hash of the state instead of the state itself. You can match a record to an input you still have without storing the input."
+    },
+    {
+      "kind": "p",
+      "text": "Two habits make the record useful:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Pin the behaviour.** A pinned config freezes the prompt template and the default mode, debias setting and model, so answers don't change under you when Curva is upgraded. Move the pin on purpose.",
+        "**Watch the mix.** `GET /v1/drift` reports each question's weekly answer mix and confidence, and flags a week where either moved. Look at that before customers notice."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "What to keep in code"
+    },
+    {
+      "kind": "p",
+      "text": "The other half of the argument is what not to ask. Language models are poor at counting, arithmetic and date comparison. If a decision depends on \"more than three open tickets\" or \"older than 30 days\", compute that in code and put the result in the state."
+    },
+    {
+      "kind": "p",
+      "text": "If the rule is fixed, don't call a model at all. Curva's `rules` answer a question on the spot when a condition matches, with no model call and no cost, and say which rule fired. Save the model for what needs reading between the lines."
+    },
+    {
+      "kind": "h2",
+      "text": "A checklist for LLM structured decisions"
+    },
+    {
+      "kind": "p",
+      "text": "Whatever tool you use:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Every decision has declared outcomes, and the answer is always one of them.",
+        "Every answer has a probability read from the model, not written by it.",
+        "Confidence is checked against real outcomes and recalibrated per question.",
+        "There is a \"none of these\" and a \"not sure\", and both go to a person.",
+        "Human answers flow back as labels.",
+        "Every decision is logged with model and version, without storing the input.",
+        "Arithmetic and fixed rules live in code."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Text generation is a good interface for people. For decisions, ask for the type you need, and for evidence that the numbers mean something."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read [what is a typed decision](/blog/what-is-a-typed-decision/) for the building blocks, and [LLM calibration explained](/blog/llm-calibration-explained/) for how probabilities get checked. For the \"not sure\" exit, see [LLM confidence threshold and abstain](/blog/llm-confidence-threshold-abstain/). To weigh this against fine-tuning and other options, read [LLM classification approaches compared](/blog/llm-classification-approaches-compared/). The docs start at [questions and answers](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/). Install with `pip install curva-ai`."
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+{
+  "slug": "python-llm-api-error-handling",
+  "title": "Python LLM API error handling with CurvaError",
+  "summary": "Map each CurvaError subclass to the fix: 422 names the bad question, 429 carries retry_after, 502 splits model_error from model_unavailable.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/reference/python-sdk.md",
+    "site/reference/http-api.md",
+    "sdk/python/README.md",
+    "site/getting-started.md",
+    "site/guides/feedback.md",
+    "site/guides/rules.md",
+    "site/guides/conditional.md",
+    "site/guides/providers.md",
+    "site/self-hosting.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Python LLM API error handling with Curva comes down to one base class and five subclasses. Every failure the client doesn't retry raises a `CurvaError` with `status`, `type` and `message`, matching the HTTP error the server sent. Catch `InvalidRequestError` to fix a bad question (a 422 names it), `RateLimitError` to wait (it carries `retry_after`), and `ModelError` for provider failures, where `model_error` means retry later and `model_unavailable` means fix the model id. A status of 0 means the server was never reached. And 429 and 5xx responses are retried for you first, so most transient failures never reach your `except` block."
+    },
+    {
+      "kind": "h2",
+      "text": "Python LLM API error handling starts with one base class: CurvaError"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import CurvaError\n\ntry:\n    client.decide(state, questions)\nexcept CurvaError as e:\n    print(e.status, e.type, e.message)"
+    },
+    {
+      "kind": "p",
+      "text": "The three attributes do different jobs. `status` is the HTTP status, or 0 when there was no response. `type` is a fixed word from the server, such as `invalid_request`, `rate_limited` or `model_unavailable`, and it is what your code should branch on. `message` is for people: it names the question or image at fault, and it is safe to log because provider error details stay in the server log and are never sent to callers."
+    },
+    {
+      "kind": "p",
+      "text": "Log `d.request_id` on success and keep it on failure where you can: it is the server's `x-request-id`, the same id that appears in the server's log line for the request."
+    },
+    {
+      "kind": "h2",
+      "text": "The five subclasses: AuthError, InvalidRequestError, NotFoundError, RateLimitError, ModelError"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Class",
+        "Status",
+        "`type`",
+        "What to do"
+      ],
+      "rows": [
+        [
+          "`AuthError`",
+          "401",
+          "`unauthorized`",
+          "Send a valid key: `CURVA_API_KEY` or `api_key=`"
+        ],
+        [
+          "`InvalidRequestError`",
+          "400, 422",
+          "`invalid_json`, `invalid_request`",
+          "Fix the request; the message names the question"
+        ],
+        [
+          "`NotFoundError`",
+          "404",
+          "`not_found`",
+          "Check the decision id and question key"
+        ],
+        [
+          "`RateLimitError`",
+          "429",
+          "`rate_limited`",
+          "Wait `retry_after` seconds, then retry"
+        ],
+        [
+          "`ModelError`",
+          "502, 504",
+          "`model_error`, `model_unavailable`, `timeout`",
+          "Retry later, or fix the model id"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Statuses without a subclass, such as 403 for a key bound to another project or 413 for a body over the server's limit, raise the base `CurvaError`. Catch subclasses first and the base class last:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import CurvaError, RateLimitError, InvalidRequestError, ModelError\n\ntry:\n    d = client.decide(state, QUESTIONS, project=\"support\")\nexcept InvalidRequestError as e:\n    log.error(\"bad question: %s\", e.message)    # don't retry: fix the question\n    raise\nexcept RateLimitError as e:\n    requeue(item, delay=e.retry_after)\nexcept ModelError as e:\n    if e.type == \"model_unavailable\":\n        alert(\"model id or access is wrong: %s\" % e.message)\n    requeue(item, delay=60)\nexcept CurvaError as e:\n    log.error(\"curva %s %s: %s\", e.status, e.type, e.message)\n    raise",
+      "original": true
+    },
+    {
+      "kind": "h2",
+      "text": "Status 0: curva.local() not started or a wrong CURVA_BASE_URL"
+    },
+    {
+      "kind": "p",
+      "text": "A `CurvaError` with status 0 means the server was unreachable. No HTTP response came back at all. The usual causes:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`Curva()` is pointed at the wrong place. It reads `CURVA_BASE_URL` and defaults to `http://localhost:7777`.",
+        "No server is running. `Curva()` never starts one; `curva.local()` and the module-level `curva.decide` do.",
+        "The private server didn't come up. `curva.local()` waits `startup_timeout` seconds, 15 by default, for its server to start."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "One related error is raised before any request: with no provider key at all and no `CURVA_MODEL`, the module-level `curva.decide` raises an error naming the variables to set."
+    },
+    {
+      "kind": "p",
+      "text": "Dropped connections are retried along with 429 and 5xx, so a status 0 that reaches you has already failed `max_retries` times."
+    },
+    {
+      "kind": "h2",
+      "text": "422 invalid_request names the question: option counts, levels, mode conflicts"
+    },
+    {
+      "kind": "p",
+      "text": "A 422 means the request was valid JSON but something in it is not allowed. The message names the question or image, so log it in full. Common causes in Python code:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "too few or too many options on a Choice, or too few levels on a Score;",
+        "more than 64 questions in one request, or a state over 150,000 characters;",
+        "bad `max_length`, `min` or `max` on an extraction question;",
+        "`mode=\"logprobs\"` with a Text, Number or Integer question, or with a Choice over 20 options;",
+        "an unknown `config` name, an unknown operator in `when` or `rules`, or a `depends_on` cycle;",
+        "`privacy=\"strict\"` on a named provider whose URL is not on this machine."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A 400 `invalid_json` is the other `InvalidRequestError`: the body was not JSON, or named an unknown `mode` or question `type`. Neither should be retried. The same request will fail the same way."
+    },
+    {
+      "kind": "h2",
+      "text": "502 model_error vs model_unavailable: retry later or fix the model id"
+    },
+    {
+      "kind": "p",
+      "text": "Both arrive as `ModelError` with status 502, and `type` tells them apart."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**`model_error`**: every model in the chain failed after retries. The provider was down or overloaded. Retry later, or give `model` a list so a fallback chain moves to the next model on a 429 or server error.",
+        "**`model_unavailable`**: the model doesn't exist, was retired, or isn't open to your provider account. Providers rename models often. Retrying won't help; check the model id and your access."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A 504 `timeout` is also a `ModelError`: the request took longer than the 120 s deadline."
+    },
+    {
+      "kind": "h2",
+      "text": "404 on feedback: unknown decision or question key"
+    },
+    {
+      "kind": "p",
+      "text": "`client.feedback(decision_id, key, label)` raises `NotFoundError` for an unknown decision or an unknown question key. Two cases surprise people because the decision and key both exist:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "the question was answered by a rule, which is not model output and is not stored for calibration;",
+        "the question was skipped by its `when`, so there is no answer to correct."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Check the answer's `rule` field and the skipped flag before sending feedback. A label that isn't a valid answer, such as a key not among the options, gets 422 and arrives as `InvalidRequestError`."
+    },
+    {
+      "kind": "h2",
+      "text": "What never reaches your except block because the client retried it"
+    },
+    {
+      "kind": "p",
+      "text": "The client retries before it raises:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva\n\nclient = Curva(timeout=30.0, max_retries=3)   # retries 429, 5xx and dropped connections",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "By default, statuses 429, 500, 502, 503 and 504 and dropped connections are retried up to `max_retries` times, honouring `Retry-After`. Only what is still failing after that raises. So a `RateLimitError` in your logs means a limit that lasted through every retry: a key's requests-per-minute limit, the provider's rate limit, or the server's daily budget, which resets at 00:00 UTC. Lower your concurrency or raise the limit rather than adding another retry loop on top."
+    },
+    {
+      "kind": "p",
+      "text": "For batches, `AsyncCurva.decide_many(..., return_exceptions=True)` puts each failure in its slot instead of raising the first one. Check each result with `isinstance(result, CurvaError)` and requeue only the failed rows."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover the classes in the [Python SDK reference](https://itsmohitrohilla.github.io/curva-docs/reference/python-sdk/) and the statuses in the [HTTP API reference](https://itsmohitrohilla.github.io/curva-docs/reference/http-api/). For every status across all clients, read the [Curva troubleshooting guide](/blog/curva-troubleshooting-guide/). Tune retries in [LLM client retries and timeouts in Python](/blog/llm-client-retries-timeouts-python/), and handle batches in [async LLM classification in Python](/blog/async-llm-classification-python/). Start from the [Python LLM classification tutorial](/blog/python-llm-classification/)."
+    }
+  ]
+}

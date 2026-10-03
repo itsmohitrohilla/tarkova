@@ -1,0 +1,219 @@
+{
+  "slug": "support-ticket-triage-ai",
+  "title": "Support ticket triage with calibrated confidence",
+  "summary": "The support-triage recipe end to end: route confident tickets, queue unsure ones, answer obvious ones with rules, and learn from agents' corrections.",
+  "tag": "curva use cases",
+  "source_check": [
+    "Content Box/3 Use cases/support-triage.md",
+    "recipes/support-triage.json",
+    "site/guides/rules.md",
+    "site/guides/recipes.md",
+    "site/guides/feedback.md",
+    "site/guides/shadow.md",
+    "site/guides/drift.md",
+    "site/concepts/trust.md",
+    "site/concepts/projects.md",
+    "site/getting-started.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Support ticket triage with AI works when the model returns a typed answer per ticket (which team, how urgent, does the customer want a refund) with a probability you can act on, and sends the unsure tickets to a person instead of guessing. Curva's built-in `support-triage` recipe asks five such questions in one call. Confident tickets route themselves, tickets below 0.8 confidence go to a review queue, rules settle the obvious cases with no model call, and every agent correction becomes a calibration label. This post builds that flow end to end."
+    },
+    {
+      "kind": "p",
+      "text": "Triage is a good first job for a language model. Tickets are text, the decisions are small, and a wrong call costs minutes, not money. It is also where naive triage fails quietly: the model sends a login problem to billing \"with high confidence\", nobody notices, and the customer waits a day in the wrong queue."
+    },
+    {
+      "kind": "h2",
+      "text": "Support ticket triage AI: the five questions in the recipe"
+    },
+    {
+      "kind": "p",
+      "text": "Get the recipe from the binary:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "pip install curva-ai\nexport OPENROUTER_API_KEY=sk-or-v1-...     # any OpenRouter key; free models work\ncurva recipe show support-triage > triage.json",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "It asks five questions per ticket, all in one request:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Key",
+        "Type",
+        "What it asks"
+      ],
+      "rows": [
+        [
+          "`team`",
+          "Choice",
+          "billing, technical, account, shipping or sales; abstains below 0.8"
+        ],
+        [
+          "`urgency`",
+          "Score",
+          "Low, Normal, High, Critical"
+        ],
+        [
+          "`frustration`",
+          "Score",
+          "Calm, Mildly annoyed, Frustrated but civil, Very angry or threatening to leave"
+        ],
+        [
+          "`refund_requested`",
+          "Noul",
+          "Explicitly asks for money back"
+        ],
+        [
+          "`churn_risk`",
+          "Noul",
+          "Says or clearly implies they will cancel, switch or stop paying"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The wording carries lessons. `team` says \"judge by what the customer needs done, not by the words they happen to use\", so \"I can't log in to see my invoice\" goes to `account`, not `billing`. `refund_requested` says that complaining about a charge without asking for money back is no. The urgency levels are defined, not just named: High means \"the customer cannot use the product, or money is being lost right now\", and Critical means \"an outage, a security or data-loss issue, or many users affected\"."
+    },
+    {
+      "kind": "h2",
+      "text": "Triage one ticket"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import json\nimport curva\n\nTRIAGE = json.load(open(\"triage.json\"))\nclient = curva.local()\n\nticket = {\"subject\": \"Charged twice??\",\n          \"body\": \"I was charged twice for order A-104. Please refund the duplicate. \"\n                  \"If this keeps happening I'm cancelling.\"}\nd = client.decide(ticket, TRIAGE, project=\"support\")\n\nd[\"team\"].choice, d[\"team\"].confidence, d[\"team\"].abstain\nd[\"urgency\"].level            # most likely urgency level\nd[\"frustration\"].score        # expected level, 0 = Calm\nd[\"refund_requested\"].noul    # P(yes)\nd[\"churn_risk\"].noul          # P(yes)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Every answer is one of the labels in the file. `team` can also come back as `none_of_these`, the escape option every Choice gets, for a ticket that fits no team. The ticket itself is fenced as data in the prompt, so a customer who writes \"ignore your instructions\" is just a customer."
+    },
+    {
+      "kind": "h2",
+      "text": "Route confident tickets, queue the rest"
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart TD\n  T[\"ticket\"] --> R{\"rule matches?\"}\n  R -- yes --> Q[\"team queue, no model call\"]\n  R -- no --> M[\"five questions, one request\"]\n  M --> A{\"team abstains or none_of_these?\"}\n  A -- yes --> H[\"review queue\"]\n  A -- no --> Q\n  H --> F[\"agent picks the team\"]\n  F --> FB[\"feedback: a calibration label\"]",
+      "title": "Support ticket triage AI flow",
+      "caption": "Rules settle known cases first; unsure or unmatched tickets go to people, whose answers flow back as labels."
+    },
+    {
+      "kind": "p",
+      "text": "The routing code checks abstain first, because an unsure answer still has a `choice`:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "def route(ticket, d):\n    team = d[\"team\"]\n    if team.abstain or team.choice == \"none_of_these\":\n        return review_queue.add(ticket, decision_id=d.id)\n\n    queue = queues[team.choice]\n    priority = \"p1\" if d[\"urgency\"].score >= 2.5 else \"p2\" if d[\"urgency\"].score >= 1.5 else \"p3\"\n    queue.add(ticket, priority=priority, decision_id=d.id)\n\n    if d[\"churn_risk\"].noul >= 0.8:\n        notify_account_manager(ticket)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Store `d.id` with the ticket. It is how feedback finds the decision later."
+    },
+    {
+      "kind": "p",
+      "text": "Priority uses `score`, the expected level, rather than the single most likely level. A ticket whose score lands between High and Critical keeps that doubt visible in the number. You choose the cut-offs."
+    },
+    {
+      "kind": "h2",
+      "text": "Rules for the obvious ones"
+    },
+    {
+      "kind": "p",
+      "text": "Some routing is not a judgement call. An enterprise customer with three or more open tickets always gets a reply today. A ticket body that starts with an error code goes to technical. Rules answer those instantly, with no model call, and the model sees only the rest:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Choice, Noul\n\nteam = TRIAGE[\"team\"]\nquestions = dict(TRIAGE)\nquestions[\"team\"] = Choice(team[\"instructions\"], team[\"options\"], min_confidence=0.8) \\\n    .rule(\"technical\", body={\"starts_with\": \"Error\"})\nquestions[\"reply_today\"] = Noul(\"This ticket needs a reply today\") \\\n    .rule(True, plan=[\"enterprise\", \"premium\"], open_tickets={\"gte\": 3})\n\nd = client.decide({**ticket, \"plan\": \"enterprise\", \"open_tickets\": 4}, questions, project=\"support\")\nd[\"reply_today\"].rule      # 0: the first rule answered it",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Rules read top-level fields of the state. Up to 32 per question, first match wins. A rule answer puts all its probability on that label, has `calibrated: false`, and says which rule gave it, so the audit log shows why. If every question is answered by rules, no model is called and the decision costs $0. Keep rules to what you would write in code anyway, and drop a rule once the model agrees with it."
+    },
+    {
+      "kind": "h2",
+      "text": "Feedback from agents calibrates the team question"
+    },
+    {
+      "kind": "p",
+      "text": "Your agents already correct triage: they reassign tickets. Send each correction back:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"team\", \"account\")        # the team that really handled it\nclient.feedback(decision_id, \"refund_requested\", True)\nclient.feedback(decision_id, \"urgency\", 2)              # level index: 0 = Low",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "After 30 labels per question in the `support` project, Curva fits a calibrator, and keeps it only when it improves the probabilities on held-out labels. A model that is already well calibrated is left alone. Once calibrated, the 0.8 cut-off on `team` means what it says on your tickets. Check it:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "`automated` is the share of answers at 0.9 confidence or above, and `accuracy_when_automated` is how often those were right. Together they tell you how much triage you can hand over. Send feedback for a sample of tickets that routed themselves too, not only the reviewed ones, or calibration sees only the hard cases."
+    },
+    {
+      "kind": "h2",
+      "text": "Shadow-test before go-live"
+    },
+    {
+      "kind": "p",
+      "text": "Test against what you do today before any ticket moves. Export a week of tickets with the team that handled each one, in feedback format:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"state\": {\"ticket\": \"I was charged twice\"}, \"labels\": {\"team\": \"billing\", \"refund_requested\": true}}"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva shadow traffic.jsonl -q triage.json -o shadow.jsonl",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "The Markdown report shows agreement with your current routing per question, agreement in each confidence band, and the share of traffic you could automate at or above each band. It lists the most confident disagreements first. Read them: in each one, either Curva or your current routing is clearly wrong. Agreement is not accuracy, so label a sample of disagreements and send them as feedback."
+    },
+    {
+      "kind": "h2",
+      "text": "Keep an eye on it after launch"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`client.drift(\"team\", project=\"support\")` shows the weekly mix of teams and average confidence, and flags the latest week when the mix moves by more than 0.2 or confidence by more than 0.1. A billing outage shows up as a jump in billing.",
+        "The audit log lists every decision with its model, config and answers, and a salted hash of the ticket, never the ticket.",
+        "Pin the config, for example `config=\"curva-1.1.0\"`, so an upgrade doesn't change answers under you."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The recipe is a starting point. Rename the teams, add your own, write the descriptions in your agents' words. Settle the wording before you collect feedback: calibration belongs to the exact question, and rewording starts it over."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover [recipes](https://itsmohitrohilla.github.io/curva-docs/guides/recipes/), [rules](https://itsmohitrohilla.github.io/curva-docs/guides/rules/) and [shadow mode](https://itsmohitrohilla.github.io/curva-docs/guides/shadow/). Go deeper on one part with [LLM ticket routing in Python](/blog/llm-ticket-routing-python/), [refund request detection](/blog/refund-request-detection/) or [ticket urgency and SLA rules](/blog/ticket-urgency-sla-rules/). For other workloads, see [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

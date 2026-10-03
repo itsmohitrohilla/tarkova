@@ -1,0 +1,188 @@
+{
+  "slug": "abuse-report-triage",
+  "title": "Triage abuse reports with a review branch",
+  "summary": "Route abuse reports by type and severity with min_confidence, so unsure reports go straight to a person and their verdicts calibrate the model.",
+  "tag": "curva use cases",
+  "source_check": [
+    "site/concepts/trust.md",
+    "recipes/content-moderation.json",
+    "site/guides/drift.md",
+    "site/guides/feedback.md",
+    "site/guides/recipes.md",
+    "site/concepts/questions.md",
+    "site/reference/python-sdk.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Abuse report triage with an LLM works when the model sorts the clear reports and hands the unclear ones to a person. Ask two typed questions about each report: its type as a Choice and its severity as a Score. Set `min_confidence` on both, so any answer below your bar comes back with `abstain: true` and goes straight to a moderator. The moderator's verdict goes back to Curva as feedback, and after 30 labels per question the confidences are calibrated on your own reports. This post lays out the queue design, the questions, and how to spot an abuse wave with the drift report."
+    },
+    {
+      "kind": "plain",
+      "text": "Let the model sort what it is sure of, send the rest to a moderator, and turn each moderator verdict into a label that makes the next confidence more honest."
+    },
+    {
+      "kind": "h2",
+      "text": "The queue design for abuse report triage"
+    },
+    {
+      "kind": "p",
+      "text": "A trust and safety queue has three jobs: put each report in the right lane, put the dangerous ones first, and never let an unsure guess close a report on its own. Map those to Curva:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Job",
+        "Curva feature",
+        "Result"
+      ],
+      "rows": [
+        [
+          "Right lane",
+          "Choice question for the report type",
+          "One type, with a probability for each"
+        ],
+        [
+          "Right order",
+          "Score question for severity",
+          "An expected level, not a rounded guess"
+        ],
+        [
+          "No unsure guesses",
+          "`min_confidence` on both",
+          "`abstain: true` sends it to review"
+        ],
+        [
+          "Learning",
+          "Feedback from moderator verdicts",
+          "Calibration after 30 labels"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The state is the report itself: the reported content, the reason the reporter picked, and their note. Curva wraps the state in a fenced block and tells the model it is data, not instructions. That matters here more than anywhere, because abusive content often contains text aimed at whoever reads it."
+    },
+    {
+      "kind": "h2",
+      "text": "Report type as a Choice"
+    },
+    {
+      "kind": "p",
+      "text": "A Choice picks exactly one option and returns a probability for every option. Write the options as policy categories with short descriptions, because the descriptions are what the model reads. The built-in `content-moderation` recipe is a good starting point. Its `violation` question lists `none`, `harassment`, `hate`, `violence`, `sexual`, `self_harm`, `spam` and `illegal`, each with a one-line definition, and tells the model that quoting, reporting on or condemning harmful content is not itself a violation."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva recipe show content-moderation > questions.json",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Two settings in that recipe are worth copying. It turns off the escape option (`\"escape\": false`), because `none` already is the honest \"nothing wrong\" answer. And it sets `min_confidence` to 0.85, a stricter bar than the 0.8 the support recipe uses, because a wrong moderation call costs more than a wrong ticket route."
+    },
+    {
+      "kind": "p",
+      "text": "From Python, the same design looks like this:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice, Score, Noul\n\nclient = Curva()\n\nQUESTIONS = {\n    \"type\": Choice(\"Does the reported content break a content policy? Pick the most serious category.\",\n                   {\"none\": \"allowed, including criticism and mild profanity\",\n                    \"harassment\": \"insults, threats or degrading remarks aimed at a specific person\",\n                    \"spam\": \"unsolicited ads, scams, link farming or repeated junk\",\n                    \"violence\": \"threats, incitement or praise of violence against people\"},\n                   escape=False, min_confidence=0.85),\n    \"severity\": Score(\"How severe is the worst problem in this content?\",\n                      [\"None\", \"Low\", \"Medium\", \"High\", \"Critical\"], min_confidence=0.8),\n    \"targets_individual\": Noul(\"The content is aimed at a specific, identifiable person.\"),\n}\n\nd = client.decide({\"content\": report[\"content\"], \"reason\": report[\"reason\"],\n                   \"note\": report[\"note\"]}, QUESTIONS, project=\"abuse-reports\")",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "All three questions are answered in one request. Keep the `project` separate from any other use, so moderation feedback calibrates only moderation questions."
+    },
+    {
+      "kind": "h2",
+      "text": "Severity as a Score"
+    },
+    {
+      "kind": "p",
+      "text": "Severity is ordered, so ask it as a Score, not a Choice. A Score returns the expected level, where 0 is the lowest. Probabilities of `[0.36, 0.62, 0.02]` over three levels give `0.65`: between the first and second level, leaning to the second. That keeps the doubt visible instead of rounding it away."
+    },
+    {
+      "kind": "p",
+      "text": "Use the expected level to sort the queue. A report whose expected level sits close to \"Critical\" goes above one just past \"High\", even though both round to \"High\". The answer's `level` field gives the most likely level's name when you need a label for display. The recipe's five levels run from \"nothing to act on\" to \"a real-world risk to someone's safety; escalate now\". Write yours to match the actions your team takes, one action per level."
+    },
+    {
+      "kind": "h2",
+      "text": "Review branch with min_confidence"
+    },
+    {
+      "kind": "p",
+      "text": "`abstain` is present only on questions that set `min_confidence`, and it is `true` when the top answer's probability is below the bar. The routing code is short:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "t, s = d[\"type\"], d[\"severity\"]\n\nif t.abstain or s.abstain:\n    send_to_moderator(report, d.id)          # unsure: a person decides\nelif t.choice == \"none\":\n    close_report(report, d.id)\nelse:\n    enqueue(report, lane=t.choice, priority=s.score, decision_id=d.id)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Also route on the content, not only on confidence. Many teams send every report above a severity level to a person, however confident the model is. Curva doesn't stop you: the Score is a number, so compare it."
+    },
+    {
+      "kind": "p",
+      "text": "Until the questions are calibrated, the 0.85 bar is a guess about the model. A raw \"0.9\" can be right far less than 90% of the time. After calibration, the bar means what it says, and you can raise or lower it with the trade-off in plain view."
+    },
+    {
+      "kind": "h2",
+      "text": "Moderator verdicts as feedback"
+    },
+    {
+      "kind": "p",
+      "text": "Every decision has an `id`. Store it with the report. When a moderator closes the report, send their verdict:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"type\", \"harassment\")   # Choice: the option key\nclient.feedback(decision_id, \"severity\", 3)          # Score: the level index\nclient.feedback(decision_id, \"targets_individual\", True)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Sending feedback again for the same decision and question replaces the earlier label, so an appeal that overturns a verdict can update it."
+    },
+    {
+      "kind": "p",
+      "text": "From 30 labels for a question in a project, Curva fits a calibrator and refits it as labels arrive. It keeps it only when it makes the answers more accurate on labels it hasn't seen; otherwise answers stay raw with `calibrated: false`. Send labels for a sample of confident, automated reports as well, not only the reviewed ones. If only the unsure reports get labels, calibration never sees the range you automate."
+    },
+    {
+      "kind": "p",
+      "text": "One rule from the recipes guide: settle the wording before you collect labels. Rewording a question starts a fresh calibration, because labels belong to the exact wording and options."
+    },
+    {
+      "kind": "h2",
+      "text": "Drift after an abuse wave"
+    },
+    {
+      "kind": "p",
+      "text": "Abuse comes in waves: a spam campaign, a raid on one account, a new scam script. The drift report shows, week by week, how one question's answers are distributed and how confident they are, and flags the latest week when it moved."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.drift(\"team\", project=\"support\", weeks=8)"
+    },
+    {
+      "kind": "p",
+      "text": "That is the docs' example; for this queue, ask for the `type` question in your moderation project. The latest week gets `drift: true` when the answer mix moved by more than 0.2 or the average confidence by more than 0.1. Both use raw probabilities, so a newly fitted calibrator doesn't look like drift."
+    },
+    {
+      "kind": "p",
+      "text": "A flag is a prompt to look, not a verdict. A jump in `spam` during a campaign is real. A drop in confidence more often means a new kind of report your categories don't cover. Read recent decisions in the audit log, label a sample, and add a category if one is missing. Adding an option is a rewording, so it starts a fresh calibration for that question."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read [debiasing, escape and abstain](https://itsmohitrohilla.github.io/curva-docs/concepts/trust/) and the [drift guide](https://itsmohitrohilla.github.io/curva-docs/guides/drift/) in the docs. Install with `pip install curva-ai`. For the full moderation pipeline, see [a content moderation API with calibrated confidence](/blog/content-moderation-api/) and [a moderation review queue](/blog/moderation-review-queue/). For the weekly check, read [LLM drift monitoring](/blog/llm-drift-monitoring/), and for more patterns, [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

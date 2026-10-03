@@ -1,0 +1,147 @@
+{
+  "slug": "llm-classification-many-classes",
+  "title": "LLM classification with many classes: up to 255 options",
+  "summary": "How an LLM Choice question behaves as labels grow: descriptions, the escape option, and the switch to verbal mode with the top 5 labels past 20 options.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/concepts/questions.md",
+    "site/reference/http-api.md",
+    "CHANGELOG.md",
+    "site/guides/hard-questions.md",
+    "site/guides/explain.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/concepts/calibration.md",
+    "site/guides/guaranteed-accuracy.md",
+    "site/concepts/trust.md",
+    "site/benchmarks.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "LLM classification with many classes works the same way as with three, up to a point. In Curva a Choice question takes 2 to 255 options, each a key with an optional description, plus a `none_of_these` escape option by default. The point is 20 options. Up to 20, Curva can read each label's probability from the model's token log-probabilities. Past 20, it switches to verbal mode, where the model returns JSON over your labels, because providers return at most 20 logprobs. Asking for `mode: logprobs` on a Choice with more than 20 options gets a 422. This guide covers how to declare a large label set, what changes past 20, and how to read the answer."
+    },
+    {
+      "kind": "h2",
+      "text": "Options as key and description, or a plain list, 2 to 255"
+    },
+    {
+      "kind": "p",
+      "text": "A Choice maps option keys to descriptions. The description may be empty, and a plain list of keys works too:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "Choice(\"Which team should handle this?\",\n       {\"billing\": \"payments, refunds\", \"technical\": \"bugs\", \"sales\": \"pricing\"})\nChoice(\"Which team?\", [\"billing\", \"technical\"])         # a list of keys also works"
+    },
+    {
+      "kind": "p",
+      "text": "Options keep their order. Every answer is one of your keys, with a probability for each option and a `confidence` for the chosen one, so there is nothing to parse whether you have 3 options or 200."
+    },
+    {
+      "kind": "p",
+      "text": "With many classes, descriptions do more work. Two keys that look distinct to you can blur together for the model when they sit among dozens of similar intents. One line per option saying what belongs there, in the words your users use, is an inexpensive accuracy gain on a large label set. Descriptions cost prompt tokens on every call, so keep them short."
+    },
+    {
+      "kind": "h2",
+      "text": "The none_of_these escape option and when to set escape false"
+    },
+    {
+      "kind": "p",
+      "text": "Every Choice gets an extra option, `none_of_these`, unless you turn it off. With a large label set it matters more, not less. The more options there are, the more likely an input lands near several of them without fitting any, and a forced pick among 77 near misses can still come out confident."
+    },
+    {
+      "kind": "p",
+      "text": "Set `\"escape\": false` only when your options already cover every case, for example when one of them is an explicit \"other\" or \"unknown\". The key `none_of_these` is reserved."
+    },
+    {
+      "kind": "h2",
+      "text": "LLM classification with many classes: past 20 options, verbal mode"
+    },
+    {
+      "kind": "p",
+      "text": "Up to 20 options, the default `mode: auto` uses logprobs when the model returns them: the model answers with one label token, and Curva reads every label's probability from the token log-probabilities in one pass. That is fast, cheap, and covers every option."
+    },
+    {
+      "kind": "p",
+      "text": "Past 20 options, that can't work. Providers return at most the top 20 logprobs, so any label past the twentieth would have no probability to read. Curva answers these questions in verbal mode instead. The model returns a JSON object constrained to your labels, with a probability for each. The changelog describes the large-option case as verbal mode \"with the top 5 labels\": the reply concentrates on the most likely labels rather than scoring every option."
+    },
+    {
+      "kind": "p",
+      "text": "Two consequences for you:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Verbal probabilities are rougher than logprobs. Calibrate with feedback before you trust a threshold.",
+        "The response's `mode` field says which mode actually answered, so you can see when a request went verbal."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Why mode logprobs gets 422 past 20 options"
+    },
+    {
+      "kind": "p",
+      "text": "`mode: logprobs` forces the logprobs path. On a Choice with more than 20 options there is no way to honour it, so instead of silently falling back, the request fails with 422 `invalid_request`, and the message names the question. The same happens for `mode: logprobs` with a Text, Number or Integer question, and with `think`."
+    },
+    {
+      "kind": "p",
+      "text": "The fix is to leave `mode` at `auto`, which picks verbal for that question by itself, or to set `verbal` explicitly. If you need logprobs for speed or cost, the only way is fewer options per question: for example, a first Choice over a handful of groups, then a second Choice within the chosen group, asked only when it applies. Curva's `when` with an `@key` condition does that in one request."
+    },
+    {
+      "kind": "h2",
+      "text": "Boundary examples for labels the model confuses"
+    },
+    {
+      "kind": "p",
+      "text": "Large label sets fail at the boundaries. A model that knows \"billing\" from \"technical\" can still mix up two neighbouring intents every time. Few-shot examples help most there:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Choice\n\nteam = Choice(\"Which team?\", [\"billing\", \"technical\"], examples=[\n    ({\"ticket\": \"I was charged after cancelling\"}, \"billing\"),\n    ({\"ticket\": \"The invoice PDF won't download\"}, \"technical\"),\n])"
+    },
+    {
+      "kind": "p",
+      "text": "Up to 10 examples per question, written as `(state, label)` pairs. They add no extra calls; the prompt just gets longer. Spend them on the pairs of labels the model confuses, not on easy cases. Examples are fenced as data and remapped when debiasing reverses the options, so they stay correct."
+    },
+    {
+      "kind": "h2",
+      "text": "Reading probabilities and confidence on a large Choice"
+    },
+    {
+      "kind": "p",
+      "text": "With many classes, the top answer's confidence is naturally lower: probability spreads over more plausible labels. A confidence that looks middling on a 77-option question can still be a strong answer. So don't reuse a threshold you tuned on a three-option question."
+    },
+    {
+      "kind": "p",
+      "text": "Curva's public runs include BANKING77, a 77-intent banking set (2026-10-01, debiasing on). Gemini flash-lite scored 79.8% on the natural label mix (95% range 73% to 87%, n = 120), which matches the published Jev figure of 75.3% within the margin, with an ECE of 0.097. Groq qwen3.8-27b scored 74.7% (64% to 85%, n = 69), and calibration brought its ECE from 0.252 to 0.157, held out. Gemini's median latency was 1,362 ms.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Large label sets also cost more. Measured per 1,000 decisions on 2026-09-30, BANKING77 was the most expensive of the 8 public sets for every paid model: $0.294 on gpt-4.1-nano against $0.078 averaged over all sets, and $4.78 on Claude Haiku 4.5 against $1.64. Long option lists mean long prompts.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Three tools make a large Choice usable:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**`min_confidence`** sends unsure answers to a person with `abstain: true`. Pick the value from your calibration report, not from intuition.",
+        "**`coverage`** returns a set of options that contains the true answer at least that often, once the question has 30 labels. On a large label set, a set of two or three candidates is often more useful than a single uncertain pick.",
+        "**Calibration** uses temperature scaling for any Choice. Bias scaling, which corrects a model that favours one answer, is available only up to 20 options."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover Choice limits in [questions and answers](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/) and the HTTP fields in the [HTTP API reference](https://itsmohitrohilla.github.io/curva-docs/reference/http-api/). Compare the question types in [LLM classification question types](/blog/llm-classification-question-types/), and learn to word options well in [how to word LLM classification questions](/blog/write-llm-classification-instructions/). For a 77-class use case, see [banking intent classification](/blog/banking-intent-classification/), and for the two modes, [logprobs vs verbal confidence](/blog/logprobs-vs-verbal-confidence/). For the product overview, read [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

@@ -1,0 +1,254 @@
+{
+  "slug": "batch-llm-classification-jsonl",
+  "title": "Batch LLM classification of a JSONL file with curva map",
+  "summary": "Classify thousands of records from the command line with any LLM: typed answers per line, rate limits respected, and a rerun resumes where it stopped.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/batch.md",
+    "site/reference/cli.md",
+    "site/guides/airflow-and-python-pipelines.md",
+    "site/guides/recipes.md",
+    "site/guides/conditional.md",
+    "site/guides/providers.md",
+    "site/getting-started.md",
+    "CHANGELOG.md",
+    "site/concepts/trust.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Batch LLM classification means answering the same questions for thousands of records, such as tagging every ticket in an export by team and urgency. With Curva you do it from the command line: put one record per line in a JSONL file, write the questions once, and run `curva map`. Each output line holds typed answers with a probability for every option. The command stays within your provider's rate limits, and if it stops for any reason, rerunning the same command continues after the last line written, so nothing is scored or paid for twice."
+    },
+    {
+      "kind": "p",
+      "text": "The usual alternative is a script with a loop, a retry decorator, a progress file you forgot to write, and a quota error halfway through the file that sends you back to the first line. `curva map` is that script, done once. Here are the steps."
+    },
+    {
+      "kind": "h2",
+      "text": "Install and set one provider key"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "pip install curva-ai\ncurva --version        # curva 0.1.0"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "export OPENROUTER_API_KEY=sk-or-v1-..."
+    },
+    {
+      "kind": "p",
+      "text": "The wheel includes the `curva` binary for Linux, macOS and Windows. `curva map` calls the model provider directly, so you don't need a running Curva server. OpenRouter is the default provider and free models work. Other providers turn on when their key variable is set, such as `GEMINI_API_KEY` or `GROQ_API_KEY`, and their models are named with a prefix like `@groq/qwen/qwen3.8-27b`. Curva is free to use; you pay only your model provider."
+    },
+    {
+      "kind": "h2",
+      "text": "The input: one JSON state per line"
+    },
+    {
+      "kind": "p",
+      "text": "`tickets.jsonl` holds one JSON state per line. Blank lines are skipped."
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"ticket\": \"I was charged twice for order A-104\"}\n{\"ticket\": \"The app crashes on launch\"}"
+    },
+    {
+      "kind": "p",
+      "text": "Keep your own id in each line if you have one. The model sees the whole line as the state, and the id makes joining the results back easy. The state is fenced as data in the prompt, never treated as instructions, so text inside a record can't redirect the model."
+    },
+    {
+      "kind": "h2",
+      "text": "The questions file, exactly as in /v1/decide"
+    },
+    {
+      "kind": "p",
+      "text": "`questions.json` is a JSON object of questions, the same shape as the `questions` field of a `/v1/decide` request:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"team\": {\"type\": \"choice\", \"instructions\": \"Which team?\",\n           \"options\": {\"billing\": \"payments, refunds\", \"technical\": \"bugs\"}},\n  \"refund\": {\"type\": \"noul\", \"instructions\": \"The customer asks for a refund\"}\n}"
+    },
+    {
+      "kind": "p",
+      "text": "All question types work: Choice, Score, Noul and Multi for labels, and Text, Number and Integer for extraction. All of a line's questions go in one request, so adding a question does not add a round trip."
+    },
+    {
+      "kind": "p",
+      "text": "You don't have to start from a blank file. Curva ships seven recipes, built into the binary: `support-triage`, `content-moderation`, `lead-qualification`, `phishing-check`, `llm-output-qa`, `rag-check` and `rag-rerank`."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva recipe list\ncurva recipe show support-triage > questions.json"
+    },
+    {
+      "kind": "p",
+      "text": "Edit the wording for your domain before you run a large job."
+    },
+    {
+      "kind": "h2",
+      "text": "Run batch LLM classification and read each output line"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva map tickets.jsonl -q questions.json -o answers.jsonl"
+    },
+    {
+      "kind": "p",
+      "text": "Each output line has the input line number, the model that answered and the typed answers:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"line\": 1, \"model\": \"…\", \"answers\": {\"team\": {\"choice\": \"billing\", \"probabilities\": {…}, \"confidence\": 0.99}, \"refund\": {\"noul\": 0.02}}}"
+    },
+    {
+      "kind": "p",
+      "text": "Every answer is one of the labels you declared, with a probability for each. There is no reply text to parse. A Choice also gets a `none_of_these` option by default, so a record that fits no option says so instead of being forced into one. Sort by `confidence` and you have a review list: read the least confident lines first."
+    },
+    {
+      "kind": "p",
+      "text": "`line` counts from 1 and refers to the input line. Remove blank lines from the input first, and a few lines of Python put each answer next to its record:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import json\n\nrows = [json.loads(l) for l in open(\"tickets.jsonl\") if l.strip()]\nfor out in map(json.loads, open(\"answers.jsonl\")):\n    row = rows[out[\"line\"] - 1]\n    team = out[\"answers\"][\"team\"]\n    print(row.get(\"id\"), team[\"choice\"], round(team[\"confidence\"], 2))",
+      "original": true
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  I[\"tickets.jsonl\"] --> M[\"curva map\"]\n  Q[\"questions.json\"] --> M\n  M --> P[\"model provider, within rate limits\"]\n  P --> O[\"answers.jsonl, one line per input line\"]\n  O -- \"stopped? rerun the same command\" --> M",
+      "title": "Batch LLM classification with curva map",
+      "caption": "A rerun reads the output file, skips finished lines and continues with the next one."
+    },
+    {
+      "kind": "h2",
+      "text": "Resume after a quota error or Ctrl-C"
+    },
+    {
+      "kind": "p",
+      "text": "A daily quota runs out, the network drops, you press Ctrl-C. Run the same command again. It continues after the last line written to `answers.jsonl`, so nothing is scored or paid for twice. Within a run, repeated states come from the cache."
+    },
+    {
+      "kind": "p",
+      "text": "On a free tier, cap the model calls per day with `CURVA_DAILY_LIMIT`. When the limit is reached, requests get a 429 and the run stops. Tomorrow, the same command continues. That cap applies to OpenRouter calls; other providers enforce their own limits. Free tiers change often: on 2026-09-29 a new OpenRouter key got 50 free-model requests a day, and a Groq key about 180 debiased decisions a day."
+    },
+    {
+      "kind": "h2",
+      "text": "Fallback chain, council, cascade or race from flags"
+    },
+    {
+      "kind": "p",
+      "text": "The multi-model plans of the API work as flags:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Flag",
+        "What it does"
+      ],
+      "rows": [
+        [
+          "`--model a,b`",
+          "A fallback chain: the next model takes over on a 429 or server error"
+        ],
+        [
+          "`--council a,b`",
+          "Models answer together and their probabilities are blended"
+        ],
+        [
+          "`--cascade a,b`",
+          "The cheaper model first; only questions below `--escalate-below` (default 0.8) go to the next"
+        ],
+        [
+          "`--race a,b`",
+          "All asked at once; the first valid answer wins, at one call per model"
+        ],
+        [
+          "`--mode`",
+          "`auto` (default), `logprobs` or `verbal`"
+        ],
+        [
+          "`--no-debias`",
+          "Skip order debiasing: half the calls, but answers keep any position bias"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Use only one of `--council`, `--cascade` or `--race` per run. A local model works too: `--model @ollama/qwen3:4b` needs no key and no network hop."
+    },
+    {
+      "kind": "p",
+      "text": "By default each question is asked twice, with the options in the original and the reversed order, and the two are averaged. That cancels position bias and costs two calls per line. For a large backfill, `--no-debias` halves the calls. Try it on a sample first and compare the answers before you run the whole file."
+    },
+    {
+      "kind": "p",
+      "text": "Question files can also use `when` (skip a question unless the state matches), `rules` (answer known cases with no model call) and `depends_on` (answer in stages). Since the batch-parity fix after 0.1.0, `curva map` runs them exactly like the API. A question skipped by its `when`, or answered by a rule, costs nothing."
+    },
+    {
+      "kind": "h2",
+      "text": "curva map or the API: no server, so no calibration or audit"
+    },
+    {
+      "kind": "p",
+      "text": "`curva map` talks to the provider directly. Its answers don't go through a Curva server, so there is no calibration from feedback, no audit log and no API keys."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "",
+        "`curva map`",
+        "`AsyncCurva.decide_many`"
+      ],
+      "rows": [
+        [
+          "Runs",
+          "the CLI, straight against the provider",
+          "the Python SDK, against a Curva server"
+        ],
+        [
+          "Input",
+          "a JSONL file",
+          "any Python iterable"
+        ],
+        [
+          "Resumable",
+          "yes",
+          "no, your task retries decide"
+        ],
+        [
+          "Calibration, audit log, API keys",
+          "no",
+          "yes"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Use `curva map` for one-off jobs and offline backfills. Use `decide_many` against a server when the answers should be calibrated by your feedback and show up in the audit log and dashboard."
+    },
+    {
+      "kind": "p",
+      "text": "Because a rerun resumes, a scheduler that retries a failed job gets the right behaviour for free. In Airflow:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from airflow.operators.bash import BashOperator\n\nclassify = BashOperator(\n    task_id=\"classify_tickets\",\n    bash_command=\"curva map /data/{{ ds }}/tickets.jsonl -q /opt/curva/questions.json -o /data/{{ ds }}/answers.jsonl\",\n    env={\"OPENROUTER_API_KEY\": \"{{ var.value.openrouter_key }}\"},\n    append_env=True,\n    retries=3,\n)"
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [batch files with curva map](https://itsmohitrohilla.github.io/curva-docs/guides/batch/) and the [CLI reference](https://itsmohitrohilla.github.io/curva-docs/reference/cli/). Start your questions from [Curva recipes](/blog/curva-recipes/), and before you replace an existing classifier, compare it on logged traffic with a [shadow test](/blog/shadow-test-llm-classifier/). To lower the bill on large files, read [reduce LLM classification cost](/blog/reduce-llm-classification-cost/). For the bigger picture, see [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

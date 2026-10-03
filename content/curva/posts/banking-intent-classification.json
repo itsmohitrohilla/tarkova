@@ -1,0 +1,205 @@
+{
+  "slug": "banking-intent-classification",
+  "title": "Classify banking intents with 77 options",
+  "summary": "Build a 77-intent banking classifier with one Choice: why over 20 options Curva switches to verbal mode, and what Gemini scored on BANKING77 (n = 120).",
+  "tag": "curva use cases",
+  "source_check": [
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/concepts/questions.md",
+    "CHANGELOG.md",
+    "site/benchmarks.md",
+    "site/concepts/calibration.md",
+    "site/guides/dependencies.md",
+    "site/concepts/trust.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Banking intent classification with an LLM can use one Choice question with all 77 intents as options. Curva accepts up to 255 options, adds a `none_of_these` escape option, and returns one intent with a probability for each. Over 20 options it reads those probabilities in verbal mode, because providers return at most 20 logprobs. On the public BANKING77 set, Gemini flash-lite scored 79.8% (95% range 73% to 87%, n = 120, 2026-10-01), which matches Jev's published 75.3% within the margin. This post covers the mechanics, the descriptions, the measured numbers and the cost."
+    },
+    {
+      "kind": "plain",
+      "text": "A big intent list fits in one Choice. Past 20 options the probabilities come from the model's JSON, not token logprobs, and long option lists cost more per call."
+    },
+    {
+      "kind": "h2",
+      "text": "Banking intent classification: 77 options in one Choice"
+    },
+    {
+      "kind": "p",
+      "text": "A Choice picks exactly one option. Options map a key to a description, and the description may be empty. The order is kept. A Choice takes 2 to 255 options, so a full banking intent list fits in one question:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice\n\nclient = Curva()\n\nINTENTS = {\n    \"card_arrival\": \"asks when a new card will arrive\",\n    \"card_not_working\": \"a card is declined or not accepted\",\n    \"lost_or_stolen_card\": \"reports a lost or stolen card\",\n    \"pending_top_up\": \"a top-up shows as pending\",\n    \"top_up_failed\": \"a top-up was rejected or failed\",\n    # ... one entry per intent, 77 in all\n}\n\nq = {\"intent\": Choice(\"What does the customer want?\", INTENTS, min_confidence=0.8)}\nd = client.decide({\"message\": \"My card got declined at the shop twice today\"}, q, project=\"banking\")\nprint(d[\"intent\"].choice, d[\"intent\"].confidence)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Curva also adds a `none_of_these` option by default, so a message that fits no intent isn't forced into one. In banking, that catches the complaint about branch opening hours that your list never planned for."
+    },
+    {
+      "kind": "p",
+      "text": "The question is asked as one request. If you also want an urgency Score or a \"customer is upset\" yes/no, add them to the same request; up to 64 questions are answered together."
+    },
+    {
+      "kind": "h2",
+      "text": "Over 20 options: verbal mode"
+    },
+    {
+      "kind": "p",
+      "text": "Curva reads probabilities in one of two modes. In `logprobs` mode the model answers with one label token per question, and Curva reads each label's probability from the token log-probabilities. In `verbal` mode the model returns a JSON object limited to the declared labels, with a probability for each."
+    },
+    {
+      "kind": "p",
+      "text": "Providers return at most 20 logprobs per position. A 77-option question can't be read that way, so Choices with more than 20 options are always answered in verbal mode. The changelog adds that these are answered with the top 5 labels. Setting `mode: logprobs` on such a question gets a 422."
+    },
+    {
+      "kind": "p",
+      "text": "Three things follow from that:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Any model works, including models that don't return logprobs at all.",
+        "The answer is the model's own stated distribution, so calibration matters more. A raw 0.95 on a verbal answer is a claim, not a measurement.",
+        "The calibrator is temperature scaling. Bias scaling, which adds a per-answer offset for a model that favours one answer, is used only for questions with up to 20 options."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "If the flat list is too much for your model, split it. A first Choice picks a category (cards, transfers, top-ups, account), and a second question that uses `depends_on` picks the intent within it, seeing the first answer. Each stage is one model call, at most 8 stages per request."
+    },
+    {
+      "kind": "h2",
+      "text": "Writing descriptions for close intents"
+    },
+    {
+      "kind": "p",
+      "text": "BANKING77 is hard because many intents are near twins: a declined card against a card that doesn't work at all, a pending top-up against a failed one, a transfer that hasn't arrived against one that was declined. The descriptions are what the model reads, so they carry the distinctions."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Describe what the customer says, not the bank's internal process. \"A top-up shows as pending\" beats \"top-up in settlement\".",
+        "Name the deciding detail in each twin. Pending against failed, declined against not arriving.",
+        "Keep keys readable. The model sees them next to the descriptions.",
+        "Don't paste examples into descriptions. Use the question's few-shot `examples` instead, up to 10 `(state, label)` pairs."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Models also tend to favour options by position, and a long list gives position bias more room. Order debiasing, on by default, asks the question twice with the options in original and reversed order and averages the two."
+    },
+    {
+      "kind": "h2",
+      "text": "Measured on BANKING77"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's public benchmark runs use the BANKING77 set with 77 options, debiasing on, and samples balanced across intents. Jev's 75.3% is published by others (sanand0 llmevals, 77 items) on a different sample, so compare with care."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "n",
+        "Accuracy, natural mix (95% range)",
+        "vs Jev 75.3%",
+        "ECE raw",
+        "ECE after calibration (held out)",
+        "p50"
+      ],
+      "rows": [
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "120",
+          "79.8% (73%–87%)",
+          "matches",
+          "0.097",
+          "0.097",
+          "1362 ms"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "69",
+          "74.7% (64%–85%)",
+          "matches",
+          "0.252",
+          "0.157",
+          "351 ms"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "All rows are from 2026-10-01. \"After calibration\" means each half of the rows was calibrated by a fit on the other half, which is what you get once feedback flows in. Gemini's raw probabilities were already well calibrated, so calibration left them alone. Groq's were overconfident, and calibration brought ECE from 0.252 to 0.157."
+    },
+    {
+      "kind": "p",
+      "text": "The early paid runs, at n = 20 each and dated 2026-10-01, are too small to rank: gpt-4.1-mini 75.0%, Claude Haiku 4.5 65.0%, gpt-4o-mini 60.0%, and gpt-4.1-nano 50.0%, which is a loss against Jev's number. At n = 20 the range is about plus or minus 20 points. Treat these as a reason to test your own model, not as a verdict."
+    },
+    {
+      "kind": "p",
+      "text": "Gemini was accurate but slow here: a median of 1,362 ms per decision. Groq answered in 351 ms. If you need fast answers on a big intent list, measure a fast provider on your own labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Cost: the most expensive set we ran"
+    },
+    {
+      "kind": "p",
+      "text": "Long option lists mean long prompts, and with debiasing on each decision is two calls. BANKING77 was the most expensive of the 8 public sets in the paid runs. Measured from `cost_usd`, 20 decisions per model on the set, 2026-09-30, debiasing on:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "Cost per 1,000 decisions, BANKING77",
+        "All 8 sets"
+      ],
+      "rows": [
+        [
+          "`@openai/gpt-4.1-nano`",
+          "$0.294",
+          "$0.078"
+        ],
+        [
+          "`@openai/gpt-4o-mini`",
+          "$0.441",
+          "$0.118"
+        ],
+        [
+          "`@openai/gpt-4.1-mini`",
+          "$1.17",
+          "$0.314"
+        ],
+        [
+          "`@anthropic/claude-haiku-4-5-20251001`",
+          "$4.78",
+          "$1.64"
+        ],
+        [
+          "Gemini flash-lite, Groq qwen3.8-27b",
+          "$0 within free-tier limits",
+          "$0"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Figures are truncated, not rounded up. To bring the cost down, answer the obvious intents with `rules` (a message containing \"stolen\" can go straight to the lost card flow), let the decision cache answer exact repeats, and try `debias: \"auto\"`, which drops the second call once a question has shown no position bias."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [questions reference](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/) in the docs and install with `pip install curva-ai`. For the full benchmark write-up, see [the BANKING77 LLM benchmark](/blog/banking77-llm-benchmark/). For the general problem of big label sets, read [LLM classification with many classes](/blog/llm-classification-many-classes/). A related fine-grained list is [chargeback reason code classification](/blog/chargeback-reason-classification/), and more ideas are in [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

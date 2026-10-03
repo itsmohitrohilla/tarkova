@@ -1,0 +1,202 @@
+{
+  "slug": "conformal-prediction-llm",
+  "title": "Conformal prediction sets for LLM classification",
+  "summary": "Set coverage=0.95 and each answer carries a set of labels holding the right one at least 95% of the time. How split conformal works and what it needs.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/guides/guaranteed-accuracy.md",
+    "site/guides/feedback.md",
+    "site/concepts/calibration.md",
+    "site/reference/http-api.md",
+    "site/guides/drift.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Conformal prediction for an LLM classifier turns each answer into a short set of labels that contains the right one at a rate you choose, for example at least 95% of the time. It works on top of any model, however well or badly calibrated, because the threshold is set from your own labeled answers. In Curva you add `coverage=0.95` to a question, send feedback as usual, and once the question has 30 labels every answer carries a `set` with that guarantee. This post shows how to read the set, builds the threshold by hand, and lists what the guarantee needs."
+    },
+    {
+      "kind": "h2",
+      "text": "A promise instead of an average: coverage=0.95"
+    },
+    {
+      "kind": "p",
+      "text": "A calibrated probability tells you how often answers like this one are right, on average. That is useful, but it is a statement about averages. Sometimes you need a promise instead: \"the right answer is in this short list at least 95% of the time.\""
+    },
+    {
+      "kind": "p",
+      "text": "Curva implements split conformal prediction per question. You set `coverage` on a Choice, Multi or Noul question:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice\n\ncurva = Curva()\nd = curva.decide(ticket, {\"team\": Choice(\"Which team?\", [\"billing\", \"technical\", \"sales\"], coverage=0.95)},\n                 project=\"support\")\n\nd[\"team\"].choice       # \"billing\": the usual top answer, probabilities and confidence are all still there\nd[\"team\"].guaranteed   # True once the question has 30 labels\nd[\"team\"].set          # [\"billing\"], or [\"billing\", \"technical\"] when the model is torn"
+    },
+    {
+      "kind": "p",
+      "text": "Everything else about the answer stays: the top choice, its confidence, the probability for every option. `coverage` only adds the set. In TypeScript the same option is `{ coverage: 0.95 }` on the `choice` builder, and the set is `d.answers.team.set`."
+    },
+    {
+      "kind": "h2",
+      "text": "Reading a conformal prediction set: one option, several, every option"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Set",
+        "Meaning",
+        "What to do"
+      ],
+      "rows": [
+        [
+          "One option",
+          "The model is sure enough to meet the guarantee alone",
+          "Automate"
+        ],
+        [
+          "Several options",
+          "The truth is one of these, at the promised rate",
+          "Show the options, or route to a person"
+        ],
+        [
+          "Every option",
+          "The model can't narrow it down for this input",
+          "Route to a person"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Several options is still useful. A support agent who sees \"billing or technical\" starts ahead of one who sees an unsorted queue. A review tool can show the two likely categories side by side."
+    },
+    {
+      "kind": "p",
+      "text": "A Noul's set is a subset of `[\"true\", \"false\"]`, so a set with both values means the model can't tell."
+    },
+    {
+      "kind": "h2",
+      "text": "Nonconformity 1 minus p(true) and q hat at rank ceil((n+1)c)"
+    },
+    {
+      "kind": "p",
+      "text": "Curva builds the set with split conformal prediction, using the question's own feedback labels as the calibration set. Three steps:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Score every labeled answer.** For each past decision with a label, the nonconformity score is `1 − p(true answer)`: how little probability the model gave to what turned out to be right. A confident correct answer scores near 0. A confident wrong one scores near 1.",
+        "**Find the threshold.** With `n` scores and coverage `c`, the threshold q̂ is the ⌈(n+1)·c⌉-th smallest score.",
+        "**Build the set.** For a new answer, the set is every option with `p ≥ 1 − q̂`."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "The probabilities are the ones `/v1/decide` returns: calibrated once the question has a calibrator, raw before. Two edge cases are handled. When the rank is past `n` (few labels and a high `c`), q̂ is 1 and the set is every option: the guarantee holds, it just isn't useful yet. The set is only empty when q̂ is 0, and then Curva returns the top answer, so there is always something to act on."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  L[\"labeled answers\"] --> S[\"score each: 1 minus p(true)\"]\n  S --> Q[\"q hat: the ceil((n+1)c)-th smallest score\"]\n  N[\"new answer probabilities\"] --> K[\"keep options with p at least 1 minus q hat\"]\n  Q --> K\n  K --> R[\"the set\"]",
+      "title": "How a conformal prediction set is built",
+      "caption": "Labeled answers set the threshold; each new answer keeps every option at or above 1 minus q hat."
+    },
+    {
+      "kind": "h2",
+      "text": "Worked example: 39 labels at coverage 0.9"
+    },
+    {
+      "kind": "p",
+      "text": "Here is the arithmetic with made-up numbers. A question has 39 labels and you ask for `coverage=0.9`. The rank is ⌈40 × 0.9⌉ = 36, so q̂ is the 36th smallest of the 39 scores. Say that score is 0.55. Then the set is every option with probability at least 0.45. A new answer with billing 0.82, technical 0.12 and sales 0.06 gets the set `[\"billing\"]`. One with billing 0.48 and technical 0.47 gets `[\"billing\", \"technical\"]`. These numbers are invented to show the method.",
+      "example": true
+    },
+    {
+      "kind": "p",
+      "text": "Notice what happened in the second case. A plain top-answer rule would route it to billing, at a confidence below one half. The set says honestly that it is one of two."
+    },
+    {
+      "kind": "h2",
+      "text": "A worse model gets bigger sets, not a broken promise"
+    },
+    {
+      "kind": "p",
+      "text": "The guarantee doesn't depend on how good the model is. It needs only one thing: new inputs that look like the labeled ones, statistically. If your labels are a fair sample of your traffic, a new answer's score is equally likely to fall anywhere among the old scores. So the chance that it lands above the ⌈(n+1)·c⌉-th smallest is at most `1 − c`. When it doesn't, the true answer is in the set."
+    },
+    {
+      "kind": "p",
+      "text": "The consequence is the line the Curva docs use: a worse model gets bigger sets, not a broken promise. A weak model spreads its probability around, its scores are high, q̂ is high, and sets grow. A strong model gets small sets. Coverage stays at the level you asked for either way. Calibration usually makes the sets smaller, because more honest probabilities rank options better, but the guarantee doesn't rely on it."
+    },
+    {
+      "kind": "p",
+      "text": "Two caveats keep this honest:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**It is a guarantee on average over your traffic**, not for each input. At 0.95 coverage, about one set in twenty will miss, and you won't know which.",
+        "**It needs representative labels.** If you only label the hard cases a person reviewed, the labels don't look like your traffic and the guarantee is off. Label a random sample too. If your traffic changes, the old labels stop representing it. The weekly drift report is the early warning."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Needs 30 labels and the same wording; Multi not guaranteed yet"
+    },
+    {
+      "kind": "p",
+      "text": "What the guarantee needs:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**30 labels for this exact question in this project**, the same minimum as calibration. Before that, the answer has `guaranteed: false` and no `set`. It is still a normal answer, not an error.",
+        "**The same wording.** Labels, calibrator and guarantee belong to the exact question. Rewording starts over. Changing only `coverage` does not.",
+        "**Choice, Multi or Noul.** Other types, or a value outside (0, 1), get 422.",
+        "**Multi is not guaranteed yet.** Feedback labels a Multi as a whole, not option by option, so a Multi with `coverage` returns `guaranteed: false` for now."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Labels go in the usual way, with `curva.feedback(d.id, \"team\", \"technical\")`."
+    },
+    {
+      "kind": "p",
+      "text": "One cost detail is worth knowing. `coverage` is not part of the question's fingerprint or of the decision cache key, because the set is worked out from stored labels after the model has answered. Asking the same question at 0.8 and at 0.95 costs one model call and returns two sets: a tight one for display, a safer one for automation."
+    },
+    {
+      "kind": "h2",
+      "text": "Coverage and abstain together"
+    },
+    {
+      "kind": "p",
+      "text": "`coverage` and `min_confidence` answer different questions, and they combine well:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`abstain` looks at the top answer: is its probability above `min_confidence`?",
+        "`set` looks at all the options: which must you keep to be right at the promised rate?"
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A common routing rule is to automate when the set has one option and `abstain` is false, and send everything else to review:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "q = Choice(\"Which team?\", [\"billing\", \"technical\", \"sales\"], min_confidence=0.8, coverage=0.95)\nd = curva.decide(ticket, {\"team\": q}, project=\"support\")\na = d[\"team\"]\nif a.guaranteed and len(a.set) == 1 and not a.abstain:\n    route(ticket, a.choice)\nelse:\n    review(ticket, candidates=a.set or [a.choice])",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "The review queue then feeds labels back, which builds the calibration set the guarantee rests on."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs page is [guaranteed accuracy](https://itsmohitrohilla.github.io/curva-docs/guides/guaranteed-accuracy/). Next, read what the guarantee assumes in [conformal prediction assumptions](/blog/conformal-prediction-assumptions/), how to pick a level in [conformal coverage levels](/blog/conformal-coverage-levels/), and when to use a threshold instead in [abstain vs conformal prediction](/blog/abstain-vs-conformal-prediction/). For how sets fit with calibration and abstain, see [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/). Install with `pip install curva-ai`."
+    }
+  ]
+}

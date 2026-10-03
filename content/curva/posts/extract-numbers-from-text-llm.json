@@ -1,0 +1,171 @@
+{
+  "slug": "extract-numbers-from-text-llm",
+  "title": "Extract numbers from text with an LLM and check the bounds",
+  "summary": "Number and Integer questions return a typed value checked against min and max, with a confidence. What a bad reply becomes, and why sums stay in code.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/extraction.md",
+    "site/reference/http-api.md",
+    "site/concepts/questions.md",
+    "site/getting-started.md",
+    "site/guides/feedback.md",
+    "site/guides/multi-model.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To extract numbers from text with an LLM safely, ask for a typed value with bounds, not a sentence. In Curva you declare a Number or Integer question with optional `min` and `max`, and the answer is a typed `value` plus a `confidence`, the model's probability that the value is correct. A reply of the wrong type or outside the bounds is not passed through: it comes back as `value: null` with `confidence: 0`, so a bad read shows up as an abstain instead of a wrong number in your database. This guide covers the two types, what happens to bad replies, why the mode is always verbal, and why sums stay in your code."
+    },
+    {
+      "kind": "h2",
+      "text": "Number vs Integer: min and max, whole numbers only"
+    },
+    {
+      "kind": "p",
+      "text": "The docs' invoice example reads a vendor, a total, an invoice number and a category in one call:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice, Integer, Number, Text\n\ncurva = Curva()\nd = curva.decide(\n    {\"invoice\": \"ACME Inc. / Invoice 2291 / 3 x Widget @ 4.10 / Shipping 2.00 / Total due 14.30 EUR\"},\n    {\n        \"vendor\": Text(\"Who issued the invoice?\", max_length=100),\n        \"total\": Number(\"Total amount due\", min=0),\n        \"invoice_no\": Integer(\"Invoice number\", min=1),\n        \"po_number\": Text(\"Purchase order number\", max_length=40, nullable=True),\n        \"category\": Choice(\"Expense category?\", [\"hardware\", \"software\", \"services\"]),\n    },\n)\nd[\"total\"].value, d[\"total\"].confidence    # 14.3, 0.94\nd[\"po_number\"].value                       # None: the invoice has no PO number"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Type",
+        "Settings",
+        "`value`"
+      ],
+      "rows": [
+        [
+          "Number",
+          "`min`, `max`, inclusive and optional",
+          "a number"
+        ],
+        [
+          "Integer",
+          "`min`, `max`, whole numbers, optional",
+          "an integer"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Use Integer for counts and identifiers, where a fraction would be a sign of a misread. Use Number for amounts. Set bounds you would enforce in code anyway: a total can't be negative, so `min=0`; an invoice number starts at 1, so `min=1`. A bound is a free sanity check on every reply."
+    },
+    {
+      "kind": "p",
+      "text": "Both types also take `nullable`, `min_confidence`, few-shot `examples` (the label is the value), `when` and `rules`. Extraction questions share one model call with the label questions of the same request, so reading five numbers doesn't cost five calls."
+    },
+    {
+      "kind": "h2",
+      "text": "An out-of-range reply becomes value null, confidence 0"
+    },
+    {
+      "kind": "p",
+      "text": "This is the most useful property of typed extraction. A reply that doesn't fit the question is not an answer. That covers a string where a number was asked, a value below `min` or above `max`, a decimal for an Integer, `null` when the question isn't nullable, and a confidence outside 0 to 1. Each comes back as:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"value\": null, \"confidence\": 0}",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "So the failure is visible and machine-readable. Set `min_confidence` on the question and that answer is marked `abstain: true`, which sends it to the same review queue as any unsure answer:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"state\": {\"receipt\": \"Corner Cafe, 2 coffees, total 7.40\"},\n  \"questions\": {\n    \"merchant\": {\"type\": \"text\", \"instructions\": \"Merchant name\", \"max_length\": 80},\n    \"total\": {\"type\": \"number\", \"instructions\": \"Total paid\", \"min\": 0, \"min_confidence\": 0.9},\n    \"tip\": {\"type\": \"number\", \"instructions\": \"Tip amount\", \"min\": 0, \"nullable\": true}\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "Compare this with parsing a number out of free text. A model that hedges with \"about\", uses a comma as the decimal separator, or spells the amount out in words gives your parser three chances to fail, and a regex that picks up the invoice number instead of the total fails silently. A typed value with bounds either passes the checks or arrives as an explicit null."
+    },
+    {
+      "kind": "p",
+      "text": "Note the difference between the two kinds of null. With `nullable: true`, `null` is a real answer, \"the state has no such value\", with a normal confidence. A null with confidence 0 means the reply was invalid."
+    },
+    {
+      "kind": "h2",
+      "text": "Verbal mode only: why mode logprobs gets 422"
+    },
+    {
+      "kind": "p",
+      "text": "Curva reads label answers from token log-probabilities when it can. A value can't be read that way: there is no single label token whose probability means \"the total is 14.3\". So extraction questions are answered in verbal mode. The model returns a small JSON object per question, `{\"value\": <typed>, \"confidence\": number}`, checked against the type and bounds."
+    },
+    {
+      "kind": "p",
+      "text": "With `mode: auto`, the default, a request that contains an extraction question switches to verbal by itself. Forcing `mode: logprobs` on it gets a 422 that names the question."
+    },
+    {
+      "kind": "h2",
+      "text": "Extract numbers from text as printed; add them up in code"
+    },
+    {
+      "kind": "p",
+      "text": "The docs are blunt about this: ask for the numbers printed in the state, not for sums or differences of them. Language models are poor at counting, arithmetic and date comparison. Read the parts, then compute in code, where the result is exact and testable."
+    },
+    {
+      "kind": "p",
+      "text": "The ACME invoice shows why. It prints a quantity, a unit price, shipping and a total. Extract what is printed, and check the arithmetic yourself:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Integer, Number\n\nd = Curva().decide(\n    {\"invoice\": \"ACME Inc. / Invoice 2291 / 3 x Widget @ 4.10 / Shipping 2.00 / Total due 14.30 EUR\"},\n    {\n        \"qty\": Integer(\"Quantity of the line item\", min=0),\n        \"unit_price\": Number(\"Unit price of the line item\", min=0),\n        \"shipping\": Number(\"Shipping cost\", min=0, nullable=True),\n        \"total\": Number(\"Total amount due\", min=0),\n    },\n)\nv = {k: d[k].value for k in (\"qty\", \"unit_price\", \"shipping\", \"total\")}\nif None in (v[\"qty\"], v[\"unit_price\"], v[\"total\"]):\n    needs_review = True\nelse:\n    expected = v[\"qty\"] * v[\"unit_price\"] + (v[\"shipping\"] or 0)\n    needs_review = abs(expected - v[\"total\"]) > 0.005",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "A mismatch between the printed total and the sum of its parts is a strong signal: either the document is wrong or one value was misread. Both deserve a person. The same goes for date gaps and counts: compute them, and put the result in the state if a later judgement needs it."
+    },
+    {
+      "kind": "h2",
+      "text": "Debias and council on a number: lower confidence, majority value"
+    },
+    {
+      "kind": "p",
+      "text": "Multi-call features adapt to values:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Debias.** Extraction questions are not reordered; there are no options to flip. If the two calls return different values, Curva keeps the original-order value at the lower of the two confidences, so a disagreement shows up as doubt.",
+        "**Council.** The majority value wins, and a tie goes to the more confident side. `agreement` is the share of members that gave that value, and confidence is their mean confidence times `agreement`.",
+        "**Cascade.** A value below `escalate_below` confidence goes to the next model."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "`explain` skips extraction questions, and the drift report tracks only their confidence, since there is no answer mix for a free value."
+    },
+    {
+      "kind": "h2",
+      "text": "Feedback counts a match within a relative 1e-6"
+    },
+    {
+      "kind": "p",
+      "text": "Send the true value as feedback, and Curva records whether its answer was right:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "curva.feedback(d.id, \"vendor\", \"ACME Inc.\")   # the true value\ncurva.feedback(d.id, \"po_number\", None)       # it really had none"
+    },
+    {
+      "kind": "p",
+      "text": "Numbers count as a match within a relative 1e-6, and text ignoring case and extra whitespace. From 30 labels for the question, confidence is recalibrated with Platt scaling against how often values were actually right, whenever that makes it more accurate. Then `min_confidence` becomes a dependable cut-off: automate values above it and send the rest to a person."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover all of this in [extraction: text, numbers and integers](https://itsmohitrohilla.github.io/curva-docs/guides/extraction/). For fields that are often missing, read [LLM extraction and missing fields](/blog/llm-extraction-missing-fields-null/), and for a full document workflow, [invoice data extraction](/blog/invoice-data-extraction-ai/). To compare extraction with label questions, see [LLM classification question types](/blog/llm-classification-question-types/), and for the product overview, [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

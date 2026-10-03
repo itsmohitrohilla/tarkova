@@ -1,0 +1,174 @@
+{
+  "slug": "conformal-prediction-assumptions",
+  "title": "When conformal guarantees fail: exchangeability for LLMs",
+  "summary": "Conformal prediction sets need labels that look like your traffic. How review-only labels and shifting inputs break coverage, and how to catch it early.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/guides/guaranteed-accuracy.md",
+    "site/guides/drift.md",
+    "site/reference/http-api.md",
+    "site/guides/feedback.md",
+    "site/concepts/calibration.md",
+    "site/guides/conditional.md",
+    "site/guides/dependencies.md",
+    "site/self-hosting.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "The assumptions behind conformal prediction come down to one: the labeled examples used to set the threshold must look like the inputs you will see next, statistically. The textbook name is exchangeability. If it holds, a prediction set built at `coverage=0.95` contains the true answer at least 95% of the time on average, whatever the model. If it breaks, the promise quietly stops being true, and nothing in a single response tells you. For an LLM classifier it breaks in two common ways: you label only the cases a person reviewed, or your traffic changes after you labeled it. This post explains both, what \"on average\" really means, and how Curva's weekly drift report gives you an early warning."
+    },
+    {
+      "kind": "h2",
+      "text": "Conformal prediction assumptions in one line: new inputs look like the labeled ones"
+    },
+    {
+      "kind": "p",
+      "text": "Curva builds coverage sets with split conformal prediction, using a question's own feedback labels as the calibration set. For each labeled answer it computes a score, one minus the probability the model gave to the true answer, and sets a threshold from those scores. A new answer's set keeps every option above that threshold."
+    },
+    {
+      "kind": "p",
+      "text": "The guarantee follows from one symmetry argument. If the labeled examples and the new input are exchangeable, meaning the order in which they arrived carries no information, then the new input's score is equally likely to land anywhere among the labeled scores. So the chance it lands above the threshold is at most `1 − coverage`. Curva's docs put the condition in plain words: the guarantee holds as long as new inputs look like the labeled ones, which means the labels are a fair sample of your traffic."
+    },
+    {
+      "kind": "p",
+      "text": "Notice what the assumption does not need. It does not need a good model, or a calibrated one. A worse model gets bigger sets, not a broken promise. The assumption is entirely about the data."
+    },
+    {
+      "kind": "h2",
+      "text": "Labelling only reviewed cases biases the calibration set"
+    },
+    {
+      "kind": "p",
+      "text": "Labels in Curva come from feedback. The easiest labels to collect are the ones a person already produced: the abstained answers that went to review. If those are the only labels you send, the calibration set is not a fair sample of your traffic. It is a sample of the hard part of it."
+    },
+    {
+      "kind": "p",
+      "text": "Reason through what that does. Reviewed cases are the ones where the model was unsure, so the model gave the true answer less probability, and their scores run high. A threshold set from high scores is loose, so sets come out larger than your typical traffic needs. You lose efficiency and automate less than you could."
+    },
+    {
+      "kind": "p",
+      "text": "The opposite mistake is just as real. Label only the confident answers that were automated, and the scores run low, the threshold is tight, and sets come out too small for the hard cases. Then coverage on real traffic falls below what you asked for."
+    },
+    {
+      "kind": "p",
+      "text": "Either way, the number on the box no longer matches the behaviour. The fix is the same as for calibration: send feedback for a random sample of all decisions, not only the reviewed ones. Curva's feedback guide says it directly: also send feedback for a sample of automated answers, so the labels cover the whole confidence range. The audit log (`GET /v1/audit`) lists every decision with its id, which makes drawing a random sample to label straightforward."
+    },
+    {
+      "kind": "h2",
+      "text": "On average, not per input: about 1 in 20 sets miss at 95%"
+    },
+    {
+      "kind": "p",
+      "text": "Even with perfect labels, the guarantee is about the average over your traffic. At `coverage=0.95`, about one set in twenty will not contain the true answer, and you won't know which one."
+    },
+    {
+      "kind": "p",
+      "text": "Two consequences matter in practice:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**A miss is not a bug.** If you audit a sample and find the occasional set that missed, that is the guarantee working as stated. Count misses over a sample before you conclude anything.",
+        "**Misses can cluster.** The guarantee is marginal: averaged over everything. It doesn't promise 95% for each subgroup. A rare category that the model handles badly can carry more than its share of the misses while the overall rate still holds. If one category matters more than the rest, check coverage on it separately, or route it to a person."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Traffic shifts: new product, spam wave, provider model update"
+    },
+    {
+      "kind": "p",
+      "text": "The second way the assumption breaks is time. Labels collected last month describe last month's traffic. The Curva drift guide lists the usual causes: a provider updates a model, a new product launches, a spam wave arrives."
+    },
+    {
+      "kind": "p",
+      "text": "Each one moves the distribution of inputs or of the model's answers away from what the labels saw:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Shift",
+        "What changes",
+        "Effect on the sets"
+      ],
+      "rows": [
+        [
+          "A new product launches",
+          "New kinds of input the labels never covered",
+          "Scores on new inputs no longer match the labeled ones"
+        ],
+        [
+          "A spam wave arrives",
+          "A burst of one kind of input",
+          "The mix of traffic moves, and so does coverage"
+        ],
+        [
+          "The provider updates the model",
+          "The probabilities themselves",
+          "The threshold was set on the old model's scores"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "None of these raises an error. The sets keep coming back with `guaranteed: true`, because the question still has its labels. What changed is whether those labels still describe your traffic."
+    },
+    {
+      "kind": "h2",
+      "text": "Drift report thresholds as the early warning"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's drift report is built for this. `GET /v1/drift` shows one question's answers per ISO week: how many decisions, the mix of top answers, and the average confidence. The latest week also carries `drift: true` when its answer mix moved by more than 0.2 from the earlier weeks' average, measured as total-variation distance, or when average confidence moved by more than 0.1."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curl -s \"localhost:7777/v1/drift?question=team&project=support&weeks=8\" \\\n  -H \"Authorization: Bearer $CURVA_API_KEY\""
+    },
+    {
+      "kind": "p",
+      "text": "Two design details make it a good early warning for coverage. It uses raw, uncalibrated probabilities, so a newly fitted calibrator doesn't look like drift. And it reads the audit log, so it covers every decision the server made for that question, not only the labeled ones."
+    },
+    {
+      "kind": "p",
+      "text": "A flag is a prompt to look, not a verdict. A change in mix can be real: a billing outage really does bring more billing tickets. A drop in confidence more often means the inputs changed in a way the question doesn't cover. When the flag goes up, read recent decisions in the audit log, label a fresh random sample, send it as feedback, and compare the calibration report before and after. The new labels pull the threshold back towards current traffic."
+    },
+    {
+      "kind": "h2",
+      "text": "Starting over: rewording resets the labels"
+    },
+    {
+      "kind": "p",
+      "text": "Some changes start the guarantee from zero by design. Labels, calibrator and guarantee all belong to the exact wording of a question: a fingerprint of its type, wording and options. Reword it and the question has no labels, so the answer comes back with `guaranteed: false` and no `set` until it collects 30 again."
+    },
+    {
+      "kind": "p",
+      "text": "What doesn't reset it:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Changing `coverage`.** It isn't part of the fingerprint or the cache key; the set is worked out from the stored labels after the model answers.",
+        "**Adding or changing `when`.** Calibration is keyed by the question without its condition."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "What does count as a new question: changing the `depends_on` keys, because the fingerprint includes them."
+    },
+    {
+      "kind": "p",
+      "text": "The practical rule is to settle the wording before you collect labels, and to treat a rewording as a fresh start that needs its own representative sample."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs state the assumption in [guaranteed accuracy](https://itsmohitrohilla.github.io/curva-docs/guides/guaranteed-accuracy/) and describe the report in [drift](https://itsmohitrohilla.github.io/curva-docs/guides/drift/). For the method itself, read [conformal prediction for LLM classification](/blog/conformal-prediction-llm/). To pick a level, see [conformal coverage levels](/blog/conformal-coverage-levels/), and for how many labels to collect, [calibration labels needed](/blog/calibration-labels-needed/). The full picture is in [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

@@ -1,0 +1,179 @@
+{
+  "slug": "write-llm-classification-instructions",
+  "title": "How to word LLM classification questions: recipe lessons",
+  "summary": "Wording lessons from Curva's shipped recipes: judge by need, define the no case, carve out false positives, and freeze wording before collecting labels.",
+  "tag": "curva guides",
+  "source_check": [
+    "recipes/support-triage.json",
+    "recipes/content-moderation.json",
+    "recipes/lead-qualification.json",
+    "recipes/phishing-check.json",
+    "site/guides/recipes.md",
+    "site/guides/shadow.md",
+    "site/concepts/calibration.md",
+    "site/concepts/trust.md",
+    "site/guides/explain.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Good LLM classification instructions wording comes down to a few habits, and Curva's shipped recipes show each one in real text. Tell the model to judge by what the person needs, not the words they use. Say what counts as no. Name the false positives you want excluded. Make \"unknown\" a real option instead of forcing a guess. Describe every option, including the dull one. Then test the wording on logged traffic and freeze it before you collect feedback, because rewording a question starts its calibration over. This post reads the recipe files as worked examples of each habit."
+    },
+    {
+      "kind": "p",
+      "text": "The recipes are built into the `curva` binary. `curva recipe list` names them, and `curva recipe show support-triage > questions.json` prints one as a questions file you can edit."
+    },
+    {
+      "kind": "h2",
+      "text": "Judge by what is needed, not the words used: the support-triage team question"
+    },
+    {
+      "kind": "p",
+      "text": "The support-triage recipe's `team` question reads:"
+    },
+    {
+      "kind": "quote",
+      "text": "Which team should handle this support ticket? Judge by what the customer needs done, not by the words they happen to use."
+    },
+    {
+      "kind": "p",
+      "text": "The second sentence is the point. Tickets are full of misleading keywords. \"I can't log in to see my invoice\" mentions an invoice, and a keyword-minded model sends it to billing. What the customer needs done is to get into their account, so it belongs with account. The instruction tells the model which reading to prefer when keywords and intent disagree."
+    },
+    {
+      "kind": "p",
+      "text": "Use the same move wherever your categories have tempting surface cues: classify by the action required or the outcome wanted, not by vocabulary."
+    },
+    {
+      "kind": "h2",
+      "text": "Say what counts as no: refund_requested and phishing"
+    },
+    {
+      "kind": "p",
+      "text": "Yes/no questions fail at the edges, and the edge is usually a near miss on the no side. The recipes name it:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "  \"refund_requested\": {\n    \"type\": \"noul\",\n    \"instructions\": \"The customer explicitly asks for money back (a refund, chargeback or credit). Complaining about a charge without asking for money back is no.\"\n  },"
+    },
+    {
+      "kind": "p",
+      "text": "Two details do the work. \"Explicitly\" sets the bar for yes, and the parenthesis lists what counts as money back. The last sentence names the most common false positive, an angry message about a charge, and rules it out."
+    },
+    {
+      "kind": "p",
+      "text": "The phishing recipe does the same: its `phishing` question describes the attack (getting the reader to reveal credentials, pay money, open an attachment or click a link under false pretences) and ends with \"Legitimate marketing and real notifications are no.\" Without that sentence, every newsletter with a \"click here\" button looks suspicious."
+    },
+    {
+      "kind": "h2",
+      "text": "Carve out the false positives: quoting is not violating"
+    },
+    {
+      "kind": "p",
+      "text": "The content-moderation recipe's `violation` question carries two rules in its instructions:"
+    },
+    {
+      "kind": "quote",
+      "text": "Does this user-generated content break a content policy? Pick the most serious category that applies. Quoting, reporting on or condemning harmful content is not itself a violation."
+    },
+    {
+      "kind": "p",
+      "text": "\"Pick the most serious category that applies\" settles ties: a post with spam and a threat should come back as violence, not spam. \"Quoting, reporting on or condemning harmful content is not itself a violation\" carves out the biggest false-positive class in moderation. A news post about a threat contains the words of a threat. Without the carve-out, a model reading for keywords flags it."
+    },
+    {
+      "kind": "p",
+      "text": "When you write your own, look at the items your current system gets wrong in a confident way. Most of them share a pattern you can name in one sentence."
+    },
+    {
+      "kind": "h2",
+      "text": "Make unknown a real option, then set escape false"
+    },
+    {
+      "kind": "p",
+      "text": "The lead-qualification recipe's `timeline` question:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "  \"timeline\": {\n    \"type\": \"choice\",\n    \"instructions\": \"When does the lead expect to buy or start? Use only what they state or clearly imply.\",\n    \"options\": {\n      \"now\": \"within a month\",\n      \"quarter\": \"within about three months\",\n      \"later\": \"more than three months away\",\n      \"unknown\": \"not stated\"\n    },\n    \"escape\": false\n  },"
+    },
+    {
+      "kind": "p",
+      "text": "\"Use only what they state or clearly imply\" stops the model from inferring a timeline from tone. And `unknown` with the description \"not stated\" makes the honest answer a first-class option. Because the options now cover every case, the recipe turns off Curva's default escape option, `none_of_these`, with `\"escape\": false`. Every lead gets one of the four answers, and \"not stated\" can be counted, routed and reported like the others."
+    },
+    {
+      "kind": "p",
+      "text": "The rule of thumb: if \"we can't tell\" is a normal outcome for your data, give it its own option. If it is an exception, leave the escape option on and route `none_of_these` to a person."
+    },
+    {
+      "kind": "h2",
+      "text": "Descriptions on every option, including the boring one"
+    },
+    {
+      "kind": "p",
+      "text": "Option descriptions are where most of the policy lives. A few patterns from the recipes:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Recipe option",
+        "Description"
+      ],
+      "rows": [
+        [
+          "moderation `none`",
+          "\"allowed: ordinary content, including criticism, strong opinions and mild profanity\""
+        ],
+        [
+          "triage `account`",
+          "\"login, password reset, two-factor, profile, account access or deletion\""
+        ],
+        [
+          "triage urgency level `High`",
+          "\"the customer cannot use the product, or money is being lost right now\""
+        ],
+        [
+          "phishing `suspicious_link`",
+          "a link whose text and destination differ, a look-alike domain, or a login page on a domain unrelated to the sender"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The first is the important one. The \"nothing to see here\" option is where false positives go to be caught, so it needs the clearest description of all: criticism and mild profanity are allowed, and saying so keeps them out of harassment. Score levels work the same way. \"High\" on its own means different things to different readers; \"cannot use the product, or money is being lost right now\" means one thing."
+    },
+    {
+      "kind": "p",
+      "text": "Lists of concrete examples inside a description help the model more than abstract definitions do. The `suspicious_link` description even names hosting-panel ports such as :2083, :2087 and :2096, because a login page on such a port and an unrelated domain is a pattern worth spelling out."
+    },
+    {
+      "kind": "h2",
+      "text": "Test the classification instructions wording with curva shadow, then freeze it"
+    },
+    {
+      "kind": "p",
+      "text": "Recipes are a starting point: edit the wording and options for your domain. Then test before anything depends on it. `curva shadow` replays logged traffic through your questions and compares the answers with what your current system decided:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva shadow traffic.jsonl -q questions.json -o shadow.jsonl"
+    },
+    {
+      "kind": "p",
+      "text": "The report lists the most confident disagreements first. Read them: each one is either a bug in your old system or a gap in your new wording. Fix the wording, rerun, and repeat until the disagreements are ones you accept. Few-shot `examples`, up to 10 per question, are the next tool when a boundary stays fuzzy."
+    },
+    {
+      "kind": "p",
+      "text": "Then freeze it. Calibration belongs to a fingerprint of the question's type, wording and options. Rewording a question starts a fresh calibration, with no labels and no coverage guarantee, so settle the wording before you collect feedback. Small edits count too: a reworded question is a new question."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs list every pack in [recipes](https://itsmohitrohilla.github.io/curva-docs/guides/recipes/). For the packs themselves, read [Curva recipes](/blog/curva-recipes/). For the yes/no habit in depth, see [LLM yes or no questions with a real probability](/blog/llm-yes-no-probability/), and for the product overview, [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "slug": "python-plain-vs-full-llm-answers",
+  "title": "Plain vs full LLM answers in Python: the hidden 0.5",
+  "summary": "d.refund is True whenever P(yes) is at least 0.5. When plain answers are fine, when to read the full answer, and the id and model name clash.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/getting-started.md",
+    "site/reference/python-sdk.md",
+    "README.md",
+    "sdk/python/README.md",
+    "site/concepts/trust.md",
+    "site/concepts/questions.md",
+    "site/guides/guaranteed-accuracy.md",
+    "site/guides/rules.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "In Python, a plain Curva answer to a yes/no question uses a fixed probability threshold of 0.5: `d.refund` is `True` whenever P(yes) is at least 0.5, so an answer the model barely believes and one it is sure of both come back as the same `True`. That is fine for a script. For anything that acts on the answer, read the full answer instead, `d[\"refund\"].noul`, and compare P(yes) with a threshold you chose, or use `min_confidence` and `abstain` on a Choice. This post covers what the plain answers give you, what they hide, the full answer's fields, and one naming trap."
+    },
+    {
+      "kind": "h2",
+      "text": "Plain answers: d.team, d.refund, d.total and d.to_dict()"
+    },
+    {
+      "kind": "p",
+      "text": "The three-line quickstart returns plain answers:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "Each question key becomes an attribute:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Plain answer",
+        "For",
+        "What it is"
+      ],
+      "rows": [
+        [
+          "`d.team`",
+          "a Choice",
+          "the chosen option key"
+        ],
+        [
+          "`d.refund`",
+          "a Noul",
+          "`True` when P(yes) is at least 0.5, else `False`"
+        ],
+        [
+          "`d.total`",
+          "Number, Integer, Text",
+          "the value, or `None` when the state has none"
+        ],
+        [
+          "`d.to_dict()`",
+          "all of them",
+          "the plain answers as a dict"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Plain answers are made for scripts, notebooks and quick checks. They read like ordinary Python values, they drop straight into a DataFrame row or a JSON log, and they hide everything you don't need while exploring."
+    },
+    {
+      "kind": "p",
+      "text": "What they hide is the probability. For a Choice, `d.team` doesn't say whether billing won with near certainty or narrowly against two close rivals. For extraction, `d.total` doesn't say how confident the model was in the number. For a Noul, the hiding goes further."
+    },
+    {
+      "kind": "h2",
+      "text": "The hidden 0.5: what d.refund means at a coin-flip P(yes)"
+    },
+    {
+      "kind": "p",
+      "text": "A Noul's real answer is one number, P(yes). The plain answer turns it into a boolean at a fixed cut-off of 0.5. So:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "P(yes) just above one half: `d.refund` is `True`.",
+        "P(yes) near certainty: `d.refund` is `True`.",
+        "P(yes) just below one half: `d.refund` is `False`."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The first and third cases are the model saying \"I can't tell\", and the plain answer turns them into opposite, confident-looking booleans. If your code starts a refund flow on `if d.refund:`, it acts on coin flips."
+    },
+    {
+      "kind": "p",
+      "text": "The fix is not a different default. It is reading the number when the answer drives an action."
+    },
+    {
+      "kind": "h2",
+      "text": "Full answers: choice, confidence, probabilities, noul, value, calibrated"
+    },
+    {
+      "kind": "p",
+      "text": "`d[\"refund\"]` is the full answer, an `Answer` object. Only the fields for the question's type are set; the rest are `None`."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Field",
+        "Set for"
+      ],
+      "rows": [
+        [
+          "`choice`",
+          "Choice: the chosen option key"
+        ],
+        [
+          "`probabilities`",
+          "Choice (per key), Score (per level), Multi (per option)"
+        ],
+        [
+          "`confidence`",
+          "Choice and Score: probability of the most likely answer"
+        ],
+        [
+          "`noul`",
+          "Noul: P(yes)"
+        ],
+        [
+          "`score`",
+          "Score: expected level, 0 = lowest"
+        ],
+        [
+          "`selected`",
+          "Multi: options at or above the threshold"
+        ],
+        [
+          "`value`",
+          "Text, Number, Integer: the extracted value"
+        ],
+        [
+          "`abstain`",
+          "when `min_confidence` was set"
+        ],
+        [
+          "`calibrated`",
+          "`True` when a calibrator adjusted the probabilities"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Some features add fields of their own: `agreement` for a council, `answered_by` for a cascade, `explain` with `explain=True`, `stage` with dependencies, `rule` when a rule answered, and `set` and `guaranteed` when the question has `coverage`. The decision also groups answers by type in its `choices`, `scores` and `nouls` attributes."
+    },
+    {
+      "kind": "p",
+      "text": "`calibrated` is worth checking in production code. Until it is `True`, the probabilities are the model's own, debiased across two option orders but not yet checked against your labels."
+    },
+    {
+      "kind": "h2",
+      "text": "A yes/no probability threshold in Python: noul, min_confidence and abstain"
+    },
+    {
+      "kind": "p",
+      "text": "For a Noul, read the probability and pick the cut-off that matches the cost of a mistake:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "p = d[\"refund\"].noul\nif p >= 0.9:\n    start_refund_flow(ticket)\nelif p > 0.1:\n    send_to_human(ticket, decision_id=d.id)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "For a Choice, let Curva apply the threshold. Set `min_confidence` on the question and read `abstain`:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Choice\n\nq = {\"team\": Choice(\"Which team?\", [\"billing\", \"technical\", \"sales\"], min_confidence=0.8)}\nd = client.decide(ticket, q, project=\"support\")\nanswer = d[\"team\"]\nif answer.abstain or answer.choice == \"none_of_these\":\n    send_to_human(ticket, decision_id=d.id)\nelse:\n    route(ticket, answer.choice)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "`abstain` is only present when the question set `min_confidence`. `none_of_these` is the escape option every Choice gets by default, for an input that fits no option. Both belong with a person. Once the question is calibrated from feedback, both thresholds mean what they say: a 0.9 is right about 90% of the time on your data."
+    },
+    {
+      "kind": "h2",
+      "text": "A question called id, model or project: use d[\"id\"]"
+    },
+    {
+      "kind": "p",
+      "text": "Plain answers are attributes on the decision, and the decision has attributes of its own: `id`, `model`, `project`, `mode`, `config`, `latency_ms`, `cost_usd`, `cached` and more. The decision's own fields come first. So if you name a question `model`, the attribute of that name is the model that answered, not your question's answer."
+    },
+    {
+      "kind": "p",
+      "text": "Use item access for any question whose key could clash:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "d = curva.decide(listing, {\"model\": [\"sedan\", \"suv\", \"truck\"]})\nd.model           # the LLM that answered\nd[\"model\"].choice # your question's answer",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Better still, avoid the clash in the first place: give questions keys that describe the decision, with a prefix where needed, so no key can match a field of the decision itself. Keys are also what feedback, the calibration report and the drift report use, so a clear key pays off more than once."
+    },
+    {
+      "kind": "h2",
+      "text": "Score answers: score (expected level) vs level (most likely name)"
+    },
+    {
+      "kind": "p",
+      "text": "A Score has two readings, and they answer different questions:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`score` is the expected level, a number where 0 is the lowest. Probabilities of 0.36, 0.62 and 0.02 over calm, annoyed and angry give 0.65, between calm and annoyed.",
+        "`level` is the name of the most likely level. With the same probabilities, it is \"annoyed\"."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Use `score` when you want the doubt kept in the number, such as sorting a queue by urgency or setting your own cut-off between levels. Use `level` when you need one label to display. `probabilities` holds the full split for when you need both."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs list every field in the [Python SDK reference](https://itsmohitrohilla.github.io/curva-docs/reference/python-sdk/) and the plain answers in [getting started](https://itsmohitrohilla.github.io/curva-docs/getting-started/). For the full workflow, start with the [Python LLM classification tutorial](/blog/python-llm-classification/), and for the shorthand itself, [Python LLM shorthand questions](/blog/python-llm-shorthand-questions/). To make thresholds meaningful, read [send feedback to an LLM classifier in Python](/blog/send-feedback-llm-classifier-python/) and [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

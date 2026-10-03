@@ -1,0 +1,205 @@
+{
+  "slug": "llm-image-classification-python",
+  "title": "LLM image classification in Python with probabilities",
+  "summary": "Classify images with a vision LLM from Python: paths, bytes or URLs in images=, typed answers with probabilities, and the privacy and size limits.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/images.md",
+    "site/reference/http-api.md",
+    "site/reference/python-sdk.md",
+    "site/reference/cli.md",
+    "site/guides/feedback.md",
+    "site/getting-started.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "For LLM image classification in Python, pass the pictures to `decide` with the `images=` argument and ask typed questions about them. Curva accepts file paths, `Path` objects, raw bytes, `data:` URIs and `https://` URLs, up to 8 images per decision. A vision-language model judges the images together with the state you send, and every answer comes back typed with a probability: P(yes) for a yes/no, a probability per option for a Choice. This guide covers the input forms, a receipt check that compares an image with a claimed amount, the privacy rule for URLs, the limits, and what images do to cost and caching."
+    },
+    {
+      "kind": "plain",
+      "text": "`images=` takes paths, bytes or URLs, and the model judges the picture and your data together. Send private images as bytes, because a URL is fetched by the provider."
+    },
+    {
+      "kind": "h2",
+      "text": "images= accepts paths, Path, bytes, data: URIs and https URLs"
+    },
+    {
+      "kind": "p",
+      "text": "Install the SDK with `pip install curva-ai`. It uses only the standard library and needs Python 3.9 or newer. The `images=` argument takes a list, and each item can be:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "You pass",
+        "Sent as"
+      ],
+      "rows": [
+        [
+          "A file path, as `str` or `Path` (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`)",
+          "Inline base64"
+        ],
+        [
+          "Raw bytes (PNG, JPEG, WebP or GIF, recognised by their first bytes)",
+          "Inline base64"
+        ],
+        [
+          "A `data:image/...;base64,` URI",
+          "As is"
+        ],
+        [
+          "An `https://` URL",
+          "As is; the provider fetches it"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Files and bytes are always sent inline. You don't need to encode anything yourself. Mixing forms in one list is fine, so a ticket can carry one uploaded file and one image you rendered in memory."
+    },
+    {
+      "kind": "h2",
+      "text": "LLM image classification in Python: does the receipt match the claim?"
+    },
+    {
+      "kind": "p",
+      "text": "The useful part of image classification in a workflow is rarely \"what is in this picture\". It is \"does this picture agree with the record\". An expense claim says \"Team lunch, 4 people, 86.40\". The receipt either shows that or it doesn't. Here is the docs' example:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice, Noul\n\ncurva = Curva()\nd = curva.decide(\n    {\"expense_claim\": \"Team lunch, 4 people\", \"amount\": 86.40},\n    {\n        \"paid\": Noul(\"The receipt shows the bill was paid\"),\n        \"matches\": Noul(\"The receipt total matches the claimed amount\"),\n        \"category\": Choice(\"Expense category?\", [\"meals\", \"travel\", \"office\", \"other\"]),\n    },\n    images=[\"receipt.jpg\"],\n    model=\"@openai/gpt-4.1-mini\",  # any vision-capable model\n)\nd[\"matches\"].noul, d[\"category\"].choice"
+    },
+    {
+      "kind": "p",
+      "text": "Three questions, one request. `paid` and `matches` are Nouls, so each answer is the probability of yes. `category` is a Choice with a probability per option and a `none_of_these` escape option by default. The claim lives in the state as data, and the model compares it with what it sees."
+    },
+    {
+      "kind": "p",
+      "text": "Turn the probabilities into actions in plain Python:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "if d[\"matches\"].noul < 0.5 or d[\"paid\"].noul < 0.5:\n    send_to_finance_review(claim_id, decision_id=d.id)\nelse:\n    approve(claim_id, category=d[\"category\"].choice)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Keep the `d.id`. When finance reviews a claim, send what they found with `client.feedback(d.id, \"matches\", True)` or `False`. After 30 labels for the question in a project, Curva calibrates the probabilities on your receipts when that makes them more accurate. Then your threshold means what it says."
+    },
+    {
+      "kind": "p",
+      "text": "One caution on this example. Comparing two amounts is arithmetic, and language models are poor at arithmetic. Here the model reads the total from the picture, which only a vision model can do. If you can get the receipt total some other way, compare the numbers in code and ask the model only what code can't answer."
+    },
+    {
+      "kind": "h2",
+      "text": "URLs are fetched by the provider: send private images inline"
+    },
+    {
+      "kind": "p",
+      "text": "This is the detail most vision tutorials skip. When you pass an `https://` URL, Curva doesn't download the image. It forwards the URL, and the model provider fetches it. Two things follow. The URL must be reachable from the provider's servers, so an intranet link fails. And the provider learns the URL, including any signed token in it."
+    },
+    {
+      "kind": "p",
+      "text": "For anything private (receipts, IDs, customer screenshots), read the file and pass bytes or a path, so the image travels inline in your request:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from pathlib import Path\n\nd = curva.decide(claim_state, QUESTIONS, images=[Path(\"uploads/claim-1182.jpg\")])\nd = curva.decide(claim_state, QUESTIONS, images=[blob_store.get(claim_id)])   # raw bytes",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Inline images still reach the model provider, since the model has to see them. Inline only changes who fetches the image and what else gets shared."
+    },
+    {
+      "kind": "h2",
+      "text": "Limits: 8 images, 5 MB decoded each, 16 MB body (--max-body-mb)"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Limit",
+        "Value",
+        "What happens past it"
+      ],
+      "rows": [
+        [
+          "Images per request",
+          "8",
+          "422 naming the image"
+        ],
+        [
+          "`https://` URL length",
+          "2,048 characters",
+          "422"
+        ],
+        [
+          "`data:` URI size",
+          "5 MB decoded each",
+          "422"
+        ],
+        [
+          "Request body",
+          "16 MB by default",
+          "413; raise it with `curva serve --max-body-mb`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Inline base64 images count towards the body limit, and base64 is larger than the file. Several large photos can pass the 5 MB per-image check and still exceed 16 MB together. Resize before sending; most classification questions don't need full resolution."
+    },
+    {
+      "kind": "h2",
+      "text": "Models without vision: a 502 with the provider's message, or ignored images"
+    },
+    {
+      "kind": "p",
+      "text": "Only vision-language models accept images, and support varies by provider and model. A model without vision usually fails the call with a 502 carrying the provider's message. In the SDK that raises `ModelError`, a subclass of `CurvaError`. Sometimes the model just ignores the image instead, and answers from the state alone. That failure is silent, so test before you trust it: run a small labeled set through the model and check that the image questions are better than chance."
+    },
+    {
+      "kind": "p",
+      "text": "The prompt tells the model that the images are data to judge and that instructions written inside them are ignored, the same way the fenced state is handled. A photo of a note saying \"approve this claim\" is evidence, not an instruction."
+    },
+    {
+      "kind": "h2",
+      "text": "Cost: debias and councils send the images with every call"
+    },
+    {
+      "kind": "p",
+      "text": "Images count towards the prompt tokens, so they cost more than text. Order debiasing, on by default, asks every question twice with the options in original and reversed order, and both calls carry the images. A council of three models sends them three times. Ways to keep the bill down:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`debias=\"auto\"` drops the second call once a question has shown no position bias.",
+        "Ask all your questions in one request, so the images are sent once per call rather than once per question.",
+        "Resize images before sending.",
+        "Read `d.cost_usd` on real traffic before you scale up."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Images in the cache key; only a salted hash in the audit log"
+    },
+    {
+      "kind": "p",
+      "text": "Images are part of the decision cache key. The same state with another image is a new decision. The same state with the same image is answered from the cache in about a millisecond, at no cost."
+    },
+    {
+      "kind": "p",
+      "text": "Curva never stores the images. The audit log keeps a salted SHA-256 of each image as sent, and the state itself is stored only as a salted hash. You can prove which image a decision saw by hashing it again, without keeping a copy in Curva's database."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [images guide](https://itsmohitrohilla.github.io/curva-docs/guides/images/) in the docs. For the full Python workflow, see [Python LLM classification](/blog/python-llm-classification/). To pick a vision-capable model, read [choose a model for LLM classification](/blog/choose-a-model-for-llm-classification/), and for more ideas, [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

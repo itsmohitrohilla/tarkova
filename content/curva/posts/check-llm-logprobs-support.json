@@ -1,0 +1,177 @@
+{
+  "slug": "check-llm-logprobs-support",
+  "title": "Which LLMs return logprobs? Check with curva spike",
+  "summary": "curva spike tests whether a model returns usable label probabilities from logprobs. Run it on free models, a named provider or your own served model.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/reference/cli.md",
+    "site/guides/own-model.md",
+    "site/concepts/questions.md",
+    "site/guides/providers.md",
+    "evals/RESULTS.md",
+    "site/benchmarks.md",
+    "site/reference/http-api.md",
+    "site/guides/speed-and-cost.md",
+    "site/guides/hard-questions.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To check LLM logprobs support, run `curva spike` with the model id. It sends a test classification and reports whether the model returns usable label probabilities: log-probabilities over the label tokens, not just an answer. Run it with no arguments and it tests the free models that list logprobs support. Point it at a named provider, a local server or your own fine-tuned model to get a pass or fail before you build on it. If a model fails, nothing breaks: Curva's default mode, `auto`, falls back to verbal probabilities and remembers that per model. This guide covers why logprobs matter, how to run the check, and what to do with the answer."
+    },
+    {
+      "kind": "h2",
+      "text": "Why logprobs matter: one label token per question"
+    },
+    {
+      "kind": "p",
+      "text": "Curva reads a probability for every label in one of two ways. In `logprobs` mode, the model answers with one label token per question, and Curva reads each label's probability from the token log-probabilities. In `verbal` mode, the model returns a JSON object limited to your labels, with a probability for each."
+    },
+    {
+      "kind": "p",
+      "text": "Logprobs have three practical advantages:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Cost.** A logprobs answer is one token per question, the smallest reply there is, so every question in a request costs little more than one.",
+        "**Source.** The number is the model's own distribution over the next token, not a figure it chose to write.",
+        "**A built-in check.** If your labels hold less than half of the probability at the answer position, the question is retried on its own. A model that wanted to say something else is caught, not silently mapped onto your nearest label."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Not every model or provider returns logprobs, and some that list them return nothing usable. That is what the check is for."
+    },
+    {
+      "kind": "h2",
+      "text": "Check LLM logprobs support with curva spike"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "curva spike [MODELS]..."
+    },
+    {
+      "kind": "p",
+      "text": "With no arguments, `curva spike` tests the free models that list logprobs support. That is the quickest way to find a free model you can run in logprobs mode today. It needs a provider key in your environment, such as `OPENROUTER_API_KEY`."
+    },
+    {
+      "kind": "p",
+      "text": "The early spike runs recorded in Curva's eval results show the three outcomes you will meet:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Outcome",
+        "What it means"
+      ],
+      "rows": [
+        [
+          "Usable label probabilities",
+          "The model answered and returned logprobs over your labels. Logprobs mode works"
+        ],
+        [
+          "No logprobs returned",
+          "The model answers correctly but gives no probabilities. It will run in verbal mode"
+        ],
+        [
+          "Reasoning cannot be disabled",
+          "The model insists on reasoning first, so a one-token answer is impossible"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A listed \"supports logprobs\" flag is not the same as the first row. Spike tests the real reply."
+    },
+    {
+      "kind": "h2",
+      "text": "Testing a named or local model"
+    },
+    {
+      "kind": "p",
+      "text": "Pass any model id, with or without a provider prefix:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva spike @ollama/qwen3:4b",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "The same form works for every provider Curva knows, such as `@groq/qwen/qwen3.8-27b`, `@gemini/gemini-flash-lite-latest` or `@vllm/Qwen/Qwen3-4B`. The provider's key variable must be set for hosted providers; local ones need nothing. Whether your Ollama version returns logprobs on its OpenAI-compatible endpoint varies, which makes a local model a good candidate for this check."
+    },
+    {
+      "kind": "p",
+      "text": "Curva's benchmark page names DeepSeek, Z.ai GLM and Alibaba Qwen as providers that return real token probabilities, queued for its next runs. Treat that as a lead, and confirm it with spike on the exact model id you plan to use, since providers rename and change models often."
+    },
+    {
+      "kind": "h2",
+      "text": "Serving your own model with logprobs and top_logprobs"
+    },
+    {
+      "kind": "p",
+      "text": "If you fine-tune a small model for your questions, spike is the gate between serving it and pointing Curva at it. Curva needs an OpenAI-compatible chat completions endpoint that returns `logprobs` with `top_logprobs`, since that is where the probabilities come from. The own-model guide's serving commands include, for vLLM:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "vllm serve ./curva-support-3b --served-model-name curva-support-3b --port 8080 --max-logprobs 20"
+    },
+    {
+      "kind": "p",
+      "text": "Then check the endpoint before going further:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva spike @local/curva-support-3b"
+    },
+    {
+      "kind": "p",
+      "text": "The `@local` provider here is the one you define with `CURVA_PROVIDER_LOCAL_URL`. A pass means Curva can read label probabilities from your model. A fail usually means the server isn't returning `top_logprobs`, or returns fewer than the labels need. Fix the serving flags first. Fine-tuning helps only if the probabilities reach Curva."
+    },
+    {
+      "kind": "h2",
+      "text": "When spike fails: auto falls back to verbal"
+    },
+    {
+      "kind": "p",
+      "text": "A model without usable logprobs still works with Curva. The default `mode: auto` tries logprobs first and falls back to verbal when the model doesn't return them. The result is remembered per full model id, so the fallback happens once, not on every call. The response's `mode` field always says which mode answered."
+    },
+    {
+      "kind": "p",
+      "text": "Verbal mode changes two things. Results depend on how well the model follows the JSON schema of your labels, and the probabilities are rougher than token probabilities, so calibrate with feedback before you trust a threshold. Forcing `mode: logprobs` on a model that can't return them doesn't help; leave it at `auto`."
+    },
+    {
+      "kind": "h2",
+      "text": "Verbal anyway: over 20 options and extraction questions"
+    },
+    {
+      "kind": "p",
+      "text": "Even a model that passes spike answers some questions verbally:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**A Choice with more than 20 options.** Providers return at most 20 logprobs, so a larger label set can't be read from them. `mode: logprobs` on such a question gets 422.",
+        "**Text, Number and Integer questions.** There is no label token to read for an extracted value, so a request with any of them is answered in verbal mode.",
+        "**`think: true`.** Reasoning before answering is always verbal."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "So spike tells you whether logprobs are available, and your question design decides whether they are used. For the lowest cost and the steadiest numbers, keep label questions at 20 options or fewer and put extraction in its own request when you can."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover the command in the [CLI reference](https://itsmohitrohilla.github.io/curva-docs/reference/cli/) and the modes in [questions and answers](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/). To compare the two modes, read [logprobs vs verbal confidence](/blog/logprobs-vs-verbal-confidence/). To pick a model, see [choose a model for LLM classification](/blog/choose-a-model-for-llm-classification/), and for a local setup, [Ollama classification](/blog/ollama-llm-classification/). For the product overview, read [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

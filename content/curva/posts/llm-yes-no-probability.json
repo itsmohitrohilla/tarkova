@@ -1,0 +1,209 @@
+{
+  "slug": "llm-yes-no-probability",
+  "title": "LLM yes or no questions with a real probability of yes",
+  "summary": "A Noul question returns one number, P(yes), asked as a normalised two-option choice so P(x) and P(not x) agree. How to word it, threshold it and label it.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/concepts/questions.md",
+    "site/getting-started.md",
+    "recipes/support-triage.json",
+    "recipes/phishing-check.json",
+    "recipes/rag-check.json",
+    "site/reference/http-api.md",
+    "site/guides/feedback.md",
+    "site/guides/rules.md",
+    "site/guides/guaranteed-accuracy.md",
+    "site/concepts/calibration.md",
+    "sdk/typescript/README.md",
+    "Content Box/4 Benchmarks/benchmarks.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To get an LLM yes or no answer with a real probability, ask for the probability of yes instead of the word. In Curva that question type is called a Noul. You write a statement such as \"The customer explicitly asks for a refund\", and the answer is one number, `noul`, the probability that it is true. Curva asks it as a normalised two-option choice, so P(yes) and P(no) always add up and a question and its negation stay consistent. In Python the plain answer is `True` when P(yes) is at least 0.5, and the full answer keeps the number for your own threshold. This guide covers how to word a yes/no question, threshold it, and label it."
+    },
+    {
+      "kind": "h2",
+      "text": "LLM yes no probability in one number: noul is P(yes)"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "Noul(\"The customer explicitly asks for a refund\")"
+    },
+    {
+      "kind": "p",
+      "text": "A Noul is a yes/no question, and its answer is a single number: `noul`, the probability of yes. There is no separate confidence field, because the number already says how sure the model is. 0.97 is a confident yes, 0.03 a confident no, and 0.5 means the model can't tell."
+    },
+    {
+      "kind": "p",
+      "text": "Write the question as a statement, not a question with \"or\". \"The customer explicitly asks for a refund\" reads as a claim the model can judge true or false, and P(yes) is the probability that the claim holds for this state."
+    },
+    {
+      "kind": "p",
+      "text": "A Noul is answered in the same request as your other questions, whether they are Choices, Scores or extraction. All of a state's questions go to the model together."
+    },
+    {
+      "kind": "h2",
+      "text": "Asked as a normalised two-option choice, so P(x) and P(not x) agree"
+    },
+    {
+      "kind": "p",
+      "text": "Internally, Curva asks a Noul as a choice between two options, yes and no, and normalises the probabilities over those two. So P(yes) and P(no) for one question always sum to 1. With order debiasing on, it is also asked with the two options in both orders and averaged, so a model's lean towards whichever option comes first cancels out."
+    },
+    {
+      "kind": "p",
+      "text": "Curva's docs tie this mechanism to a trust probe: ask \"is X?\" and \"is not X?\" about the same input, and the two probabilities should add up to 1."
+    },
+    {
+      "kind": "p",
+      "text": "In a probe on 3 tickets (2026-09-27), Nemotron 3 Super in verbal mode summed to 1.000 each time. Ling 3.0 Flash in logprobs mode summed to 1.33, 0.14 and 0.56: it ignored the word \"NOT\". Curva's default config moved to Nemotron because of that result. A tiny probe, but a useful warning that a yes/no probability is only as good as the model behind it.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "Plain answers: True when P(yes) is at least 0.5"
+    },
+    {
+      "kind": "p",
+      "text": "The Python shorthand gives you a boolean when that is all you need:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "`d.refund` is `True` when P(yes) is at least 0.5. `d[\"refund\"].noul` is the probability itself. The TypeScript client does the same: `d.values` holds `true` for the refund question when P(yes) is at least 0.5, and `d.answers.refund.noul` is the number."
+    },
+    {
+      "kind": "p",
+      "text": "The 0.5 cut-off is fine for a script. For anything that triggers an action, read the probability and choose your own cut-off, as below."
+    },
+    {
+      "kind": "h2",
+      "text": "Spell out the no case in the instructions"
+    },
+    {
+      "kind": "p",
+      "text": "The most useful line in a yes/no question is often the one that says what counts as no. Curva's shipped recipes do this on purpose:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Recipe question",
+        "The no case it spells out"
+      ],
+      "rows": [
+        [
+          "`refund_requested` (support-triage)",
+          "\"Complaining about a charge without asking for money back is no.\""
+        ],
+        [
+          "`phishing` (phishing-check)",
+          "\"Legitimate marketing and real notifications are no.\""
+        ],
+        [
+          "`needs_retrieval` (rag-check)",
+          "Needs facts from the knowledge base, \"not just a greeting, small talk or something any assistant knows\""
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Without the first line, an angry message about a double charge reads like a refund request, and P(yes) climbs on tickets that only complain. A sentence that names the near miss is cheaper and more reliable than any threshold you could tune afterwards."
+    },
+    {
+      "kind": "h2",
+      "text": "Noul has no min_confidence: pick your own P(yes) cut-off"
+    },
+    {
+      "kind": "p",
+      "text": "Choice and Score questions take `min_confidence` and come back with `abstain: true` below it. A Noul doesn't, because its answer is one number. Route it with two cut-offs and treat the middle as unsure:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "p = d[\"refund\"].noul\nif p >= 0.9:\n    start_refund_flow(ticket)\nelif p > 0.1:\n    send_to_human(ticket, decision_id=d.id)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Below 0.1 is a confident no, above 0.9 a confident yes, and the band between goes to a person. The numbers are yours to set. Before calibration they are guesses about the model. After 30 labels, Curva fits a Platt scaling calibrator for the question (a logistic fit on P(yes)) and keeps it only when it improves on the raw numbers on held-out labels. Then your cut-offs mean what they say."
+    },
+    {
+      "kind": "p",
+      "text": "For a guarantee instead of hand-picked cut-offs, set `coverage` on the Noul. Once it has 30 labels, the answer carries a `set` that is a subset of `[\"true\", \"false\"]` and contains the right value at least `coverage` of the time. A set with one value: act on it. A set with both: the model can't tell, so send it to a person."
+    },
+    {
+      "kind": "h2",
+      "text": "Feedback with true or false, rules with answer true"
+    },
+    {
+      "kind": "p",
+      "text": "When you learn the truth, send it back with `True` or `False`:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"refund_requested\", True)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Over HTTP the label is `true` or `false`. Sending feedback again for the same decision and question replaces the earlier label."
+    },
+    {
+      "kind": "p",
+      "text": "Some yes/no answers you already know without a model. A rule answers them on the spot:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"priority\": {\n  \"type\": \"noul\",\n  \"instructions\": \"This ticket needs a reply today\",\n  \"rules\": [{\"if\": {\"plan\": [\"enterprise\", \"premium\"], \"open_tickets\": {\"gte\": 3}}, \"answer\": true}]\n}",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "A rule answer puts all its probability on the label, so `noul` is 1.0 here, and it carries `rule` with the index of the rule that matched. Rule answers are not model output, so they are not used for calibration, and feedback for them gets 404."
+    },
+    {
+      "kind": "h2",
+      "text": "Shorthand: a string ending in ? or bool"
+    },
+    {
+      "kind": "p",
+      "text": "For scripts and notebooks, two shorthands create a Noul:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "You write",
+        "You get"
+      ],
+      "rows": [
+        [
+          "`\"refund\": \"Asks for a refund?\"`",
+          "a Noul with that wording, because the string ends in `?`"
+        ],
+        [
+          "`\"is_urgent\": bool`",
+          "a Noul asked with the key: \"Is urgent\""
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "In TypeScript, a string ending in `?` or `Boolean` does the same. Switch to an explicit `Noul` in production code, so the wording is explicit and stays fixed, because calibration belongs to the exact wording of a question."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs describe Noul in [questions and answers](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/). For all the types side by side, read [LLM classification question types](/blog/llm-classification-question-types/), and for wording, [how to word LLM classification questions](/blog/write-llm-classification-instructions/). See a Noul at work in [refund request detection](/blog/refund-request-detection/), and the probe in detail in [LLM negation consistency](/blog/llm-negation-consistency/). For the product overview, read [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

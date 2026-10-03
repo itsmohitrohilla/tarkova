@@ -1,0 +1,198 @@
+{
+  "slug": "pin-llm-prompt-version",
+  "title": "Pin an LLM prompt version so answers don't shift",
+  "summary": "A pinned config freezes the prompt template, mode, debias and model so upgrades don't move your answers. The pins, curva-latest, and when to recalibrate.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/concepts/projects.md",
+    "site/guides/dependencies.md",
+    "site/reference/http-api.md",
+    "site/guides/speed-and-cost.md",
+    "site/reference/cli.md",
+    "site/benchmarks.md",
+    "site/self-hosting.md",
+    "sdk/typescript/README.md",
+    "site/concepts/calibration.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "LLM prompt version pinning means freezing how a decision is made, so the same input keeps getting the same kind of answer after an upgrade. In Curva that is a pinned config. A config such as `curva-1.1.0` fixes the prompt template and the default mode, debias setting and model. You select it with `config` on a request, every response and audit entry names the config it ran under, and `curva-latest` points to whichever pin the server operator chose. One rule decides whether a pin really freezes your answers: fields you set on the request, such as `model` or `mode`, still win over the pin."
+    },
+    {
+      "kind": "h2",
+      "text": "What a config freezes: template, mode, debias, model"
+    },
+    {
+      "kind": "p",
+      "text": "A prompt template is part of the decision. Change how the state and questions are laid out, or which model answers by default, and the probabilities move. Thresholds you tuned and calibrators you fitted were built on the old numbers."
+    },
+    {
+      "kind": "p",
+      "text": "A config bundles the four things that shape a decision when the request doesn't say otherwise:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Frozen by the config",
+        "What it controls"
+      ],
+      "rows": [
+        [
+          "Prompt template",
+          "how the state, questions and examples are laid out for the model"
+        ],
+        [
+          "Default mode",
+          "`logprobs`, `verbal` or `auto`"
+        ],
+        [
+          "Default debias setting",
+          "asking in one or both option orders"
+        ],
+        [
+          "Default model",
+          "which model answers"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Answers never change under you when Curva is upgraded, as long as you stay on the same pin."
+    },
+    {
+      "kind": "h2",
+      "text": "The pins: curva-1.0.0, 1.1.0, 1.2.0 and curva-latest"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Config",
+        "Default model and notes"
+      ],
+      "rows": [
+        [
+          "`curva-1.0.0`",
+          "Ling 3.0 Flash, logprobs"
+        ],
+        [
+          "`curva-1.1.0`",
+          "Nemotron 3 Super, verbal"
+        ],
+        [
+          "`curva-1.2.0`",
+          "Nemotron 3 Super, with the questions placed before the state, so provider prompt caches and local prefix caches can reuse the repeating part"
+        ],
+        [
+          "`curva-latest`",
+          "the pin the operator chose with `curva serve --latest-config`; the docs give `curva-1.1.0` today"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Select one per request:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.decide(state, questions, config=\"curva-1.0.0\")"
+    },
+    {
+      "kind": "p",
+      "text": "Over HTTP it is the `config` field, and in TypeScript the `config` option. An unknown config name gets 422."
+    },
+    {
+      "kind": "p",
+      "text": "The history of the first two pins shows why pinning matters. Curva's default moved from Ling 3.0 Flash to Nemotron 3 Super after a trust probe: Ling, asked \"is X?\" and \"is not X?\" about the same tickets, gave probabilities that didn't add up to 1, and Nemotron's did. `curva-1.1.0` uses Nemotron. `curva-1.0.0` keeps Ling for callers who pinned it. A team that had tuned thresholds on Ling's numbers was not moved without asking."
+    },
+    {
+      "kind": "h2",
+      "text": "curva-latest is whatever --latest-config says"
+    },
+    {
+      "kind": "p",
+      "text": "`curva-latest` is the default, and it is a pointer, not a version. The operator of the server decides where it points with `curva serve --latest-config <NAME>`. If you send no `config`, you get whatever that is today."
+    },
+    {
+      "kind": "p",
+      "text": "That suits experiments and new projects. For anything with tuned thresholds, a fitted calibrator or a shadow-test result you rely on, pin an explicit version. Then an operator can move `curva-latest` for everyone else without touching you."
+    },
+    {
+      "kind": "p",
+      "text": "The docs note that `curva-1.2.0` becomes `curva-latest` once benchmarked. When that happens, every unpinned caller moves."
+    },
+    {
+      "kind": "h2",
+      "text": "LLM prompt version pinning: request fields still win over the pin"
+    },
+    {
+      "kind": "p",
+      "text": "A pin sets defaults, not hard limits. Fields set on the request still win over the pin. Send `curva-1.1.0` as the config together with `logprobs` as the mode, and the request runs with the 1.1.0 template but in logprobs mode. Send a `model`, and that model answers instead of the pin's."
+    },
+    {
+      "kind": "p",
+      "text": "For LLM prompt version pinning, that leaves two consistent setups:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Pin and let it decide.** Send `config` and nothing else that the config covers. The template, mode, debias setting and model all come from the pin.",
+        "**Pin the template, choose the model.** Send `config` and `model`. You keep a fixed template while running your own provider's model. Then the model id is your responsibility to keep stable, because providers rename and retire models."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "What breaks the freeze is mixing: a pinned config on some calls and an ad-hoc `mode` on others. Keep the request shape the same for every call to a question."
+    },
+    {
+      "kind": "h2",
+      "text": "Switching to curva-1.2.0: cheaper prompts, calibrate again"
+    },
+    {
+      "kind": "p",
+      "text": "`curva-1.2.0` exists for cost. It puts the questions before the state. The questions repeat on every call, so providers and local servers that cache prompt prefixes (llama.cpp, vLLM and most hosted APIs) can read them from cache and charge less for them. With `depends_on`, each stage's prompt starts with its questions, then the earlier answers, then the state, so repeated decisions share the longest possible prefix."
+    },
+    {
+      "kind": "p",
+      "text": "The price is a moved baseline. Answers can differ slightly from `curva-1.1.0`, so calibrate again after switching. In practice:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Shadow-test the new config on logged traffic before you switch it on.",
+        "Switch one project at a time.",
+        "Keep sending feedback, and check the calibration report until the question is calibrated again."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "h2",
+      "text": "Checking what ran: config in responses, the audit log and GET /v1/models"
+    },
+    {
+      "kind": "p",
+      "text": "Pinning is only useful if you can prove which pin a decision used. Curva records it in three places:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Every response** carries `config`, the pinned config the decision ran under, for example `curva-1.1.0`.",
+        "**Every audit entry** records the config next to the model, mode, privacy setting, answers, latency and cost.",
+        "**`GET /v1/models`** lists `curva-latest` and every pinned config the server offers, with a name and description."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "So when someone asks why a decision changed last month, the audit log answers: compare the config and model on the entries before and after. If they differ, the prompt or model changed. If they match, look at the inputs, and at the weekly drift report."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover pins in [projects and configs](https://itsmohitrohilla.github.io/curva-docs/concepts/projects/) and the cache-friendly config in [speed and cost](https://itsmohitrohilla.github.io/curva-docs/guides/speed-and-cost/). For what each decision records, read [an LLM audit log that never stores the input](/blog/llm-audit-log/), and for the cost side, [reduce LLM classification cost](/blog/reduce-llm-classification-cost/). New to Curva? Start with [install Curva](/blog/install-curva/), [what is a typed decision](/blog/what-is-a-typed-decision/) and [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

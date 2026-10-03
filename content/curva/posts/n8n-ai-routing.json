@@ -1,0 +1,195 @@
+{
+  "slug": "n8n-ai-routing",
+  "title": "n8n AI routing with a Needs review branch",
+  "summary": "Route n8n items with an LLM: one branch per answer, a Needs review branch for unsure ones, and a Feedback node that calibrates on your data.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/n8n.md",
+    "integrations/n8n-nodes-curva/README.md",
+    "site/getting-started.md",
+    "site/guides/feedback.md",
+    "site/guides/recipes.md",
+    "site/reference/cli.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "For n8n AI routing that doesn't break on a stray full stop, use the `n8n-nodes-curva` community node and its Route operation. Each option you define becomes an output branch, answers below your confidence bar leave on a Needs review branch, and a Feedback node sends the person's answer back so Curva calibrates on your data. There is no text to parse and no Switch node to keep in sync. This guide walks through the setup, the exact branch layout, and the JSON each routed item carries."
+    },
+    {
+      "kind": "plain",
+      "text": "One Route node replaces an LLM node, a parser and a Switch: options become branches, unsure items go to a person, and the person's answer teaches the router."
+    },
+    {
+      "kind": "p",
+      "text": "The usual pattern is an LLM node that returns a word, followed by a Switch node that matches on it. It works until the model returns \"Billing.\" with a full stop, or \"billing / technical\", or confidently picks a team for a message that fits none of them. The Route operation removes all three failure points, because the model's answer is mapped onto your option keys before n8n ever sees it."
+    },
+    {
+      "kind": "h2",
+      "text": "Install n8n-nodes-curva and add the Curva API credential"
+    },
+    {
+      "kind": "p",
+      "text": "You need a self-hosted n8n instance, because community nodes install there, and a running Curva server."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "pip install curva-ai\nexport OPENROUTER_API_KEY=sk-or-v1-...     # any OpenRouter key; free models work"
+    },
+    {
+      "kind": "p",
+      "text": "Then start the server with `curva serve`. It listens on `http://localhost:7777` by default. If n8n runs in Docker and Curva on the host, n8n reaches it at `http://host.docker.internal:7777`. If you want the server to require a key, create one with `curva keys create --name n8n`; it prints a `curva_…` key once."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "In n8n, open Settings → Community Nodes → Install, enter `n8n-nodes-curva`, and accept the notice.",
+        "For a manual install instead, run `npm install n8n-nodes-curva` in `~/.n8n/nodes` and restart n8n.",
+        "Add a Curva API credential with the base URL and, if the server has keys, the `curva_…` key."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "The credential test calls `GET /v1/models`, which checks the key. The `/health` route never needs one, so it can't tell you whether the key works."
+    },
+    {
+      "kind": "h2",
+      "text": "Build the n8n AI routing node: options become output branches"
+    },
+    {
+      "kind": "p",
+      "text": "Add a Curva node after your trigger (a form, an email, a helpdesk webhook) and pick the Route operation."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Question Type: Choice.",
+        "Instructions: \"Which team should handle this ticket?\"",
+        "Options: `billing` (\"charges, refunds, invoices\"), `technical` (\"bugs, errors, outages\"), `sales` (\"pricing, quotes, upgrades\"). The descriptions are what the model reads, so make them specific.",
+        "None of These: leave it on. It adds a `none_of_these` option and branch, so a message that fits no team isn't forced into one.",
+        "Min Confidence: 0.8, the default.",
+        "State: the whole item, some of its fields, or an expression such as `{{ $json.body }}`."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "The node's outputs now read `billing`, `technical`, `sales`, `none_of_these` and Needs review, in that order. They follow your options as you edit them: like n8n's Switch node, the node computes its outputs from its own parameters. Connect each branch to its queue, such as a helpdesk assignment, a Slack channel or a CRM task."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  T[\"Trigger: form, email, webhook\"] --> R[\"Curva Route node\"]\n  R -->|billing| B[\"Billing queue\"]\n  R -->|technical| C[\"Technical queue\"]\n  R -->|sales| S[\"Sales queue\"]\n  R -->|none_of_these| N[\"Triage inbox\"]\n  R -->|Needs review| H[\"Person decides\"]\n  H --> F[\"Curva Feedback node\"]",
+      "title": "Route node branches in an n8n AI routing workflow",
+      "caption": "Each option is a branch; answers below Min Confidence go to Needs review, which ends in a Feedback node."
+    },
+    {
+      "kind": "h2",
+      "text": "What each routed item carries in its curva field"
+    },
+    {
+      "kind": "p",
+      "text": "Every routed item keeps its data and gains a `curva` field:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{ \"curva\": { \"id\": \"dec_…\", \"question\": \"department\", \"answer\": \"billing\", \"confidence\": 0.93,\n  \"probabilities\": { \"billing\": 0.93, \"technical\": 0.04, \"sales\": 0.01, \"none_of_these\": 0.02 },\n  \"calibrated\": false, \"abstain\": false } }"
+    },
+    {
+      "kind": "p",
+      "text": "`id` is the decision id. Keep it on whatever record you create, because the Feedback step needs it. `probabilities` holds a value for every option, so a downstream node can see when two teams were close. `calibrated` turns `true` once there's enough feedback for that question. The node also adds `model` and `cached`, and `rule` when one of the question's rules answered it."
+    },
+    {
+      "kind": "h2",
+      "text": "The Needs review branch: answers below Min Confidence 0.8"
+    },
+    {
+      "kind": "p",
+      "text": "Anything below Min Confidence goes to Needs review, whatever the top answer was. That is Curva's `abstain` flag turned into a branch. Put a person there: a Slack message with buttons, an n8n form, or a task in your tracker."
+    },
+    {
+      "kind": "p",
+      "text": "For a yes/no router, pick Yes / No as the question type. The branches are `Yes`, `No` and Needs review. An answer is unsure when neither yes nor no reaches the bar. On this question type, `answer` is `true` or `false` and `probabilities` has a yes and a no value."
+    },
+    {
+      "kind": "p",
+      "text": "Choose the bar by what a wrong route costs. A misrouted sales lead is cheap to fix, so 0.8 may be fine. A refund sent to the wrong queue may need 0.9. Until the question is calibrated, the bar is a guess about the model. After calibration it means what it says."
+    },
+    {
+      "kind": "h2",
+      "text": "Close the loop with a Feedback node"
+    },
+    {
+      "kind": "p",
+      "text": "End the Needs review branch with another Curva node on Feedback:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Decision ID defaults to `{{ $json.curva.id }}`.",
+        "Question Key defaults to `{{ $json.curva.question }}`.",
+        "True Label is the person's answer: an option key such as `billing`, `true` or `false` for yes/no, or a level index for a score."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The node sends `POST /v1/feedback`. From 30 labels for a question in a project, Curva calibrates its confidences for your data whenever that makes them more accurate. From then on, a 0.8 confidence means about what it says on your items, and the Min Confidence bar sends the right share to people."
+    },
+    {
+      "kind": "p",
+      "text": "Send feedback for a sample of automatically routed items too, not only the reviewed ones. If only the unsure answers get labels, calibration never sees the confident ones. To see the effect, add a Curva node on Calibration Report for the question key and project. It returns `labels`, the fitted calibrator, and before and after accuracy, ECE, Brier score and reliability bins. The after numbers are held out, so they aren't flattered by testing on the labels the calibrator was fitted to."
+    },
+    {
+      "kind": "h2",
+      "text": "Several questions per item with Decide"
+    },
+    {
+      "kind": "p",
+      "text": "Route handles one question. When an item needs a team, an urgency score and a refund flag at once, use the Decide operation. It takes questions as JSON in the HTTP API format, sends them in one request, and attaches all answers to the item as `curva.answers`, exactly as the server returns them."
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"team\": {\"type\": \"choice\", \"instructions\": \"Which team?\",\n           \"options\": {\"billing\": \"\", \"technical\": \"\", \"sales\": \"\"}, \"min_confidence\": 0.8},\n  \"urgency\": {\"type\": \"score\", \"instructions\": \"How urgent?\",\n              \"levels\": [\"low\", \"normal\", \"high\", \"critical\"]},\n  \"refund\": {\"type\": \"noul\", \"instructions\": \"The customer explicitly asks for a refund\"}\n}",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Route afterwards with an IF or Switch node on the team's choice, and send items whose team answer abstained to review. You can also paste a built-in recipe: `curva recipe show support-triage` prints a ready question set for tickets."
+    },
+    {
+      "kind": "h2",
+      "text": "Model, project and options per node"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Model: a model id such as `@groq/qwen/qwen3.8-27b`, or JSON for a fallback list, council or cascade. Empty means the server's default.",
+        "Project: a calibration namespace. Use one per workflow, so feedback from one workflow doesn't calibrate another.",
+        "Options: config, debias, images, privacy and think."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "When something fails, the node raises an n8n error carrying Curva's message: a 422 names the bad question, and a rate limit says when to retry. With Settings → On Error → Continue, the failed item goes to the last output (Needs review on Route) with an `error` field, so nothing is dropped silently."
+    },
+    {
+      "kind": "h2",
+      "text": "Import the ticket-triage example"
+    },
+    {
+      "kind": "p",
+      "text": "The docs include an example workflow, `n8n-ticket-triage.json`. Import it with Workflows → Import from File. Sample tickets go to a Route node with `billing`, `technical`, `sales` and `none_of_these` branches. Unsure tickets go to a review step, a Set node standing in for a Slack or form approval, that ends in a Feedback node. Pick your Curva credential on both Curva nodes and run it."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [n8n guide](https://itsmohitrohilla.github.io/curva-docs/guides/n8n/) in the docs and the [node on npm](https://www.npmjs.com/package/n8n-nodes-curva). For the full triage build, see [an n8n ticket triage workflow](/blog/n8n-ticket-triage-workflow/). For the review step itself, read [n8n human in the loop AI](/blog/n8n-human-in-the-loop-ai/). For a single yes/no gate, see [an n8n AI yes/no filter](/blog/n8n-ai-yes-no-filter/), and for more ideas, [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

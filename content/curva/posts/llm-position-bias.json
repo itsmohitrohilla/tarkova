@@ -1,0 +1,187 @@
+{
+  "slug": "llm-position-bias",
+  "title": "LLM position bias and how order debiasing cancels it",
+  "summary": "LLMs favour options by their position in a list. How asking in two orders and averaging cancels it, what it costs, and when debias auto skips a call.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/trust.md",
+    "site/guides/speed-and-cost.md",
+    "site/reference/http-api.md",
+    "site/reference/cli.md",
+    "site/guides/extraction.md",
+    "Content Box/1 Product/how-it-works.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/concepts/calibration.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "LLM position bias is the tendency of a language model to favour an option because of where it sits in the list, not because of what it says. Show a model `billing, technical, sales` and `billing` may win more often than it should, just because it came first. The fix is to ask the same question twice, once with the options in the original order and once reversed, and average the two. The boost lands on a different option in each call, so it cancels. Curva does this by default. This post explains the mechanism, the details that keep it correct, what it costs, and how to pay less."
+    },
+    {
+      "kind": "p",
+      "text": "For a chat reply, nobody notices position bias. For a classifier that routes thousands of tickets, it is a systematic error that depends on something as arbitrary as the order you typed the options in. Worse, it doesn't announce itself. It shows up as a skew in your routing that looks like a property of your data."
+    },
+    {
+      "kind": "h2",
+      "text": "How order debiasing cancels position bias"
+    },
+    {
+      "kind": "p",
+      "text": "Curva asks every question twice, concurrently: once with the options in the order you gave, once reversed. Then it averages the two sets of probabilities, option by option."
+    },
+    {
+      "kind": "p",
+      "text": "If the model gives the first-listed option a small boost, that boost lands on `billing` in one call and on `sales` in the other. Averaged, the boosts cancel, and what remains is the part of the answer that depends on the ticket, not on the layout."
+    },
+    {
+      "kind": "p",
+      "text": "A worked illustration, with made-up numbers. In the original order the model says billing 0.70, technical 0.20, sales 0.10. Reversed, it says billing 0.58, technical 0.24, sales 0.18. The average is billing 0.64, technical 0.22, sales 0.14. Billing still wins, at a confidence that no longer includes the first-position boost.",
+      "example": true
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  Q[\"ticket + options\"] --> A[\"ask: billing, technical, sales\"]\n  Q --> B[\"ask: sales, technical, billing\"]\n  A --> M[\"average per option\"]\n  B --> M\n  M --> R[\"answer without the position boost\"]",
+      "title": "Two orders, one answer",
+      "caption": "The same question is asked with the options in both orders at the same time; averaging cancels the boost each position gets."
+    },
+    {
+      "kind": "p",
+      "text": "It is on by default (`debias: true`). The response's `debiased` field says whether both orders were actually asked."
+    },
+    {
+      "kind": "h2",
+      "text": "The details that keep it correct"
+    },
+    {
+      "kind": "p",
+      "text": "Averaging two calls is simple. Making sure both calls ask the same question takes some care."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Few-shot examples are remapped. If a question carries labeled examples, the example labels follow the reversed order too, so an example that says \"billing\" still points at billing.",
+        "Yes/no questions are asked as a normalised two-option choice. That also keeps P(yes) and P(no) consistent with each other.",
+        "Extraction questions are not reordered. Text, Number and Integer questions have no options to flip. If the two calls return different values, Curva keeps the original-order value at the lower of the two confidences.",
+        "Lettered options keep their order. This one was learned the hard way, below."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "A bug: when reversing changes the question"
+    },
+    {
+      "kind": "p",
+      "text": "Multiple-choice sets such as HellaSwag and OpenBookQA name their options `A`, `B`, `C`, `D`, and the state says what each letter means. An early version of Curva re-lettered the options in the reversed call. The reversed prompt then showed the answer marked A as option D, and the model, reasonably, got confused. Debiasing made the answers worse."
+    },
+    {
+      "kind": "p",
+      "text": "The fix: options named `A`, `B`, `C` and so on keep their order and take one call. The same fix helps anyone with lettered quiz or survey options."
+    },
+    {
+      "kind": "p",
+      "text": "After the fix, Gemini flash-lite on HellaSwag went from 63.8% to 78.6% accuracy (n = 98, Curva's public benchmark run of 2026-10-01). Smaller probes from 2026-09-27 point the same way: when 4 tickets were each asked with the options in two orders, 0 of 4 answers changed, and in a negation probe on 3 tickets, P(x) plus P(not x) came out at 1.000 each time with Nemotron 3 Super. These are tiny samples. They check that the mechanism works; they don't measure how much it helps on your data.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "What debiasing costs"
+    },
+    {
+      "kind": "p",
+      "text": "Two calls per decision instead of one: twice the tokens, and latency set by the slower of the two, since they run at the same time. On a paid model that is real money. You have three settings:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Setting",
+        "Calls",
+        "Position bias"
+      ],
+      "rows": [
+        [
+          "`debias: true` (default)",
+          "2 per decision",
+          "Cancelled"
+        ],
+        [
+          "`debias: \"auto\"`",
+          "2 while learning, then 1, with a check every 10th request",
+          "Cancelled while learning; skipped only where it has shown none"
+        ],
+        [
+          "`debias: false`",
+          "1",
+          "Whatever the model has"
+        ]
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "d = client.decide(state, questions, debias=\"auto\")\nd.debiased   # True while learning or checking, False when only the original order was asked"
+    },
+    {
+      "kind": "h2",
+      "text": "How debias auto decides when to skip the second call"
+    },
+    {
+      "kind": "p",
+      "text": "`auto` treats \"does this model have position bias on this question?\" as something to measure, per model and question."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "It keeps asking both orders until it has at least 20 paired answers.",
+        "If 95% of them agree (same top answer, top probability within 0.1), it concludes the model isn't swayed by order on this question and starts asking only the original order.",
+        "It still asks both orders on every 10th request, to keep checking.",
+        "One disagreement puts the question back to full debiasing."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "What it learned lives in the server's memory, up to 10,000 model-question pairs, and starts over after a restart. A reworded question counts as a new question."
+    },
+    {
+      "kind": "p",
+      "text": "For many questions the second call buys nothing, because the model answers the same either way. For those, `auto` saves about half the calls once it has seen enough. For questions where order does matter, it keeps paying for the second call, which is the point."
+    },
+    {
+      "kind": "h2",
+      "text": "When to turn order debiasing off"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Large offline backfills where you have checked on a sample that the model answers the same in both orders: `curva map` with `--no-debias` halves the calls.",
+        "Latency-critical paths on a slow provider, if you accept the bias. Try `auto` first.",
+        "Lettered options are already asked once, so there is nothing to turn off."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Don't turn it off to save money on a question you haven't checked. Position bias shows up as a quiet skew, not as an error."
+    },
+    {
+      "kind": "h2",
+      "text": "How it fits with calibration"
+    },
+    {
+      "kind": "p",
+      "text": "Debiasing and calibration fix different errors, so use both. Debiasing removes a systematic lean caused by the prompt layout, with no labels needed. Calibration corrects how confident the answers are, using your labels, once a question has 30 of them. Keep the debias setting stable while you collect labels, so the calibrator learns from answers made the same way as the ones it will adjust."
+    },
+    {
+      "kind": "p",
+      "text": "A third guard sits next to both: every Choice gets a `none_of_these` option by default, so a model shown a ticket that fits no option is not forced to pick one."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [debiasing, escape and abstain](https://itsmohitrohilla.github.io/curva-docs/concepts/trust/) and [speed and cost](https://itsmohitrohilla.github.io/curva-docs/guides/speed-and-cost/). For how debiasing fits with calibration, abstain and coverage sets, read [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/). To try it in code, start with the [Python LLM classification tutorial](/blog/python-llm-classification/)."
+    }
+  ]
+}

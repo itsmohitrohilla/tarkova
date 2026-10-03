@@ -1,0 +1,215 @@
+{
+  "slug": "abstain-vs-conformal-prediction",
+  "title": "Abstain or a coverage set? Selective classification for LLMs",
+  "summary": "Abstain checks the top answer; a conformal set checks every option. A decision table by question type and the routing rule that combines both.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/guides/guaranteed-accuracy.md",
+    "site/concepts/trust.md",
+    "site/reference/http-api.md",
+    "site/concepts/calibration.md",
+    "site/self-hosting.md",
+    "site/guides/dashboard.md",
+    "site/guides/feedback.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Selective classification vs conformal prediction is a choice between two ways of handling an unsure LLM answer. Selective classification lets the classifier abstain: if the top answer's confidence is below a threshold, it hands the item to a person. Conformal prediction keeps every answer but attaches a set of options that contains the true one at a promised rate. In Curva the first is `min_confidence`, which sets `abstain: true`, and the second is `coverage`, which adds a `set`. Abstain looks at the top answer; a coverage set looks at every option. They answer different questions, they work on different question types, and the strongest routing rule uses both."
+    },
+    {
+      "kind": "h2",
+      "text": "Two questions: is the top answer good enough, which options must I keep"
+    },
+    {
+      "kind": "p",
+      "text": "Every routing decision on an LLM answer comes down to one of two questions."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Is the top answer good enough to act on?** That is selective classification. You set a bar, and answers below it abstain. In Curva: `min_confidence` on the question, and `abstain: true` on the answer.",
+        "**Which options must I keep to be right often enough?** That is conformal prediction. You set a target rate, and each answer comes with the smallest set of options that meets it. In Curva: `coverage` on the question, and `set` plus `guaranteed` on the answer."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A word on vocabulary, because the two fields collide. In the selective classification literature, \"coverage\" usually means the share of inputs the classifier answers instead of abstaining. In Curva, `coverage` is the conformal target: the probability that the set contains the true answer. Curva's own name for the share answered is `automated`, in the calibration report."
+    },
+    {
+      "kind": "h2",
+      "text": "Selective classification vs conformal prediction: support by question type"
+    },
+    {
+      "kind": "p",
+      "text": "The two are not available on the same question types:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Question type",
+        "`min_confidence` (abstain)",
+        "`coverage` (set)"
+      ],
+      "rows": [
+        [
+          "Choice",
+          "yes",
+          "yes"
+        ],
+        [
+          "Score",
+          "yes",
+          "no"
+        ],
+        [
+          "Noul",
+          "no",
+          "yes, a subset of `[\"true\", \"false\"]`"
+        ],
+        [
+          "Multi",
+          "no",
+          "accepted, but `guaranteed: false` for now"
+        ],
+        [
+          "Text, Number, Integer",
+          "yes",
+          "no"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Two gaps are worth knowing. A Noul has no `min_confidence`: its answer is one number, P(yes), so you route it with your own thresholds, treating the middle band as unsure, or you set `coverage` and read the set. A set of `[\"true\", \"false\"]` means the model can't tell. And a Multi accepts `coverage`, but feedback labels a Multi as a whole rather than option by option, so its sets carry no guarantee yet. Setting `coverage` on a type that doesn't support it gets 422."
+    },
+    {
+      "kind": "h2",
+      "text": "What each needs: a calibrated threshold vs 30 representative labels"
+    },
+    {
+      "kind": "p",
+      "text": "Both tools work from day one, but neither is fully meaningful until it has labels."
+    },
+    {
+      "kind": "p",
+      "text": "**Abstain needs calibration.** `min_confidence` compares the answer's confidence with your bar. Before the question is calibrated, that confidence is the model's own number, debiased across two option orders but not checked against your data. A bar of 0.8 is then a guess about the model. Once your feedback has fitted a calibrator (after 30 labels, and only when it beats the raw probabilities on held-out labels), the threshold means what it says."
+    },
+    {
+      "kind": "p",
+      "text": "**A coverage set needs 30 representative labels.** The set is built by split conformal prediction from the question's own feedback labels. Before 30 labels, the answer has `guaranteed: false` and no `set`. After 30, the guarantee holds whatever the model, as long as the labels are a fair sample of your traffic. Calibration helps by making sets smaller, but the guarantee doesn't depend on it."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "",
+        "Abstain",
+        "Coverage set"
+      ],
+      "rows": [
+        [
+          "Looks at",
+          "the top answer",
+          "every option"
+        ],
+        [
+          "Promise",
+          "none until calibrated; then the threshold means what it says",
+          "the true answer is in the set at least `coverage` of the time"
+        ],
+        [
+          "Needs",
+          "a calibrator for the question",
+          "30 labels that look like your traffic"
+        ],
+        [
+          "Fails quietly when",
+          "the model is overconfident and uncalibrated",
+          "labels are not representative or traffic shifts"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Combined rule: a one-option set and abstain false"
+    },
+    {
+      "kind": "p",
+      "text": "The two checks catch different failures, so combine them. Curva's docs give a common routing rule: automate when the set has one option and `abstain` is false, and send everything else to review."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "q = Choice(\"Which team?\", [\"billing\", \"technical\", \"sales\"], min_confidence=0.8, coverage=0.95)\nd = curva.decide(ticket, {\"team\": q}, project=\"support\")\na = d[\"team\"]\nif a.guaranteed and len(a.set) == 1 and not a.abstain:\n    route(ticket, a.choice)\nelse:\n    review(ticket, candidates=a.set or [a.choice])"
+    },
+    {
+      "kind": "p",
+      "text": "Why both? A one-option set says the model is sure enough to meet the coverage guarantee alone. `abstain: false` says the top answer also clears your own bar. Either check alone can let an answer through that the other would stop. And the `guaranteed` check guards the start: until the question has 30 labels, there is no set and everything goes to review."
+    },
+    {
+      "kind": "h2",
+      "text": "Showing the set to a reviewer as candidates"
+    },
+    {
+      "kind": "p",
+      "text": "The `else` branch above doesn't just send the item to a person. It sends the candidates. That is where a coverage set earns its keep even when it can't automate."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Set",
+        "Meaning",
+        "What the reviewer sees"
+      ],
+      "rows": [
+        [
+          "One option",
+          "sure enough to meet the guarantee alone",
+          "usually automated; shown if `abstain` was true"
+        ],
+        [
+          "Several options",
+          "the truth is one of these, at the promised rate",
+          "a short list to choose from"
+        ],
+        [
+          "Every option",
+          "the model can't narrow it down",
+          "the full list, so a fresh read"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A reviewer choosing between two likely teams works faster than one starting from the full list. When the reviewer decides, send the answer back with `client.feedback(decision_id, \"team\", \"technical\")`. Each review adds a label that feeds both calibration and the conformal threshold."
+    },
+    {
+      "kind": "h2",
+      "text": "Metrics to watch for each"
+    },
+    {
+      "kind": "p",
+      "text": "Each tool has its own health signal."
+    },
+    {
+      "kind": "p",
+      "text": "**For abstain**, watch how much you automate and how well it goes. The calibration report gives `automated`, the share of answers at 0.9 or above, and `accuracy_when_automated`, how often those were right, before and after calibration. The server's `curva_abstains_total` counter, and the abstain rate on the dashboard's overview, show how much traffic reaches people."
+    },
+    {
+      "kind": "p",
+      "text": "**For a coverage set**, watch two things. First, the size of the sets: the share with one option is how much you can automate under the guarantee. Second, whether the sets still cover. Label a random sample of recent decisions and count how often the true answer was inside the set. At 0.95 coverage, expect about one miss in twenty; many more suggests the labels no longer match your traffic, and the weekly drift report is the place to check."
+    },
+    {
+      "kind": "p",
+      "text": "Neither replaces the other. Abstain is the simpler tool and works on Scores and extraction. Coverage gives a promise you can state in a contract with your own team. Use abstain everywhere it applies, and add coverage where a stated rate matters."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs describe both in [guaranteed accuracy](https://itsmohitrohilla.github.io/curva-docs/guides/guaranteed-accuracy/) and [debiasing, escape and abstain](https://itsmohitrohilla.github.io/curva-docs/concepts/trust/). Go deeper on each side with [LLM confidence threshold and abstain](/blog/llm-confidence-threshold-abstain/) and [conformal prediction for LLM classification](/blog/conformal-prediction-llm/). For the accuracy you get at each threshold, read [selective accuracy for LLMs](/blog/llm-selective-accuracy/), and for the full picture, [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

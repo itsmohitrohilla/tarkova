@@ -1,0 +1,206 @@
+{
+  "slug": "few-shot-examples-llm-classification",
+  "title": "Few-shot examples for LLM classification, up to 10",
+  "summary": "Add up to 10 labeled examples per question, written like feedback labels and remapped when debiasing reverses the options. Which ones to pick.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/explain.md",
+    "site/guides/hard-questions.md",
+    "site/guides/tune.md",
+    "site/reference/http-api.md",
+    "site/concepts/trust.md",
+    "site/guides/feedback.md",
+    "site/guides/extraction.md",
+    "sdk/typescript/README.md",
+    "site/reference/cli.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Few-shot examples for LLM classification are labeled cases you attach to a question so the model sees how you want borderline inputs answered. In Curva each question takes up to 10 of them, written as (state, label) pairs, with the label in the same form as a feedback label: an option key, a level index, true or false, or a value. They are fenced as data in the prompt, they add no extra model calls, and they are remapped when order debiasing reverses the options, so an example that says \"billing\" still points at billing. Pick boundary cases, not easy ones, and measure the gain with `curva tune`."
+    },
+    {
+      "kind": "h2",
+      "text": "Up to 10 examples per question, as (state, label) pairs"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Noul, Choice\n\nurgent = Noul(\"Is this urgent?\", examples=[\n    ({\"ticket\": \"The production server is down\"}, True),\n    ({\"ticket\": \"Typo on the pricing page\"}, False),\n])\n\nteam = Choice(\"Which team?\", [\"billing\", \"technical\"], examples=[\n    ({\"ticket\": \"Refund my last invoice\"}, \"billing\"),\n])"
+    },
+    {
+      "kind": "p",
+      "text": "Each example is a pair: a state, shaped like the states you will send, and the label the model should give for it. Examples belong to one question, not to the request, so a request with five questions can carry different examples for each. Choice, Score and Noul questions take them, and so do the extraction types, Text, Number and Integer. The limit is 10 per question."
+    },
+    {
+      "kind": "p",
+      "text": "Examples usually raise accuracy and make the answer less sensitive to exact wording. They cost no extra calls: the prompt just gets longer. On a paid model, longer prompts cost more per call, so 10 long examples on every request add up. Spend them where they change answers."
+    },
+    {
+      "kind": "h2",
+      "text": "Labels written like feedback: key, level index, true or false, value"
+    },
+    {
+      "kind": "p",
+      "text": "A few-shot label uses exactly the same form as a feedback label:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Question type",
+        "Label"
+      ],
+      "rows": [
+        [
+          "Choice",
+          "the option key, such as `\"billing\"`"
+        ],
+        [
+          "Score",
+          "the level index, 0 for the lowest"
+        ],
+        [
+          "Noul",
+          "`True` or `False` in Python, `true` or `false` over HTTP"
+        ],
+        [
+          "Text, Number, Integer",
+          "the value itself"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "That symmetry is useful. The labels your reviewers send back as feedback are already in the right form to become examples. When the review queue shows the model getting the same kind of case wrong again and again, the corrected cases are your strongest candidates."
+    },
+    {
+      "kind": "p",
+      "text": "In TypeScript, `examples` is an array of `{ state, label }` objects on the `choice`, `score` and `noul` builders."
+    },
+    {
+      "kind": "h2",
+      "text": "Remapped when debiasing reverses the options"
+    },
+    {
+      "kind": "p",
+      "text": "Curva asks every question twice by default, once with the options in your order and once reversed, and averages the two. That cancels the model's tendency to favour an option because of its position."
+    },
+    {
+      "kind": "p",
+      "text": "Examples need care under that scheme. If a prompt shows options as a numbered list and an example says \"answer: 1\", reversing the list silently turns that example into a vote for the last option. A hand-rolled few-shot prompt that reorders options without fixing its examples teaches the model the wrong answer on half of its calls, and nothing errors."
+    },
+    {
+      "kind": "p",
+      "text": "Curva handles it for you. Few-shot examples are remapped when the options are reversed, so they stay correct in both calls. You write the label once, as an option key, and it means the same option in either order."
+    },
+    {
+      "kind": "p",
+      "text": "Examples are also fenced as data in the prompt, like the state. Text inside an example that looks like an instruction is treated as part of the example, not obeyed."
+    },
+    {
+      "kind": "h2",
+      "text": "Few-shot examples for LLM classification: choose boundary cases"
+    },
+    {
+      "kind": "p",
+      "text": "The examples that help are the ones near a boundary the model gets wrong. The docs' hard-questions guide shows two tickets that sit on the line between billing and technical:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Choice\n\nteam = Choice(\"Which team?\", [\"billing\", \"technical\"], examples=[\n    ({\"ticket\": \"I was charged after cancelling\"}, \"billing\"),\n    ({\"ticket\": \"The invoice PDF won't download\"}, \"technical\"),\n])"
+    },
+    {
+      "kind": "p",
+      "text": "Both mention money or invoices. Only one is a billing problem. A model that routes on keywords gets the second one wrong, and one example fixes the pattern better than a paragraph of instructions would."
+    },
+    {
+      "kind": "p",
+      "text": "A few rules for picking examples:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Use real inputs from your traffic, shaped like the states you send.",
+        "Cover each label at least once, but spend most of the budget on confused pairs.",
+        "Skip the easy cases. The model already gets them right; they only lengthen the prompt.",
+        "Keep the examples stable once you start collecting feedback, and check the calibration report after any change, since the raw probabilities move when the prompt changes."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The guide's decision table puts examples first for one symptom: wrong on the same kind of case again and again. For a question that needs a few steps of reasoning, `think` is the tool; for confident mistakes now and then, a council or `min_confidence`."
+    },
+    {
+      "kind": "h2",
+      "text": "Over HTTP: the examples array"
+    },
+    {
+      "kind": "p",
+      "text": "Over HTTP, `examples` is a list of objects with a `state` and a `label`, on the question:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"examples\": [{\"state\": {\"ticket\": \"The production server is down\"}, \"label\": true}]"
+    },
+    {
+      "kind": "p",
+      "text": "Up to 10 per question, with labels as in feedback. The same field works in question files for `curva map`, `curva shadow` and `curva bench`."
+    },
+    {
+      "kind": "h2",
+      "text": "Measure the gain: curva tune tries 0 and 4 examples"
+    },
+    {
+      "kind": "p",
+      "text": "Whether examples help on your data is an empirical question, and `curva tune` answers it. It searches a small grid of setups on one labeled set and writes the winner as a ready-to-send request:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva tune --dir my-evals tickets --models model-a,model-b --per-set 60 --out tuned.json --yes"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Knob",
+        "Values tried"
+      ],
+      "rows": [
+        [
+          "Model plan",
+          "each model alone; with 2+ models, a council and cascades at 0.7, 0.8 and 0.9"
+        ],
+        [
+          "`mode`",
+          "`auto`, `verbal`"
+        ],
+        [
+          "`debias`",
+          "on, off"
+        ],
+        [
+          "Few-shot",
+          "0 or 4 examples, one per label first, drawn from the train rows"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The rows are shuffled with a fixed seed and split once: a fifth, at least 4 and at most half, becomes the few-shot pool, and the rest is the test set. Every candidate answers the same test rows, ranked by accuracy, then ECE, then cost. The untuned default is marked, and the winner's gain over it is printed. If the 4-example candidates don't rank above the 0-example ones, your examples aren't earning their tokens."
+    },
+    {
+      "kind": "p",
+      "text": "Tune refuses to run more than 200 model calls without `--yes`, so lower `--per-set` or use fewer models to keep a first run small. The winning examples live inside the question in `tuned.json`, ready to send."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [few-shot examples and explain](https://itsmohitrohilla.github.io/curva-docs/guides/explain/), [hard questions](https://itsmohitrohilla.github.io/curva-docs/guides/hard-questions/) and [Curva Tune](https://itsmohitrohilla.github.io/curva-docs/guides/tune/). For the other tool in the hard-question kit, read [per-question LLM reasoning with think](/blog/per-question-llm-reasoning-think/). For why reversed options matter, see [LLM position bias](/blog/llm-position-bias/), and for large label sets, [LLM classification with many classes](/blog/llm-classification-many-classes/). For the product overview, read [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

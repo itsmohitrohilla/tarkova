@@ -1,0 +1,137 @@
+{
+  "slug": "reliability-diagram-llm",
+  "title": "Reliability diagrams: plot LLM confidence vs accuracy",
+  "summary": "Read a reliability diagram for an LLM classifier from Curva's reliability bins or dashboard, and spot overconfident, underconfident and leaning models.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/calibration.md",
+    "site/guides/dashboard.md",
+    "site/guides/feedback.md",
+    "site/reference/http-api.md",
+    "site/concepts/trust.md",
+    "Content Box/4 Benchmarks/benchmarks.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "A reliability diagram plots a classifier's stated confidence against its actual accuracy. Group the answers into bins by confidence, then put each bin's average confidence on the x axis and the share of its answers that were right on the y axis. A calibrated model sits on the diagonal. Points below the diagonal mean overconfident, points above mean underconfident. For an LLM classifier you can read the bins straight from Curva's calibration report, or open the dashboard, which draws the diagram with the diagonal for you. This post shows where the bins come from, how to read each shape, and how to turn the curve into a `min_confidence` cut-off."
+    },
+    {
+      "kind": "h2",
+      "text": "Bins, the diagonal, and which side means overconfident"
+    },
+    {
+      "kind": "p",
+      "text": "The idea is simple. If a model says 0.8 on a group of answers, about 80% of them should be right. Check that at every confidence level, and you have a calibration curve. Curva is named after that curve: Curva means \"curve\"."
+    },
+    {
+      "kind": "art",
+      "svg": "<svg viewBox=\"0 0 640 380\" role=\"img\" aria-label=\"Illustrative reliability diagram. The x axis is stated confidence from 0 to 1, the y axis is observed accuracy from 0 to 1. A dashed diagonal marks perfect calibration. An orange overconfident curve runs below the diagonal at high confidence, and a grey underconfident curve runs above it.\" font-family=\"system-ui, sans-serif\" font-size=\"14\">\n  <line x1=\"80\" y1=\"320\" x2=\"380\" y2=\"320\" stroke=\"currentColor\" stroke-opacity=\"0.6\"/>\n  <line x1=\"80\" y1=\"20\" x2=\"80\" y2=\"320\" stroke=\"currentColor\" stroke-opacity=\"0.6\"/>\n  <text x=\"230\" y=\"352\" text-anchor=\"middle\" fill=\"currentColor\">stated confidence</text>\n  <text x=\"30\" y=\"170\" text-anchor=\"middle\" fill=\"currentColor\" transform=\"rotate(-90 30 170)\">observed accuracy</text>\n  <text x=\"80\" y=\"338\" text-anchor=\"middle\" fill=\"currentColor\">0</text>\n  <text x=\"380\" y=\"338\" text-anchor=\"middle\" fill=\"currentColor\">1</text>\n  <text x=\"70\" y=\"24\" text-anchor=\"end\" fill=\"currentColor\">1</text>\n  <line x1=\"80\" y1=\"320\" x2=\"380\" y2=\"20\" stroke=\"currentColor\" stroke-dasharray=\"6 6\" stroke-opacity=\"0.7\"/>\n  <polyline points=\"170,260 230,215 290,185 350,135\" fill=\"none\" stroke=\"#FF4407\" stroke-width=\"3\"/>\n  <circle cx=\"170\" cy=\"260\" r=\"5\" fill=\"#FF4407\"/><circle cx=\"230\" cy=\"215\" r=\"5\" fill=\"#FF4407\"/><circle cx=\"290\" cy=\"185\" r=\"5\" fill=\"#FF4407\"/><circle cx=\"350\" cy=\"135\" r=\"5\" fill=\"#FF4407\"/>\n  <polyline points=\"140,200 200,150 260,110\" fill=\"none\" stroke=\"currentColor\" stroke-opacity=\"0.5\" stroke-width=\"3\"/>\n  <circle cx=\"140\" cy=\"200\" r=\"5\" fill=\"currentColor\" fill-opacity=\"0.5\"/><circle cx=\"200\" cy=\"150\" r=\"5\" fill=\"currentColor\" fill-opacity=\"0.5\"/><circle cx=\"260\" cy=\"110\" r=\"5\" fill=\"currentColor\" fill-opacity=\"0.5\"/>\n  <rect x=\"420\" y=\"60\" width=\"16\" height=\"4\" fill=\"#FF4407\"/>\n  <text x=\"444\" y=\"66\" fill=\"currentColor\">overconfident: below</text>\n  <rect x=\"420\" y=\"100\" width=\"16\" height=\"4\" fill=\"currentColor\" fill-opacity=\"0.5\"/>\n  <text x=\"444\" y=\"106\" fill=\"currentColor\">underconfident: above</text>\n  <line x1=\"420\" y1=\"142\" x2=\"436\" y2=\"142\" stroke=\"currentColor\" stroke-dasharray=\"4 4\"/>\n  <text x=\"444\" y=\"146\" fill=\"currentColor\">calibrated: on the line</text>\n</svg>",
+      "title": "A reliability diagram for an LLM classifier",
+      "caption": "Made-up example: points below the diagonal are overconfident, points above are underconfident, and a calibrated model follows the dashed line.",
+      "example": true
+    },
+    {
+      "kind": "p",
+      "text": "How to read it:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Below the diagonal:** the model claims more than it delivers. A bin at 0.9 that is right far less often is the classic LLM failure, and the most dangerous one, because high-confidence answers are the ones you automate.",
+        "**Above the diagonal:** the model is right more often than it says. Safe, but wasteful: you send answers to people that you could have automated.",
+        "**On the diagonal:** confidence means what it says."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The distance from the diagonal, weighted by how many answers sit in each bin, is the expected calibration error (ECE). The diagram shows you where that error lives."
+    },
+    {
+      "kind": "h2",
+      "text": "Getting the bins: client.calibration and the reliability field"
+    },
+    {
+      "kind": "p",
+      "text": "Every Curva answer needs a true label before it can appear in a reliability diagram. Send labels with feedback when you learn them, then ask for the report:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "Over HTTP it is `GET /v1/calibration?question=<key>&project=<name>`. The report covers the most recent wording of the question. Both `before` and `after` hold `accuracy`, `ece`, `brier`, `automated` and `accuracy_when_automated`, plus `reliability` bins: the predicted confidence against the observed accuracy, which is what you plot. Feed the `reliability` bins of either block to any plotting tool you like, or skip the plotting entirely and use the dashboard."
+    },
+    {
+      "kind": "h2",
+      "text": "The dashboard's calibration panel draws the reliability diagram"
+    },
+    {
+      "kind": "p",
+      "text": "`curva serve` has a built-in page at `/dashboard`. Its Calibration view reads `GET /v1/calibration` for one question and shows the labels collected against the 30 needed, the fitted calibrator, accuracy, ECE, Brier and automation before and after calibration, and a reliability diagram: predicted confidence against observed accuracy, with the diagonal a calibrated model follows."
+    },
+    {
+      "kind": "p",
+      "text": "The page itself holds no data, so it is served without a key. Every data request it makes goes to the API and needs a key like any other client. Give the dashboard its own key with `curva keys create --name dashboard`, so you can revoke it without touching production clients. On anything but localhost, put the server behind TLS."
+    },
+    {
+      "kind": "h2",
+      "text": "Before vs after: why the after curve is held out"
+    },
+    {
+      "kind": "p",
+      "text": "The report draws two curves. `before` is the model's raw probabilities. `after` is what calibration would do, measured honestly: each half of the labels is calibrated by a fit on the other half. A curve fitted and tested on the same labels would always look good. A held-out curve can look worse, and when it does, Curva doesn't apply the calibrator."
+    },
+    {
+      "kind": "p",
+      "text": "Curva applies a calibrator only when it clearly beats the raw probabilities on held-out labels, in both log-loss and Brier score. If the `after` curve barely differs from `before`, expect answers to stay raw with `calibrated: false`. That is the right outcome for a model that already sits near the diagonal."
+    },
+    {
+      "kind": "p",
+      "text": "For a sense of scale on public data: in Curva's runs of 2026-10-01, Gemini flash-lite on AITA had a raw ECE of 0.404 and 0.149 after calibration, held out (n = 100). On BoolQ the same model's ECE stayed at 0.081 before and after (n = 127), because calibration couldn't show a clear gain.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "Few answers per bin: what 30 labels can and cannot show"
+    },
+    {
+      "kind": "p",
+      "text": "A reliability diagram needs answers in each bin to mean anything. Thirty labels is Curva's minimum to fit a calibrator, but 30 labels spread over several bins leaves only a handful per bin. A bin with four answers can sit far from the diagonal by chance."
+    },
+    {
+      "kind": "p",
+      "text": "So read an early diagram for its shape, not its points. A curve that sits below the diagonal across every bin says \"overconfident\" even with few labels. A single odd bin says little. Curva handles this on its side too: with 30 labels a calibrator moves probabilities only about a third of the way to what the labels suggest, and nearly all the way at 1,000."
+    },
+    {
+      "kind": "p",
+      "text": "Two habits make the diagram trustworthy faster. Label confident answers as well as the ones people reviewed, so the high bins fill up. And keep the question's wording fixed, because a reworded question starts a fresh calibration with no labels."
+    },
+    {
+      "kind": "h2",
+      "text": "From the curve to a min_confidence cut-off"
+    },
+    {
+      "kind": "p",
+      "text": "The point of the diagram is a decision: where do you stop automating? Find the lowest confidence where the curve meets the accuracy you need, and set `min_confidence` there. Answers below it come back with `abstain: true` and go to a person."
+    },
+    {
+      "kind": "p",
+      "text": "The report gives the shortcut for the most common cut-off. `accuracy_when_automated` is the accuracy on answers at or above 0.9, and `automated` is the share of answers that reach it. If that accuracy is high enough for you, 0.9 is a usable threshold. If it isn't, the diagram shows how far up you would have to move it, or whether the model needs calibration first."
+    },
+    {
+      "kind": "p",
+      "text": "Before calibration, the threshold is a guess about the model. Once the question is calibrated, the curve is close to the diagonal and the threshold means what it says."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs explain the curve in [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/) and the [dashboard guide](https://itsmohitrohilla.github.io/curva-docs/guides/dashboard/). For the number the diagram summarises, read [expected calibration error](/blog/expected-calibration-error-llm/). For the mechanism, see [LLM calibration explained](/blog/llm-calibration-explained/), and for what to automate at each threshold, [selective accuracy for LLMs](/blog/llm-selective-accuracy/). The full picture is in [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

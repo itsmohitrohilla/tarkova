@@ -1,0 +1,293 @@
+{
+  "slug": "reduce-llm-classification-cost",
+  "title": "Reduce LLM classification cost: every lever, measured",
+  "summary": "Every way to cut the cost of LLM classification in one place: rules, when, the cache, debias auto, cascades, prompt caching, local models and spend caps.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/speed-and-cost.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/guides/rules.md",
+    "site/guides/conditional.md",
+    "site/guides/multi-model.md",
+    "site/self-hosting.md",
+    "site/guides/providers.md",
+    "site/concepts/projects.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To reduce LLM classification cost, stop paying for calls you don't need, then make the calls you keep cheaper. In Curva that means rules and `when` for the easy and irrelevant questions, the decision cache for repeats, `debias: \"auto\"` to drop the second call once a question has shown no position bias, a cascade so the expensive model sees only the unsure questions, a cache-friendly config, and a daily cap. This guide puts every lever in one table, with what it saves and what it costs you, anchored by measured cost per 1,000 decisions."
+    },
+    {
+      "kind": "p",
+      "text": "Curva itself is free to use under the Curva Free License. You pay only your model provider, and free models work. So every lever below is about one thing: how many model calls you make, and how many tokens each one carries."
+    },
+    {
+      "kind": "h2",
+      "text": "Start with the measured cost per 1,000 decisions"
+    },
+    {
+      "kind": "p",
+      "text": "Before you optimise, know the baseline. These figures come from the `cost_usd` field of real benchmark runs: 160 decisions per model, 20 on each of 8 public sets, with order debiasing on, measured on 2026-09-30. Figures are truncated, not rounded up."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "All 8 sets",
+        "PhishNChips",
+        "BANKING77 (77 options)"
+      ],
+      "rows": [
+        [
+          "`@openai/gpt-4.1-nano`",
+          "$0.078",
+          "$0.055",
+          "$0.294"
+        ],
+        [
+          "`@openai/gpt-4o-mini`",
+          "$0.118",
+          "$0.083",
+          "$0.441"
+        ],
+        [
+          "`@openai/gpt-4.1-mini`",
+          "$0.314",
+          "$0.223",
+          "$1.17"
+        ],
+        [
+          "`@anthropic/claude-haiku-4-5-20251001`",
+          "$1.64",
+          "$1.29",
+          "$4.78"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "$0 within free-tier limits",
+          "$0",
+          "$0"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "$0 within free-tier limits",
+          "$0",
+          "$0"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Two things stand out. First, the model choice moves cost by about 20 times between gpt-4.1-nano and Claude Haiku 4.5 on the same sets. Second, the number of options matters: BANKING77, with 77 options, cost several times more per decision than the phishing set on every paid model. For the whole benchmark program, OpenAI and Anthropic calls cost $0.59 in total.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Choosing the model is the first lever, and it is outside this post. The rest of the levers apply whatever model you pick."
+    },
+    {
+      "kind": "h2",
+      "text": "Every lever to reduce LLM classification cost"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Lever",
+        "Saves",
+        "Costs you"
+      ],
+      "rows": [
+        [
+          "Rules",
+          "the model call for cases you already know",
+          "writing the rule"
+        ],
+        [
+          "`when`",
+          "calls for questions that don't apply",
+          "nothing"
+        ],
+        [
+          "Decision cache",
+          "every identical repeat",
+          "memory on the server"
+        ],
+        [
+          "`debias: \"auto\"`",
+          "about half the calls, once a question is learned",
+          "nothing, for questions without position bias"
+        ],
+        [
+          "Cascade",
+          "calls to the expensive model",
+          "an extra call for unsure questions"
+        ],
+        [
+          "`curva-1.2.0` config",
+          "prompt tokens, where the provider caches prompts",
+          "calibrate again after switching"
+        ],
+        [
+          "Local or fast providers",
+          "per-call price and network time",
+          "running or choosing the model"
+        ],
+        [
+          "`CURVA_DAILY_LIMIT`",
+          "surprise bills",
+          "requests past the cap get 429"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The sections below take them in order, from no effort to some."
+    },
+    {
+      "kind": "h2",
+      "text": "Free answers: rules, when and the decision cache"
+    },
+    {
+      "kind": "p",
+      "text": "A model call you never make costs nothing. Three features answer without one."
+    },
+    {
+      "kind": "p",
+      "text": "**Rules** answer the easy cases you already know. Give a question `rules`, and a ticket that mentions an invoice goes to billing with no model call. Up to 32 rules per question, tried in order, first match wins. A rule answer has `confidence: 1.0` and a `rule` field naming which rule fired."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Choice, Noul, Score\n\nquestions = {\n    \"team\": Choice(\"Which team should handle this?\", [\"billing\", \"technical\", \"sales\"])\n        .rule(\"billing\", ticket={\"contains\": \"invoice\"})\n        .rule(\"technical\", ticket={\"starts_with\": \"Error\"}),\n    \"priority\": Noul(\"This ticket needs a reply today\")\n        .rule(True, plan=[\"enterprise\", \"premium\"], open_tickets={\"gte\": 3}),\n    \"tone\": Score(\"How upset is the customer?\", [\"calm\", \"annoyed\", \"angry\"]),\n}\nd = client.decide(ticket, questions)\nd[\"team\"].choice, d[\"team\"].rule   # \"billing\", 0 (None when the model answered)"
+    },
+    {
+      "kind": "p",
+      "text": "**`when`** skips questions that don't apply. A refund question only makes sense for billing tickets, so give it `when: {\"department\": \"billing\"}`. Skipped questions come back as `{\"skipped\": true}` and are never sent, stored or paid for."
+    },
+    {
+      "kind": "p",
+      "text": "If every question in a request is answered by a rule or skipped by its `when`, no model is called at all. The decision takes about no time and costs $0."
+    },
+    {
+      "kind": "p",
+      "text": "**The decision cache** answers repeats. Calls run at temperature 0, so an identical decision (same model, state, questions, config, project, privacy and `think`) comes back from memory in about a millisecond, with `cached: true` and no cost. There is nothing to do on the client. Size it with `curva serve --cache-size`. This pays off on retries, duplicate events and pipelines that reprocess the same records."
+    },
+    {
+      "kind": "h2",
+      "text": "Half the calls: debias auto"
+    },
+    {
+      "kind": "p",
+      "text": "By default Curva asks every question twice, with the options in the original and the reversed order, and averages the answers. That cancels position bias, but it doubles the calls. For many questions the model answers the same either way, and the second call buys nothing."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "d = client.decide(state, questions, debias=\"auto\")\nd.debiased   # True while learning or checking, False when only the original order was asked"
+    },
+    {
+      "kind": "p",
+      "text": "With `debias: \"auto\"`, the server keeps asking both orders for a model and question until it has at least 20 paired answers, of which 95% agree (same top answer, top probability within 0.1). From then on it asks only the original order, and still asks both on every 10th request to keep checking. One disagreement puts the question back to full debiasing."
+    },
+    {
+      "kind": "p",
+      "text": "The saving is about half the calls once a question is learned. The cost is nothing for questions without position bias, which is the point: questions where order does matter keep paying for the second call. What it learned lives in server memory and starts over after a restart. `debias: false` always skips the second call, and keeps whatever bias the model has. Use it only where you have checked."
+    },
+    {
+      "kind": "h2",
+      "text": "Fewer expensive calls: cascades"
+    },
+    {
+      "kind": "p",
+      "text": "A cascade asks the cheap model first, and sends only the questions it is unsure of to the next one."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "d = client.decide(state, questions, cascade=[\"free-model\", \"strong-model\"], escalate_below=0.8)\nd[\"team\"].answered_by    # the model that gave the final answer"
+    },
+    {
+      "kind": "p",
+      "text": "Only the questions whose confidence is below `escalate_below` (default 0.8) go on. Confident answers stand. When the cheap model is sure, the strong model is never called. If the stronger model fails, the cheaper answers are kept. The cost is an extra call for every unsure question."
+    },
+    {
+      "kind": "p",
+      "text": "A cascade only saves money if the cheap model's confidence tracks its accuracy. On phishing, Curva's own offline test found the opposite: a Groq to Gemini cascade scored 70 to 72% against Gemini alone at 80%, on 100 shared rows. Test a cascade on your data before you trust it. The [cascade post](/blog/llm-cascade-cost/) covers how.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "For a backfill, the same plan works on the command line: `curva map` takes `--cascade` and `--escalate-below`."
+    },
+    {
+      "kind": "h2",
+      "text": "Cheaper prompts: curva-1.2.0 and provider caching"
+    },
+    {
+      "kind": "p",
+      "text": "A pinned config fixes the prompt template. `config=\"curva-1.2.0\"` puts the questions before the state. The questions repeat on every call, so providers and local servers that cache prompt prefixes read that part from cache and charge less for it."
+    },
+    {
+      "kind": "p",
+      "text": "Two rules for using it. Answers can differ slightly from `curva-1.1.0`, so calibrate again after switching. And keep `mode` at `auto` (or `logprobs` where the model returns them): a logprobs answer is one token per question, so the reply costs almost nothing."
+    },
+    {
+      "kind": "p",
+      "text": "All the questions in one request are answered together, so asking five questions does not cost five round trips. Group the questions you ask about the same record."
+    },
+    {
+      "kind": "h2",
+      "text": "Local and fast providers"
+    },
+    {
+      "kind": "p",
+      "text": "A model on your own machine (`@ollama/...`, `@llamacpp/...`) has no per-call price, no network hop and no rate limit. `cost_usd` is always 0 there. The cost moves to running the model. Hosted providers built for low latency, such as `@groq/...`, are the other route, and free tiers exist: on 2026-09-29 a new Groq key got 200,000 tokens a day, about 180 debiased decisions, and a Gemini key about 500 requests a day. Providers change these limits often."
+    },
+    {
+      "kind": "p",
+      "text": "For a provider that doesn't report cost, set `CURVA_PROVIDER_<NAME>_PRICE` (input and output dollars per million tokens), so `cost_usd` reflects your real spend."
+    },
+    {
+      "kind": "h2",
+      "text": "Cap the spend: CURVA_DAILY_LIMIT"
+    },
+    {
+      "kind": "p",
+      "text": "Levers lower the average. A cap protects you from the bad day: a loop that resends the same queue, or a backfill started against the wrong model."
+    },
+    {
+      "kind": "p",
+      "text": "`CURVA_DAILY_LIMIT` caps model calls per UTC day. Further requests get 429, with a `Retry-After` header that says how many seconds remain until the budget resets at 00:00 UTC. `GET /metrics` exposes `curva_daily_quota_remaining`, so you can alert before you hit it. One detail from the providers guide: `CURVA_RPM` and `CURVA_DAILY_LIMIT` apply to OpenRouter only. For other providers, use the limits in the provider's own console."
+    },
+    {
+      "kind": "p",
+      "text": "A project can also carry its own provider key, so its model calls are billed to it. That does not reduce cost, but it shows you which use case spends what."
+    },
+    {
+      "kind": "h2",
+      "text": "What not to cut"
+    },
+    {
+      "kind": "p",
+      "text": "Some savings cost more than they save."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Don't turn debiasing off on a question you haven't checked. Position bias shows up as a quiet skew, not as an error. Try `auto` first.",
+        "Don't cascade without measuring. A cheap model that is confident when wrong sends nothing upward.",
+        "Don't switch configs mid-collection. A new prompt template restarts calibration."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The levers come from the docs page on [speed and cost](https://itsmohitrohilla.github.io/curva-docs/guides/speed-and-cost/). For the cascade in depth, read [cut LLM costs with a cascade](/blog/llm-cascade-cost/). To pick the model that sets your baseline, see [choose a model for LLM classification](/blog/choose-a-model-for-llm-classification/), and for the free routes, [free LLM APIs for classification](/blog/free-llm-api-classification/). Install with `pip install curva-ai`."
+    }
+  ]
+}

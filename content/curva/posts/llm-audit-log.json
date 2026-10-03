@@ -1,0 +1,197 @@
+{
+  "slug": "llm-audit-log",
+  "title": "An LLM audit log that never stores the input",
+  "summary": "What Curva's audit log records for every LLM decision, what it never keeps (the state, the images, provider errors), and how to page through it.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/reference/http-api.md",
+    "site/guides/conditional.md",
+    "site/concepts/projects.md",
+    "site/self-hosting.md",
+    "site/guides/rules.md",
+    "site/guides/drift.md",
+    "site/guides/images.md",
+    "site/guides/dashboard.md",
+    "sdk/typescript/README.md",
+    "site/reference/python-sdk.md",
+    "site/guides/feedback.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "An LLM audit log records every automated decision so you can show later what was decided, by which model, under which settings and with what confidence. Curva writes one entry per decision: its id, project, the id of the API key that asked, a salted hash of the state, the model, mode, config, privacy setting, the answers as returned, latency, cost and whether it came from the cache. What it never keeps is just as deliberate: the state itself, any images, and provider error text. You page through it with `GET /v1/audit`, newest first. This post lists what each entry holds, what it leaves out, and how to use it."
+    },
+    {
+      "kind": "h2",
+      "text": "What each entry holds"
+    },
+    {
+      "kind": "p",
+      "text": "Every decision is recorded, whether a model answered, a rule answered or the cache did. An entry has these fields:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Field",
+        "What it records"
+      ],
+      "rows": [
+        [
+          "`id`",
+          "the decision id, `dec_…`, unique and sortable by time"
+        ],
+        [
+          "`project`",
+          "the calibration namespace the decision ran in"
+        ],
+        [
+          "`api_key`",
+          "the **id** of the API key that made the request, not the key"
+        ],
+        [
+          "`state_hash`",
+          "a salted SHA-256 of the state"
+        ],
+        [
+          "`model`",
+          "the model that answered, or the plan"
+        ],
+        [
+          "`mode`",
+          "`logprobs` or `verbal`, whichever actually answered"
+        ],
+        [
+          "`config`",
+          "the pinned config the decision ran under"
+        ],
+        [
+          "`privacy`",
+          "`standard` or `strict`"
+        ],
+        [
+          "`answers`",
+          "the answers exactly as returned to the caller"
+        ],
+        [
+          "`latency_ms`, `cost_usd`",
+          "time and model cost for the decision"
+        ],
+        [
+          "`cached`",
+          "whether it came from the decision cache"
+        ],
+        [
+          "`created_at`",
+          "when, in unix milliseconds"
+        ],
+        [
+          "`images`",
+          "for decisions with images, a salted SHA-256 of each image as sent"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "That is enough to answer the questions people ask about an automated decision weeks later. Which model made it? The `model` field. Was the prompt template the same as last month? The `config` field. How sure was it? The probabilities in `answers`. What did it cost? `cost_usd`. Who asked? `api_key`, which you can look up with `curva keys list`."
+    },
+    {
+      "kind": "p",
+      "text": "The decision id is the join key back to your own records. Store `d.id` next to whatever you did with the answer: the ticket, the routed email, the moderated post. Feedback uses the same id, so one stored value links your record, the audit entry and the label."
+    },
+    {
+      "kind": "h2",
+      "text": "What the LLM audit log never holds: the state, the images, provider error text"
+    },
+    {
+      "kind": "p",
+      "text": "**The state is never stored.** The audit log keeps only a salted hash of it. A ticket, an email or a contract that passes through Curva is sent to the model provider you configured and then exists only as a hash on the server. That keeps the log useful as a record of decisions without turning it into a second copy of your customers' data."
+    },
+    {
+      "kind": "p",
+      "text": "**Images are never stored.** For a decision with images, the entry holds a salted SHA-256 of each image as sent, never the image itself."
+    },
+    {
+      "kind": "p",
+      "text": "**Provider error text stays in the server log.** When a model call fails, the provider's own error details are written to the server's log and never sent to callers. The caller gets a typed error such as 502 `model_error`, and every response carries an `x-request-id` that also appears in the server's log line, so an operator can connect the two."
+    },
+    {
+      "kind": "p",
+      "text": "Two consequences follow. You can't recover an input from the audit log, so keep your own copy of anything you need to re-run. And because the hash is salted, it is a fingerprint inside Curva, not something to compare against hashes you compute elsewhere. Join on the decision id instead."
+    },
+    {
+      "kind": "h2",
+      "text": "Paging: limit, before and next_before, 1,000 per page"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curl -H \"Authorization: Bearer $CURVA_API_KEY\" \"https://api.example.com/v1/audit?project=support&limit=100\""
+    },
+    {
+      "kind": "p",
+      "text": "The response is `{\"project\", \"entries\": [...], \"next_before\"}`, newest first. Pass `next_before` as `before` to get the next page. A page holds at most 1,000 entries."
+    },
+    {
+      "kind": "p",
+      "text": "From Python, `client.audit(project=\"support\")` takes the same `project`, `before` and `limit`. In TypeScript, `audit({ project, before, limit })` returns the server's JSON unchanged. The built-in dashboard's Decisions view reads the same route and shows 25 decisions per page, with each answer's confidence and its abstain and calibrated tags."
+    },
+    {
+      "kind": "p",
+      "text": "The log is scoped. A key created with `--project` sees only that project: another project's decisions look like they don't exist."
+    },
+    {
+      "kind": "h2",
+      "text": "Rule answers in the log, and why they say which rule fired"
+    },
+    {
+      "kind": "p",
+      "text": "Questions answered by a rule are written to the audit log as returned. A rule answer puts all its probability on its label, has `calibrated: false`, and carries `rule`: the index of the rule that matched. So the log shows not just what was decided but why. \"Billing, rule 0\" is a business rule you wrote. \"Billing, 0.97, calibrated\" is a model judgement."
+    },
+    {
+      "kind": "p",
+      "text": "That distinction matters when someone challenges a decision. A rule answer points at your own policy, in code you can read. A model answer points at a model, a config and a probability."
+    },
+    {
+      "kind": "h2",
+      "text": "privacy strict: extracted values returned, stored as redacted"
+    },
+    {
+      "kind": "p",
+      "text": "`privacy: \"strict\"` changes two things. The model call goes only to providers that neither store nor train on prompts. And extracted values, the answers to Text, Number and Integer questions, are returned to the caller but never stored: the audit log shows them as `redacted`."
+    },
+    {
+      "kind": "p",
+      "text": "That matters because an extracted value is often the most sensitive thing in a decision: an amount, a name, an account number read out of a document. Under strict, the log still proves that the extraction happened, with its confidence, model and config, without holding the value. Label answers (a Choice, Score, Noul or Multi) are still logged, since they are your own categories, not copied data."
+    },
+    {
+      "kind": "h2",
+      "text": "Using the log after a drift flag"
+    },
+    {
+      "kind": "p",
+      "text": "The weekly drift report flags a question when its answer mix or average confidence moves. The report reads the audit log, so it covers every decision the server made for that question. A flag is a prompt to look, and the audit log is where you look."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Page through recent entries for the project and read the answers for the flagged question. Compare the `model` and `config` with earlier weeks. A changed model or config explains a lot.",
+        "Check `mode`. A model that switched from logprobs to verbal moves its raw probabilities.",
+        "Take a sample of recent decision ids, look up the inputs in your own records, and label them with feedback.",
+        "Compare the calibration report before and after the new labels."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "That loop, from a flag to the log to fresh labels, is how an audit log becomes a working tool rather than an archive."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover the route in the [HTTP API reference](https://itsmohitrohilla.github.io/curva-docs/reference/http-api/) and the privacy settings in [self-hosting](https://itsmohitrohilla.github.io/curva-docs/self-hosting/). For what triggers a look, read [LLM drift monitoring](/blog/llm-drift-monitoring/), and for why a single answer came out the way it did, [explain an LLM classification decision](/blog/explain-llm-classification-decision/). For the config field, see [pin an LLM prompt version](/blog/pin-llm-prompt-version/), and for the product overview, [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

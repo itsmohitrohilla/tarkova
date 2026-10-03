@@ -1,0 +1,213 @@
+{
+  "slug": "send-feedback-llm-classifier-python",
+  "title": "Send feedback to an LLM classifier from Python",
+  "summary": "Send true labels to an LLM classifier from Python: store the decision id, use the right label per question type, and avoid 404 and 422 errors.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/feedback.md",
+    "site/reference/http-api.md",
+    "site/guides/rules.md",
+    "site/guides/conditional.md",
+    "site/guides/extraction.md",
+    "site/concepts/calibration.md",
+    "site/reference/python-sdk.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "An LLM classifier feedback loop in Python has one call at its centre: `client.feedback(decision_id, question, label)`. Store the decision's `id` when you act on an answer, and when you learn the true answer, send it with the label format for that question type: an option key for a Choice, a level index for a Score, `True` or `False` for a yes/no, or the true value for an extraction question. Sending again replaces the earlier label. From 30 labels per question in a project, Curva calibrates the probabilities whenever that makes them more accurate. This guide covers the label formats, the 404 and 422 cases, and which answers to label."
+    },
+    {
+      "kind": "plain",
+      "text": "Keep the decision id, send the true answer in the format its question type expects, and label some confident answers too, not only the unsure ones."
+    },
+    {
+      "kind": "h2",
+      "text": "Start the LLM classifier feedback loop in Python: keep d.id"
+    },
+    {
+      "kind": "p",
+      "text": "Every decision has an `id` of the form `dec_…`, unique and sortable by time. Feedback needs it, so store it with whatever you did with the answer: the ticket, the order, the row in your queue."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "d = client.decide(ticket, questions, project=\"support\")\nsave(ticket_id, d.id)"
+    },
+    {
+      "kind": "p",
+      "text": "Feedback usually arrives much later and from somewhere else: an agent closes a ticket, a reviewer fixes a label, a dispute resolves. If the `id` isn't on the record by then, you can't connect the outcome to the decision. Treat it like a foreign key."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  A[\"client.decide\"] --> B[\"store d.id with the record\"]\n  B --> C[\"act on the answer\"]\n  C --> D[\"true answer learned later\"]\n  D --> E[\"client.feedback(id, question, label)\"]\n  E --> F[\"30+ labels: calibrator fitted if it helps\"]\n  F --> A",
+      "title": "The LLM classifier feedback loop in Python",
+      "caption": "The decision id travels with the record until the true answer is known, then comes back as a label."
+    },
+    {
+      "kind": "h2",
+      "text": "Label formats: option key, level index, True/False, the true value"
+    },
+    {
+      "kind": "p",
+      "text": "The label must be a valid answer to the question. Each type has its own form:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Question type",
+        "Label",
+        "Example"
+      ],
+      "rows": [
+        [
+          "Choice",
+          "The option key",
+          "`\"billing\"`"
+        ],
+        [
+          "Score",
+          "The level index, 0 = lowest",
+          "`2`"
+        ],
+        [
+          "Noul (yes/no)",
+          "`True` or `False`",
+          "`True`"
+        ],
+        [
+          "Text, Number, Integer",
+          "The true value; `None` only when nullable",
+          "`\"ACME Inc.\"`"
+        ]
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"team\", \"billing\")         # Choice: option key\nclient.feedback(decision_id, \"urgency\", 2)              # Score: level index\nclient.feedback(decision_id, \"refund\", True)            # Noul: True or False\nclient.feedback(decision_id, \"vendor\", \"ACME Inc.\")     # Text: the true value\nclient.feedback(decision_id, \"po_number\", None)         # nullable: it really had none",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "For extraction questions, Curva compares your value with the one it answered and records right or wrong: text ignoring case and extra whitespace, numbers within a relative 1e-6. That is what the extraction confidence is calibrated against."
+    },
+    {
+      "kind": "p",
+      "text": "Note the Score case: the label is the level's index, not its description. If your levels are \"Calm\", \"Mildly annoyed\", \"Frustrated but civil\" and \"Very angry\", then \"Frustrated but civil\" is `2`."
+    },
+    {
+      "kind": "h2",
+      "text": "Sending again replaces the earlier label"
+    },
+    {
+      "kind": "p",
+      "text": "Sending feedback again for the same decision and question replaces the earlier label. It doesn't add a second one. That makes corrections safe: a reviewer who changes their mind, or an appeal that overturns a verdict, can send the new label and the old one is gone. It also means a retry after a network error can't double-count."
+    },
+    {
+      "kind": "h2",
+      "text": "404 for unknown decisions, rule answers and skipped questions; 422 for invalid labels"
+    },
+    {
+      "kind": "p",
+      "text": "Two errors cover almost every failed feedback call:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Status",
+        "Cause"
+      ],
+      "rows": [
+        [
+          "404",
+          "Unknown decision id, or unknown question key"
+        ],
+        [
+          "404",
+          "The question was answered by a rule: rule answers aren't model output, so they aren't stored for calibration"
+        ],
+        [
+          "404",
+          "The question was skipped by its `when`: there is no answer to correct"
+        ],
+        [
+          "422",
+          "The label isn't a valid answer: an option key that doesn't exist, a level index out of range, a string for a yes/no"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "In Python, a 404 raises `NotFoundError` and a 422 raises `InvalidRequestError`, both subclasses of `CurvaError`. Handle them separately, because they mean different things:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import CurvaError, NotFoundError, InvalidRequestError\n\ntry:\n    client.feedback(decision_id, \"team\", label)\nexcept NotFoundError:\n    pass                          # rule answer, skipped question, or wrong id: nothing to learn\nexcept InvalidRequestError as e:\n    log.error(\"bad label for team: %s\", e.message)   # fix the mapping in your code\nexcept CurvaError as e:\n    retry_later(decision_id, \"team\", label, e.status)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "A 404 for a rule answer or a skipped question is expected. Check `d[\"team\"].rule` before sending if you want to avoid the call: it is `None` when the model answered. A 422 is a bug in your code, usually a label that drifted from the option keys after someone edited the question."
+    },
+    {
+      "kind": "h2",
+      "text": "Labels count per project and per exact question wording"
+    },
+    {
+      "kind": "p",
+      "text": "Labels are kept per project and per exact question. The `project` you passed to `decide` is the calibration namespace, and the default is `\"default\"`. Use one project per use case, so feedback from one doesn't calibrate another."
+    },
+    {
+      "kind": "p",
+      "text": "Within a project, calibrators are keyed by a fingerprint of the question's type, wording and options. Rewording a question starts a fresh calibration, with its own 30-label minimum. That is deliberate: a model behaves differently when the wording changes. So settle the wording before you invest in labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Label a sample of confident answers, not only abstains"
+    },
+    {
+      "kind": "p",
+      "text": "The usual loop sends unsure answers to a person and their answer back as feedback:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "q = {\"team\": Choice(\"Which team?\", {\"billing\": \"\", \"technical\": \"\", \"sales\": \"\"}, min_confidence=0.9)}\nd = client.decide(ticket, q, project=\"support\")\n\nif d[\"team\"].abstain:\n    team = ask_a_human(ticket)                  # a person decides...\n    client.feedback(d.id, \"team\", team)         # ...and Curva learns from it\nelse:\n    route(ticket, d[\"team\"].choice)"
+    },
+    {
+      "kind": "p",
+      "text": "That loop on its own gives a skewed sample. Every label comes from below 0.9, so the calibrator learns nothing about how often the 0.95 answers are right, and those are exactly the answers you automate. Also send feedback for a random sample of automated answers. The docs put it plainly: label a sample of automated answers too, so the calibration covers the whole confidence range."
+    },
+    {
+      "kind": "h2",
+      "text": "Reading the reply: labels, min_labels: 30, calibrated"
+    },
+    {
+      "kind": "p",
+      "text": "Each feedback call returns a small dict:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{ \"decision_id\": \"dec_…\", \"question\": \"department\", \"labels\": 31, \"min_labels\": 30, \"calibrated\": true }"
+    },
+    {
+      "kind": "p",
+      "text": "`labels` is how many labels this exact question has in the project. `min_labels` is 30. `calibrated` is `true` once a calibrator has been fitted and kept. It stays `false` past 30 labels if the calibrator doesn't beat the raw probabilities on held-out labels, which happens when the model is already well calibrated. That is not an error."
+    },
+    {
+      "kind": "p",
+      "text": "For the detail, call `client.calibration(\"team\", project=\"support\")`. It returns held-out accuracy, ECE, Brier score and reliability bins before and after calibration."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [feedback guide](https://itsmohitrohilla.github.io/curva-docs/guides/feedback/) in the docs and install with `pip install curva-ai`. For the full Python workflow, see [Python LLM classification](/blog/python-llm-classification/), then read the [Python calibration report](/blog/python-llm-calibration-report/). For agents that act on answers, see [an AI agent feedback loop with the decision id](/blog/ai-agent-feedback-loop-decision-id/). The thinking behind it all is in [LLM classification confidence scores](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

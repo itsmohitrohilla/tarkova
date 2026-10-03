@@ -1,0 +1,167 @@
+{
+  "slug": "refund-request-detection",
+  "title": "Detect refund requests, not the word refund",
+  "summary": "A yes/no question that separates \"I was charged twice\" from \"please refund me\": the recipe's wording, the probability it returns and how to calibrate it.",
+  "tag": "curva use cases",
+  "source_check": [
+    "recipes/support-triage.json",
+    "site/concepts/questions.md",
+    "site/getting-started.md",
+    "site/guides/feedback.md",
+    "site/concepts/calibration.md",
+    "site/guides/recipes.md",
+    "site/guides/guaranteed-accuracy.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Refund request detection works when you ask whether the customer asks for money back, not whether the word \"refund\" appears. \"I was charged twice\" is a complaint about a charge. \"Please refund the duplicate\" is a request. A keyword rule flags both. A yes/no question worded as \"the customer explicitly asks for money back\" separates them, and Curva returns the probability of yes rather than a word to parse. This post gives the wording from Curva's `support-triage` recipe, shows how to put a threshold on the probability, and how agent labels calibrate it."
+    },
+    {
+      "kind": "plain",
+      "text": "Ask about the request, not the word. A narrow yes/no with an explicit \"no\" case beats any keyword list, and it gives you a probability to threshold."
+    },
+    {
+      "kind": "h2",
+      "text": "Why keyword matching over-fires"
+    },
+    {
+      "kind": "p",
+      "text": "A refund keyword list looks fine on day one. Then the misses arrive:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "\"Your refund policy says 30 days, is that still true?\" is a question, not a request.",
+        "\"I don't want a refund, I want the product to work\" contains the word and means the opposite.",
+        "\"I was charged twice for order A-104\" is a complaint that may lead to a refund, but doesn't ask for one.",
+        "\"Can you put the money back on my card?\" asks for a refund without the word."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Each fix adds a rule, and each rule creates a new edge case. The real question is about intent, which is what a language model reads well. The problem is getting a clean, checkable answer out of it, not a sentence."
+    },
+    {
+      "kind": "h2",
+      "text": "The Noul wording that works"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's `support-triage` recipe asks it as a Noul, its yes/no type:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"refund_requested\": {\n    \"type\": \"noul\",\n    \"instructions\": \"The customer explicitly asks for money back (a refund, chargeback or credit). Complaining about a charge without asking for money back is no.\"\n  },"
+    },
+    {
+      "kind": "p",
+      "text": "Three parts do the work. \"Explicitly asks\" rules out guesses about what the customer might want later. \"(a refund, chargeback or credit)\" lists the forms money back can take, so \"put it back on my card\" counts. And the last sentence names the main false positive and says it is a no. Spelling out the \"no\" case is the single most useful habit in yes/no wording."
+    },
+    {
+      "kind": "p",
+      "text": "For a quick script, the Python shorthand works too: a string ending in `?` is a Noul."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "`d.refund` is `True` when P(yes) is at least 0.5. For production, use the recipe's fuller wording, because the shorthand can't carry the \"no\" case."
+    },
+    {
+      "kind": "h2",
+      "text": "P(yes) and a threshold for refund request detection"
+    },
+    {
+      "kind": "p",
+      "text": "A Noul's answer is one number, `noul`, the probability of yes. Internally it is asked as a normalised two-option choice, so P(yes) and P(no) stay consistent with each other."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Noul\n\nclient = Curva()\n\nq = {\"refund_requested\": Noul(\"The customer explicitly asks for money back (a refund, chargeback \"\n                              \"or credit). Complaining about a charge without asking for money \"\n                              \"back is no.\")}\n\nd = client.decide({\"ticket\": ticket_text}, q, project=\"support\")\np = d[\"refund_requested\"].noul\n\nif p >= 0.9:\n    open_refund_case(ticket_id, decision_id=d.id)\nelif p >= 0.5:\n    tag_for_agent(ticket_id, \"possible refund\")",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Two thresholds give you three outcomes: act, flag for a person, or do nothing. Set them by cost. Opening a refund case for a customer who didn't ask wastes an agent's time and can confuse the customer. Missing a real request costs goodwill and, sometimes, a chargeback. Most teams want a high bar for automatic action and a lower bar for a flag."
+    },
+    {
+      "kind": "p",
+      "text": "If you need a promise rather than a threshold, set `coverage` on the Noul. Once the question has 30 labels, the answer carries a `set` of `\"true\"` and `\"false\"` values that contains the right answer at least that often, as long as new tickets look like the labeled ones. A set with one value can be automated; a set with both goes to a person."
+    },
+    {
+      "kind": "h2",
+      "text": "Calibrate on agent labels"
+    },
+    {
+      "kind": "p",
+      "text": "A raw 0.9 from a model is not a measured 90%. Raw LLM confidence is often too high. Calibration fixes that with your own labels."
+    },
+    {
+      "kind": "p",
+      "text": "Your agents already decide whether each ticket was a refund request: they either process a refund or they don't. Keep the decision `id` with the ticket and send that outcome as feedback:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"refund_requested\", True)    # the agent processed a refund request\nclient.feedback(other_id, \"refund_requested\", False)      # a complaint, no request",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "After 30 labels for this exact question in the project, Curva fits a Platt scaling calibrator, a logistic fit on P(yes). It is applied only when it makes the probabilities more accurate on held-out labels. If the model is already well calibrated, answers stay raw with `calibrated: false`. The docs' tests show the kind of fix it makes: a yes/no model that always says 1.0 moves to its true 70% as labels accumulate."
+    },
+    {
+      "kind": "p",
+      "text": "Label the easy tickets as well as the hard ones. If only the flagged tickets get labels, calibration learns nothing about the confident end. And settle the wording first: calibration belongs to the exact question, so editing the instruction starts it over."
+    },
+    {
+      "kind": "p",
+      "text": "Check the result with the calibration report:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "Pass `\"refund_requested\"` instead of `\"team\"` for this question. `after` is held out, and `accuracy_when_automated` tells you how often answers at 0.9 or above were right, and how many reached it."
+    },
+    {
+      "kind": "h2",
+      "text": "Refund and team in one call"
+    },
+    {
+      "kind": "p",
+      "text": "A refund flag rarely travels alone. You also need to know which team handles the ticket and how upset the customer is. Ask everything in one request; all questions are answered together:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva recipe show support-triage > questions.json",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "The recipe asks `team` (a Choice that abstains below 0.8), `urgency` and `frustration` (Scores), and `refund_requested` and `churn_risk` (Nouls). The `team` instruction carries the same idea as the refund wording: \"Judge by what the customer needs done, not by the words they happen to use.\""
+    },
+    {
+      "kind": "p",
+      "text": "Load it in Python with `json.load` and pass it as the questions. Edit the wording for your domain, but do it before you start sending feedback."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [recipes guide](https://itsmohitrohilla.github.io/curva-docs/guides/recipes/) and the [feedback guide](https://itsmohitrohilla.github.io/curva-docs/guides/feedback/) in the docs. Install with `pip install curva-ai`. For yes/no questions in general, see [LLM yes/no probability](/blog/llm-yes-no-probability/). For the full ticket pipeline, read [support ticket triage with AI](/blog/support-ticket-triage-ai/), and for the cancellation flag, [churn risk in support tickets](/blog/churn-risk-support-tickets/). More ideas are in [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

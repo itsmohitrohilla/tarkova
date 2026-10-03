@@ -1,0 +1,225 @@
+{
+  "slug": "how-curva-works",
+  "title": "How Curva works: from state to calibrated answer",
+  "summary": "The path of one Curva request: rules, cache, fenced prompt, two option orders, logprobs or verbal reading, calibration, coverage set, abstain and audit.",
+  "tag": "curva engineering",
+  "source_check": [
+    "Content Box/1 Product/how-it-works.md",
+    "site/concepts/questions.md",
+    "site/concepts/trust.md",
+    "site/concepts/calibration.md",
+    "site/guides/guaranteed-accuracy.md",
+    "site/guides/dependencies.md",
+    "site/guides/rules.md",
+    "site/guides/conditional.md",
+    "site/guides/speed-and-cost.md",
+    "site/self-hosting.md",
+    "site/reference/http-api.md",
+    "Content Box/4 Benchmarks/benchmarks.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "How Curva works, in one sentence: you send data (the state) and typed questions, Curva settles what it can without a model, asks the model in two option orders and reads a probability for every label, adjusts those probabilities with a calibrator fitted on your feedback when that helps, and returns a typed answer that is written to an audit log. Every step leaves a mark in the response: `mode`, `debiased`, `cached`, `calibrated`, `set`, `abstain`, `stage`, `rule`. This post walks the path of one request, step by step, and names the field each step adds."
+    },
+    {
+      "kind": "p",
+      "text": "Curva is a small server and SDKs. It is one binary with an embedded SQLite database, free to use under the Curva Free License, and it calls whichever LLM you configure."
+    },
+    {
+      "kind": "h2",
+      "text": "How Curva works: the request path at a glance"
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart TD\n  A[\"state + typed questions\"] --> B{\"rule matches or when fails?\"}\n  B -- yes --> Z[\"answer or skipped, no model call\"]\n  B -- no --> C{\"identical decision cached?\"}\n  C -- yes --> Y[\"cached answer, about 1 ms\"]\n  C -- no --> D[\"prompt: state fenced as data\"]\n  D --> E[\"model asked in original and reversed option order\"]\n  E --> F[\"probabilities read: logprobs or verbal\"]\n  F --> G[\"average both orders\"]\n  G --> H[\"calibrate, only if it beats raw\"]\n  H --> I[\"coverage set and abstain flag\"]\n  I --> J[\"typed answer + audit log\"]\n  J --> K[\"your feedback refits the calibrator\"]",
+      "title": "How Curva works: the path of one request",
+      "caption": "Questions answered by rules, skipped by when, or found in the cache never reach the model."
+    },
+    {
+      "kind": "h2",
+      "text": "State and typed questions in, up to 64 per request"
+    },
+    {
+      "kind": "p",
+      "text": "The state is the data to judge. It is any JSON: a string, an object or a list, up to 150,000 characters, plus up to 8 images for vision models. The questions are typed, up to 64 per request, and all are answered in one request."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Type",
+        "Asks",
+        "Answer"
+      ],
+      "rows": [
+        [
+          "Choice",
+          "Pick one of 2 to 255 options",
+          "`choice`, a probability per option, `confidence`"
+        ],
+        [
+          "Score",
+          "Place on a scale of 2 to 20 levels",
+          "`score`, the expected level (0 = lowest), a probability per level"
+        ],
+        [
+          "Noul",
+          "Yes or no",
+          "`noul` = P(yes)"
+        ],
+        [
+          "Multi",
+          "Pick any subset of 1 to 20 options",
+          "`selected`, an independent probability per option"
+        ],
+        [
+          "Text, Number, Integer",
+          "Read a value",
+          "`value`, `confidence`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Answers are only ever mapped onto the labels you declared. Nothing is parsed from free text, so there is nothing to validate on your side."
+    },
+    {
+      "kind": "h2",
+      "text": "Settled before the model: rules, when and the cache"
+    },
+    {
+      "kind": "p",
+      "text": "Three checks can answer a question without a model call."
+    },
+    {
+      "kind": "p",
+      "text": "**Rules.** A question with `rules` (\"if the ticket contains invoice, answer billing\") is answered on the spot when a rule matches. Up to 32 per question, first match wins. The answer has `confidence: 1.0`, `calibrated: false` and `rule`, the index of the rule that fired."
+    },
+    {
+      "kind": "p",
+      "text": "**When.** A question whose `when` doesn't match the state is skipped. It comes back as `{\"skipped\": true}` and is never sent, stored or paid for. If every question is answered by a rule or skipped, no model is called and the decision costs $0."
+    },
+    {
+      "kind": "p",
+      "text": "**The decision cache.** Calls run at temperature 0, so an identical decision (same model, state, questions, config, project, privacy and `think`) is answered from memory in about a millisecond. The response says `cached: true`, with zero latency and cost."
+    },
+    {
+      "kind": "h2",
+      "text": "The prompt: state fenced as data, both option orders"
+    },
+    {
+      "kind": "p",
+      "text": "Curva builds a prompt with the state wrapped in a fenced block, and tells the model it is data, not instructions. Any closing fence inside the data is escaped, and the fence is matched case-insensitively. That is Curva's defence against prompt injection in the state, and an adversarial eval set tracks it."
+    },
+    {
+      "kind": "p",
+      "text": "Then it asks. By default, every question is asked twice, concurrently: once with the options in your order and once reversed. Models tend to favour options by position, and averaging the two orders cancels that. Few-shot examples are remapped so they stay correct in the reversed call. Options named `A`, `B`, `C` keep their order and take one call. The response's `debiased` field says whether both orders were asked."
+    },
+    {
+      "kind": "p",
+      "text": "The model can be one model, a fallback chain, or a council, cascade or race of several. A Choice also gets an extra option, `none_of_these`, so the model is never forced into a wrong pick."
+    },
+    {
+      "kind": "h2",
+      "text": "Reading probabilities: logprobs, verbal, auto"
+    },
+    {
+      "kind": "p",
+      "text": "Curva reads probabilities. It never parses a sentence."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**`logprobs`**: the model answers with one label token per question, and Curva reads each label's probability from the token log-probabilities. If your labels hold less than half the probability at that position, that question is retried on its own.",
+        "**`verbal`**: the model returns a JSON object limited to your labels, with a probability for each.",
+        "**`auto`** (the default): logprobs when the model returns them, verbal otherwise."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The response's `mode` says which one answered. Choices with more than 20 options, and requests with a Text, Number or Integer question, always use verbal mode, because providers return at most 20 logprobs and extraction has no label token to read. A Noul is asked as a normalised two-option choice, so P(x) and P(not x) stay consistent."
+    },
+    {
+      "kind": "p",
+      "text": "After both orders answer, Curva averages the probabilities option by option."
+    },
+    {
+      "kind": "h2",
+      "text": "After the model: calibrate, coverage set, abstain"
+    },
+    {
+      "kind": "p",
+      "text": "Three steps turn raw probabilities into something you can automate on."
+    },
+    {
+      "kind": "p",
+      "text": "**Calibrate.** Once a question has 30 feedback labels in a project, Curva fits a small calibrator: temperature scaling for Choice and Score, bias scaling (temperature plus a per-answer offset) for Choice and Score with up to 20 options when it beats temperature alone, and Platt scaling for Noul. It keeps the calibrator only if it beats the raw probabilities on held-out labels, in both log-loss and Brier score, by more than its own noise. Then answers carry `calibrated: true`. Otherwise they stay raw."
+    },
+    {
+      "kind": "p",
+      "text": "**Coverage set.** With `coverage` on a Choice, Multi or Noul, and 30 labels, the answer gains `guaranteed: true` and a `set` of options. Curva uses split conformal prediction on your feedback labels, so the set contains the true answer at least `coverage` of the time, as long as new inputs look like the labeled ones."
+    },
+    {
+      "kind": "p",
+      "text": "**Abstain.** With `min_confidence` on a question, answers below it carry `abstain: true`, your signal to hand the item to a person."
+    },
+    {
+      "kind": "p",
+      "text": "Here is a real response from the docs, before any of those three were set:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"id\": \"dec_19294a3c1f2000000\",\n  \"model\": \"inclusionai/ling-3.0-flash-fin:free\",\n  \"mode\": \"logprobs\",\n  \"latency_ms\": 1144,\n  \"cost_usd\": 0.0,\n  \"cached\": false,\n  \"answers\": {\n    \"department\":       { \"choice\": \"billing\", \"probabilities\": { \"billing\": 0.9999, \"technical\": 0.0, \"sales\": 0.0001 }, \"confidence\": 0.9999 },\n    \"frustration\":      { \"score\": 0.65, \"probabilities\": [0.36, 0.62, 0.02], \"confidence\": 0.62 },\n    \"refund_requested\": { \"noul\": 0.999 }\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "The Score shows why the expected level matters: probabilities of 0.36, 0.62 and 0.02 give a score of 0.65, between the first and second level, instead of rounding the doubt away."
+    },
+    {
+      "kind": "h2",
+      "text": "Stages for depends_on"
+    },
+    {
+      "kind": "p",
+      "text": "Some questions only make sense after others. Give a question `depends_on` and Curva runs the request as a graph, stage by stage, with one model call per stage and at most 8 stages. Each dependent question sees the earlier answers and their probabilities in a fenced block. Every answer then carries `stage`, its 0-based stage number. `when` and `rules` can read an earlier answer with `@key`, so a follow-up is asked only when an earlier answer calls for it. A skipped dependency skips its dependents."
+    },
+    {
+      "kind": "p",
+      "text": "A question can also set `think: true` to reason in a verbal call of its own, next to the fast call for the rest of its stage."
+    },
+    {
+      "kind": "h2",
+      "text": "Audit log and the feedback loop"
+    },
+    {
+      "kind": "p",
+      "text": "Every decision is written to the audit log: its id, project, API key id, a salted hash of the state (never the state itself), model, mode, config, privacy setting, answers, latency, cost and whether it was cached. Images are logged as a salted SHA-256, never stored. `GET /v1/audit` pages through it, newest first."
+    },
+    {
+      "kind": "p",
+      "text": "The loop closes when you learn the truth. `POST /v1/feedback` records the right answer for one question of a past decision, and Curva refits that question's calibrator on every new label. Calibrators belong to a fingerprint of the question's type, wording and options, and to a project. Rewording starts fresh."
+    },
+    {
+      "kind": "h2",
+      "text": "One binary, one SQLite file"
+    },
+    {
+      "kind": "p",
+      "text": "All of this runs in one process. The `curva` binary is the CLI and the HTTP server, and its database (decisions, feedback, calibrators, audit log, keys) is one SQLite file. A Docker image of about 62 MB is published for amd64 and arm64."
+    },
+    {
+      "kind": "p",
+      "text": "Curva's own overhead is small next to the model's. With a fake model on a laptop, the docs report p50 0.59 ms at 500 requests per second, and about 8,000 requests per second saturated. With real remote models, a decision takes about 0.5 to 3 s on free providers. In practice the provider is the limit.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs explain each part in [questions and answers](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/), [debiasing, escape and abstain](https://itsmohitrohilla.github.io/curva-docs/concepts/trust/) and [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/). For the product view, read [what is Curva](/blog/what-is-curva/). For the mechanisms in depth, see [LLM position bias](/blog/llm-position-bias/), [logprobs vs verbal confidence](/blog/logprobs-vs-verbal-confidence/) and [conformal prediction for LLMs](/blog/conformal-prediction-llm/). Install with `pip install curva-ai`."
+    }
+  ]
+}

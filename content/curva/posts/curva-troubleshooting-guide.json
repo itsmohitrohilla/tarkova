@@ -1,0 +1,303 @@
+{
+  "slug": "curva-troubleshooting-guide",
+  "title": "Curva troubleshooting: every error code and its fix",
+  "summary": "Every Curva error in one place: status, type, the SDK exception it raises, the usual causes and the fix, plus surprises that are not errors at all.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/reference/http-api.md",
+    "site/reference/python-sdk.md",
+    "sdk/python/README.md",
+    "sdk/typescript/README.md",
+    "site/self-hosting.md",
+    "site/guides/providers.md",
+    "site/concepts/calibration.md",
+    "site/guides/speed-and-cost.md",
+    "site/concepts/trust.md",
+    "site/getting-started.md",
+    "site/guides/rules.md",
+    "site/guides/conditional.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Curva errors all share one shape: an HTTP status and a JSON body `{\"error\": {\"type\": \"...\", \"message\": \"...\"}}`, where `type` is a fixed word such as `invalid_request` and `message` names the problem. The Python and TypeScript SDKs turn each status into a `CurvaError` subclass, so you can catch one case at a time. This page lists every status with its type, the exception it raises, the usual causes and the fix. It ends with things that surprise people but are not errors at all: verbal mode, `calibrated: false`, abstains and cache misses."
+    },
+    {
+      "kind": "h2",
+      "text": "The error envelope: {error: {type, message}} and x-request-id"
+    },
+    {
+      "kind": "p",
+      "text": "Every error from the HTTP API looks the same:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"error\": {\"type\": \"invalid_request\", \"message\": \"...\"}}",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Branch on `type`, not on the message text. The message is for people: a 422 names the question or image that is wrong."
+    },
+    {
+      "kind": "p",
+      "text": "Every response, error or not, also carries an `x-request-id` header. The same id appears in the server's log line for the request. When a provider fails, its own words stay in the server log and are never sent to callers, so the request id is how you find them. You can send your own id (1 to 64 visible ASCII characters) to follow a request across services. The Python SDK exposes it as `d.request_id`, and the TypeScript SDK as `requestId`."
+    },
+    {
+      "kind": "h2",
+      "text": "Status to exception: AuthError, InvalidRequestError, NotFoundError, RateLimitError, ModelError"
+    },
+    {
+      "kind": "p",
+      "text": "Both SDKs raise a `CurvaError` with `status`, `type` and `message` for every failure. Catch a subclass when you care about one case:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Status",
+        "`type`",
+        "Python and TypeScript class",
+        "Retried by the SDK"
+      ],
+      "rows": [
+        [
+          "0",
+          "none",
+          "`CurvaError` (server unreachable)",
+          "TypeScript retries dropped connections"
+        ],
+        [
+          "400",
+          "`invalid_json`",
+          "`InvalidRequestError`",
+          "no"
+        ],
+        [
+          "401",
+          "`unauthorized`",
+          "`AuthError`",
+          "no"
+        ],
+        [
+          "403",
+          "none listed",
+          "`CurvaError`",
+          "no"
+        ],
+        [
+          "404",
+          "`not_found`",
+          "`NotFoundError`",
+          "no"
+        ],
+        [
+          "413",
+          "`too_large`",
+          "`CurvaError`",
+          "no"
+        ],
+        [
+          "422",
+          "`invalid_request`",
+          "`InvalidRequestError`",
+          "no"
+        ],
+        [
+          "429",
+          "`rate_limited`",
+          "`RateLimitError`, with `retry_after` (Python) or `retryAfter` (TypeScript)",
+          "yes"
+        ],
+        [
+          "502",
+          "`model_error`, `model_unavailable`",
+          "`ModelError`",
+          "yes"
+        ],
+        [
+          "504",
+          "`timeout`",
+          "`ModelError`",
+          "yes"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The clients retry 429, 500, 502, 503 and 504 three times by default and honour `Retry-After`. TypeScript caps that wait at 30 s. You only see a `RateLimitError` or `ModelError` after the retries ran out."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import CurvaError, RateLimitError, InvalidRequestError\n\ntry:\n    d = client.decide(state, QUESTIONS)\nexcept RateLimitError as e:\n    wait(e.retry_after)\nexcept InvalidRequestError as e:\n    log.error(\"bad question: %s\", e.message)    # a 422 names the question\nexcept CurvaError as e:\n    log.error(\"%s %s\", e.status, e.type)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "The diagram below is the short version of this page: find your status, follow it to the fix."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  E[\"CurvaError\"] --> S0[\"status 0\"] --> F0[\"start the server, check CURVA_BASE_URL\"]\n  E --> R4[\"400, 413, 422\"] --> F4[\"fix the request; read the message\"]\n  E --> A4[\"401, 403, 404\"] --> FA[\"check the key, its project, the id\"]\n  E --> C5[\"429, 502, 504\"] --> FC[\"wait for Retry-After, check the model id\"]",
+      "title": "Curva errors by status, from symptom to fix",
+      "caption": "Request errors mean change the request; capacity and provider errors mean wait or check the model."
+    },
+    {
+      "kind": "h2",
+      "text": "Status 0: the server never answered"
+    },
+    {
+      "kind": "p",
+      "text": "Status 0 is not an HTTP status. It means the client could not reach a server at all. Usual causes:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "No server is running. The TypeScript SDK never starts one: run `curva serve` or the Docker image first.",
+        "`CURVA_BASE_URL` points to the wrong place. The default is `http://localhost:7777`.",
+        "The server was started with an address your client can't reach."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "In Python, `curva.local()` and the module-level `curva.decide` start a private server for you. With no provider key at all, `curva.decide` raises an error naming the variables to set, such as `OPENROUTER_API_KEY`."
+    },
+    {
+      "kind": "h2",
+      "text": "Request errors: 400, 413, 422"
+    },
+    {
+      "kind": "p",
+      "text": "These mean the request itself is wrong. Retrying without a change gives the same error."
+    },
+    {
+      "kind": "p",
+      "text": "**400 `invalid_json`.** The body is not JSON, or it has an unknown `mode` or question `type`. In no-code tools the usual cause is mapped text with quotes or newlines pasted into a JSON template. Build the body with a JSON helper or a code step."
+    },
+    {
+      "kind": "p",
+      "text": "**413 `too_large`.** The body is over the server's limit, 16 MB by default. Large images are the usual cause. Raise the limit with `curva serve --max-body-mb`, or send smaller images."
+    },
+    {
+      "kind": "p",
+      "text": "**422 `invalid_request`.** The request is JSON, but something in it is not allowed. The message names the question or image. Causes from the reference:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "too few or too many options, or more than 64 questions;",
+        "state over 150,000 characters;",
+        "bad `max_length`, `min` or `max`;",
+        "`mode: logprobs` with a text, number or integer question, or with a Choice of more than 20 options;",
+        "more than 8 images, or an invalid one;",
+        "an unknown operator in `when` or `rules`, or a rule answer that isn't a valid label;",
+        "an unknown `config` name;",
+        "`depends_on` with unknown keys, a cycle or more than 8 stages, or `explain` together with `depends_on`;",
+        "`privacy: strict` on a named provider whose URL is not on this machine;",
+        "a model whose provider is not configured."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "For feedback, 422 means the label isn't a valid answer: use the option key for a Choice, the level index for a Score, and `true` or `false` for a Noul."
+    },
+    {
+      "kind": "h2",
+      "text": "Access errors: 401, 403, 404"
+    },
+    {
+      "kind": "p",
+      "text": "**401 `unauthorized`.** The server has API keys and none was sent, or the key is unknown or revoked. Revoking takes effect immediately. One trap: a server started without keys stays open until it is restarted, so restart after creating the first key, and expect callers without a key to start failing then."
+    },
+    {
+      "kind": "p",
+      "text": "**403.** The key was made with `--project` and the request is for another project. Use a key for that project, or one without a project binding."
+    },
+    {
+      "kind": "p",
+      "text": "**404 `not_found`.** An unknown decision, question or route. Three causes catch people out:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Feedback for a question answered by a rule gets 404. Rule answers are not model output, so they are not stored for calibration.",
+        "Feedback for a question skipped by its `when` gets 404. There is no answer to correct.",
+        "With a project-bound key, another project's decisions look like they don't exist."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Capacity and provider errors: 429, 502, 504"
+    },
+    {
+      "kind": "p",
+      "text": "**429 `rate_limited`.** One of three limits was hit: the API key's requests per minute (default 600), the model provider's rate limit, or the server's daily budget from `CURVA_DAILY_LIMIT`. Every 429 carries `Retry-After` in seconds. For the daily budget, that is the time until 00:00 UTC. The SDKs wait and retry for you."
+    },
+    {
+      "kind": "p",
+      "text": "**502 `model_error`.** Every model in the chain failed after retries. Details stay in the server log, so look up the `x-request-id` there. A fallback chain (`model` as a list) moves to the next model on 429 or a server error, which is the fix for a flaky provider."
+    },
+    {
+      "kind": "p",
+      "text": "**502 `model_unavailable`.** The model doesn't exist, was retired, or isn't open to your provider account. Providers rename models often. Check the id and your access. Retrying won't help."
+    },
+    {
+      "kind": "p",
+      "text": "**504 `timeout`.** The request took longer than the 120 s deadline. Each provider call also times out after 60 s by default. For a provider that queues, raise `CURVA_PROVIDER_<NAME>_TIMEOUT` (1 to 600 s)."
+    },
+    {
+      "kind": "h2",
+      "text": "Not errors, but surprising: verbal mode, calibrated false, abstains, cache misses"
+    },
+    {
+      "kind": "p",
+      "text": "Some behaviour looks like a bug and is working as designed."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "What you see",
+        "Why"
+      ],
+      "rows": [
+        [
+          "`mode` is `verbal`, not `logprobs`",
+          "`auto` tries logprobs first and falls back to verbal when the model doesn't return them, remembered per model id. Choices with over 20 options and extraction questions are always verbal"
+        ],
+        [
+          "`calibrated: false` after you sent feedback",
+          "A calibrator needs 30 labels for the same exact question in the project, and is kept only when it beats the raw probabilities on held-out labels. A well-calibrated model is left raw on purpose"
+        ],
+        [
+          "`calibrated: false` after a small edit",
+          "Calibrators are keyed by the question's type, wording and options. Rewording starts over"
+        ],
+        [
+          "No `abstain` field",
+          "It is present only when the question set `min_confidence`"
+        ],
+        [
+          "`abstain: true` on a correct answer",
+          "The confidence was below your threshold. Until the question is calibrated, the threshold is a guess about the model"
+        ],
+        [
+          "`cached: false` on a repeat",
+          "The cache key covers model, state, questions, config, project, privacy and `think`. Change any of them and it is a new decision. The cache lives in server memory, sized with `--cache-size`"
+        ],
+        [
+          "`debiased: false`",
+          "`debias: false`, `debias: \"auto\"` asked only the original order, or one of the two orders failed"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The error table is in the [HTTP API reference](https://itsmohitrohilla.github.io/curva-docs/reference/http-api/), and the SDK classes are in the [Python SDK reference](https://itsmohitrohilla.github.io/curva-docs/reference/python-sdk/). For retry patterns in code, read [Python LLM API error handling](/blog/python-llm-api-error-handling/). For the raw HTTP contract, see [LLM decisions over HTTP](/blog/llm-decisions-over-http/), and for what Curva is, [what is Curva](/blog/what-is-curva/). Install with `pip install curva-ai`."
+    }
+  ]
+}

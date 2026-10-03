@@ -1,0 +1,295 @@
+{
+  "slug": "llm-decisions-over-http",
+  "title": "LLM decisions over HTTP: one call, any tool",
+  "summary": "Get typed LLM decisions from any language or no-code tool with two HTTP calls: decide and feedback. Request, response, routing order, errors.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/any-http-tool.md",
+    "site/reference/http-api.md",
+    "site/guides/openapi.md",
+    "site/guides/zapier.md",
+    "site/guides/make.md",
+    "site/getting-started.md",
+    "site/self-hosting.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "An LLM classification REST API lets any language or no-code tool get a typed answer from a model with one HTTP call. With Curva, that call is `POST /v1/decide`: you send the data (the state) and your typed questions as JSON, and you get back one of your labels per question, with a probability for every option. A second call, `POST /v1/feedback`, sends the true answer when you learn it. That is the whole contract. This guide covers the request, the response fields to branch on, the routing order that works in every tool, auth, errors and request ids."
+    },
+    {
+      "kind": "p",
+      "text": "Curva is a decision server you run yourself. It is free to use under the Curva Free License, and you pay only your model provider. Anything that can send an HTTP request can use it: curl, a webhook in your own app, Zapier, Make, Pipedream, Power Automate, Retool or Airtable automations."
+    },
+    {
+      "kind": "h2",
+      "text": "The contract in four lines"
+    },
+    {
+      "kind": "p",
+      "text": "The docs reduce the API to this:"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "POST {base}/v1/decide     Authorization: Bearer curva_…    Content-Type: application/json\n  {\"state\": <any JSON>, \"questions\": {<key>: <question>}, \"project\": \"…\"}\n→ {\"id\": \"dec_…\", \"answers\": {<key>: {\"choice\" | \"score\" | \"noul\" | \"selected\", \"confidence\", \"abstain\", …}}}\nPOST {base}/v1/feedback   {\"decision_id\": \"dec_…\", \"question\": <key>, \"label\": <true answer>}"
+    },
+    {
+      "kind": "p",
+      "text": "You never parse free text. Every answer is mapped onto the labels you declared. The HTTP API is versioned under `/v1`, and v1 is frozen: changes are additive only, and no field is ever removed or renamed. A client you write today keeps working."
+    },
+    {
+      "kind": "h2",
+      "text": "The LLM classification REST API request: state, questions, project, model"
+    },
+    {
+      "kind": "p",
+      "text": "The smallest useful request, from the getting-started page:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curl -s localhost:7777/v1/decide -H 'content-type: application/json' -d '{\n  \"state\": {\"ticket\": \"The app crashes on launch\"},\n  \"questions\": {\"team\": {\"type\": \"choice\", \"instructions\": \"Which team?\",\n                         \"options\": {\"billing\": \"\", \"technical\": \"\"}}}\n}'"
+    },
+    {
+      "kind": "p",
+      "text": "The fields you will use most:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Field",
+        "Required",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "`state`",
+          "yes",
+          "Any JSON: a string, an object or an array, at most 150,000 characters (about 32k tokens). Treated as data, never as instructions"
+        ],
+        [
+          "`questions`",
+          "yes",
+          "1 to 64 questions, key to question. All answered in one request, order kept in the response"
+        ],
+        [
+          "`project`",
+          "no",
+          "Calibration namespace, default `\"default\"`. Use one per use case"
+        ],
+        [
+          "`model`",
+          "no",
+          "A model id, a fallback list, or a council, cascade or race plan. Defaults to the server's `--model`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A question has a `type` and `instructions`. A `choice` takes `options` (key to description, which may be empty), a `score` takes `levels` (lowest first), and a `noul` is a yes or no question that returns P(yes). There are also `multi`, `text`, `number` and `integer`. Add `min_confidence` to any question that routes work; that is what turns on the abstain flag below."
+    },
+    {
+      "kind": "h2",
+      "text": "Response fields to branch on: choice, confidence, abstain, noul"
+    },
+    {
+      "kind": "p",
+      "text": "Here is a real response from the HTTP reference, for a ticket with three questions:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"id\": \"dec_19294a3c1f2000000\",\n  \"model\": \"inclusionai/ling-3.0-flash-fin:free\",\n  \"mode\": \"logprobs\",\n  \"latency_ms\": 1144,\n  \"cost_usd\": 0.0,\n  \"cached\": false,\n  \"answers\": {\n    \"department\":       { \"choice\": \"billing\", \"probabilities\": { \"billing\": 0.9999, \"technical\": 0.0, \"sales\": 0.0001 }, \"confidence\": 0.9999 },\n    \"frustration\":      { \"score\": 0.65, \"probabilities\": [0.36, 0.62, 0.02], \"confidence\": 0.62 },\n    \"refund_requested\": { \"noul\": 0.999 }\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "What each field gives a branch step:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`choice` is one of your option keys, or `none_of_these` when nothing fits. Every Choice has that escape option unless the question sets `\"escape\": false`.",
+        "`confidence` is the probability of the chosen answer.",
+        "`abstain` is `true` when confidence is below the question's `min_confidence`. It is present only when you set `min_confidence`.",
+        "`noul` is P(yes) for a yes or no question. Compare it with your own threshold.",
+        "`score` is the expected level, 0 for the lowest. 0.65 sits between the first and second level.",
+        "`calibrated` turns true once your feedback has fitted a calibrator for that exact question, after 30 labels."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Also keep `id`. It is how feedback finds the decision later."
+    },
+    {
+      "kind": "h2",
+      "text": "Routing order: abstain, then choice, then a yes/no threshold"
+    },
+    {
+      "kind": "p",
+      "text": "Every tool has some branch step: Paths in Zapier, a Router in Make, Switch or If elsewhere. Branch in this order:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`answers.<key>.abstain` is `true`: send it to a person.",
+        "`answers.<key>.choice` equals an option key: take that route. Send `none_of_these` to a person too.",
+        "A Noul answer is P(yes): compare `answers.<key>.noul` with a threshold, for example above 0.9."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart TD\n  R[\"POST /v1/decide response\"] --> A{\"abstain is true?\"}\n  A -- yes --> H[\"human review\"]\n  A -- no --> C{\"choice\"}\n  C -- \"none_of_these\" --> H\n  C -- \"an option key\" --> O[\"that route\"]\n  R --> N{\"noul above your threshold?\"}\n  N -- yes --> Y[\"yes branch\"]\n  N -- no --> X[\"no branch\"]",
+      "title": "Routing order for an LLM classification REST API response",
+      "caption": "Check abstain first, then the chosen option, then the yes/no probability against your own threshold."
+    },
+    {
+      "kind": "p",
+      "text": "Abstain comes first because a low-confidence answer still has a `choice`. If you branch on `choice` first, unsure answers get routed as if they were sure."
+    },
+    {
+      "kind": "h2",
+      "text": "Send the true answer back"
+    },
+    {
+      "kind": "p",
+      "text": "When a person decides, or the outcome becomes known, send it:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{ \"decision_id\": \"dec_…\", \"question\": \"department\", \"label\": \"billing\" }"
+    },
+    {
+      "kind": "p",
+      "text": "The label is the option key for a Choice, the level index for a Score, `true` or `false` for a Noul, or the true value for an extraction question. The response says how many labels the question has and whether it is calibrated. From 30 labels for the same exact question in a project, Curva fits a calibrator and keeps it only when it makes the probabilities more accurate on held-out labels. Sending feedback again for the same decision and question replaces the earlier label."
+    },
+    {
+      "kind": "p",
+      "text": "A human review branch is the natural place for this call. The person's answer becomes a label, so the queue that catches unsure answers also teaches Curva."
+    },
+    {
+      "kind": "h2",
+      "text": "Auth: Bearer curva_ keys and the routes that need none"
+    },
+    {
+      "kind": "p",
+      "text": "Create a key with `curva keys create --name <who>`. It prints the key once and stores only a SHA-256 hash. Once any key exists, every route needs `Authorization: Bearer curva_…`, except three that hold no data: `GET /health`, the dashboard page and `GET /openapi.json`."
+    },
+    {
+      "kind": "p",
+      "text": "A few details matter for tools:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Each key has its own requests-per-minute limit, default 600.",
+        "A key made with `--project` works only for that project. Other projects get 403.",
+        "Without keys, the server listens only on localhost, unless started with `--no-auth` for a trusted private network.",
+        "Curva speaks plain HTTP. For Zapier or Make, the server must be reachable from the internet, so put it behind a reverse proxy for TLS."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Errors: {error: {type, message}} and what to retry"
+    },
+    {
+      "kind": "p",
+      "text": "Every error has the same shape: `{\"error\": {\"type\": \"...\", \"message\": \"...\"}}`."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Status",
+        "`type`",
+        "What to do"
+      ],
+      "rows": [
+        [
+          "400",
+          "`invalid_json`",
+          "Fix the body. Usually mapped text broke the JSON"
+        ],
+        [
+          "401",
+          "`unauthorized`",
+          "Send a valid key"
+        ],
+        [
+          "404",
+          "`not_found`",
+          "Unknown decision, question or route"
+        ],
+        [
+          "413",
+          "`too_large`",
+          "Body over the limit, 16 MB by default"
+        ],
+        [
+          "422",
+          "`invalid_request`",
+          "Read the message: it names the question or image"
+        ],
+        [
+          "429",
+          "`rate_limited`",
+          "Retry after the `Retry-After` header (seconds)"
+        ],
+        [
+          "502",
+          "`model_error` or `model_unavailable`",
+          "No model could answer, or the model id is wrong. Retry later or check the id"
+        ],
+        [
+          "504",
+          "`timeout`",
+          "Over the 120 s deadline"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Retry 429 and 502. Don't retry the 4xx errors without changing the request. The most common cause of a 400 in no-code tools is text with quotes or newlines pasted into a JSON template. Build the body with the tool's JSON helper or a code step instead."
+    },
+    {
+      "kind": "h2",
+      "text": "x-request-id across services"
+    },
+    {
+      "kind": "p",
+      "text": "Every response carries an `x-request-id` header. Send your own (1 to 64 visible ASCII characters) and the same id appears in the server's log line for the request. Pass your workflow's run id, and you can follow one item from the trigger through Curva's log to the action it caused."
+    },
+    {
+      "kind": "h2",
+      "text": "Pick your tool: curl, OpenAPI, Zapier, Make, Pipedream, Power Automate"
+    },
+    {
+      "kind": "p",
+      "text": "The contract is the same everywhere. What differs is how each tool builds the body and branches."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**curl or your own code:** the request above. Any language with an HTTP client works.",
+        "**OpenAPI:** `GET /openapi.json` serves an OpenAPI 3.1 spec. Import it into Postman or Insomnia, or generate a client with OpenAPI Generator for Go, Java, C# and more.",
+        "**Zapier:** Code by Zapier builds the body, Webhooks by Zapier (a premium app) sends it, Paths by Zapier routes on the flattened answer fields.",
+        "**Make:** JSON, Create JSON builds the body, HTTP, Make a request sends it, a Router branches.",
+        "**Pipedream:** a Node.js code step with `fetch`, then If/Else or Switch.",
+        "**Power Automate, Retool, Airtable:** their generic HTTP or webhook action with method `POST`, a raw JSON body and the two headers."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "None of these tools has a Curva marketplace app yet. Everything uses their generic HTTP features. For n8n there is a dedicated community node."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The full contract is in the [HTTP API reference](https://itsmohitrohilla.github.io/curva-docs/reference/http-api/), and the tool patterns are in [Pipedream and any HTTP tool](https://itsmohitrohilla.github.io/curva-docs/guides/any-http-tool/). For n8n, read [n8n AI routing with a Needs review branch](/blog/n8n-ai-routing/). For code, start with the [Python LLM classification tutorial](/blog/python-llm-classification/) or [TypeScript LLM classification](/blog/typescript-llm-classification/). For what Curva is, see [what is Curva](/blog/what-is-curva/). Install the server with `pip install curva-ai` and run `curva serve`."
+    }
+  ]
+}

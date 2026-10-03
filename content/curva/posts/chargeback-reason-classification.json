@@ -1,0 +1,142 @@
+{
+  "slug": "chargeback-reason-classification",
+  "title": "Map customer messages to chargeback reason codes",
+  "summary": "A Choice over your chargeback reason codes with descriptions per code, the escape option on, and abstain so disputed cases reach a person.",
+  "tag": "curva use cases",
+  "source_check": [
+    "site/concepts/questions.md",
+    "site/concepts/trust.md",
+    "site/guides/feedback.md",
+    "site/concepts/calibration.md",
+    "site/reference/python-sdk.md",
+    "site/guides/rules.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Chargeback reason code classification with an LLM comes down to three settings. Ask one Choice question whose options are your reason codes, each with a description that separates it from its neighbours. Keep the escape option on, so a message that fits no code gets `none_of_these` instead of a forced guess. And set `min_confidence`, so unsure answers come back with `abstain: true` and reach your disputes team. Curva returns one of your codes with a probability for every code, never free text, and after 30 resolved disputes per question it calibrates those probabilities on your data."
+    },
+    {
+      "kind": "plain",
+      "text": "Reason codes are a closed list with fine lines between them. The descriptions draw those lines, `none_of_these` catches what fits nowhere, and abstain sends the close calls to a person."
+    },
+    {
+      "kind": "h2",
+      "text": "Chargeback reason code classification as one Choice"
+    },
+    {
+      "kind": "p",
+      "text": "A Choice picks exactly one option and returns `choice`, `probabilities` for every option and `confidence`. Options map a key to a description, and the order is kept. A Choice takes 2 to 255 options, which covers any reason code list."
+    },
+    {
+      "kind": "p",
+      "text": "Use your own codes as keys. The keys below are an illustration, not a card network's list; map them to your processor's codes in your own code, so the model only has to read the customer's message."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva, Choice\n\nclient = Curva()\n\nREASON = Choice(\n    \"Which chargeback reason best matches the customer's complaint?\",\n    {\n        \"not_recognised\": \"the customer says they did not make or authorise the purchase\",\n        \"not_received\": \"the customer paid but says the goods or service never arrived\",\n        \"not_as_described\": \"it arrived, but the customer says it is faulty, wrong or different from the listing\",\n        \"duplicate_charge\": \"the same purchase was charged more than once\",\n        \"cancelled\": \"the customer cancelled a subscription or order and was still charged\",\n        \"credit_missing\": \"a refund was promised or agreed but has not appeared\",\n    },\n    min_confidence=0.85,\n)\n\nd = client.decide({\"message\": message_text, \"order_status\": status, \"refund_issued\": refunded},\n                  {\"reason\": REASON}, project=\"disputes\")\nprint(d[\"reason\"].choice, d[\"reason\"].confidence)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Put facts you already know in the state: the order status, whether a refund was issued, the delivery scan. Compute them in code. Language models are poor at comparing dates and adding amounts, so don't ask the model whether a refund is late; work it out and pass the result."
+    },
+    {
+      "kind": "h2",
+      "text": "Descriptions that separate fraud from service"
+    },
+    {
+      "kind": "p",
+      "text": "The descriptions are what the model reads. Most misroutes in a reason code list happen between neighbours: \"I don't recognise this charge\" (possible fraud) against \"I never got it\" (a service problem) against \"I cancelled\" (a billing problem). Each description should say what the customer claims, in the customer's terms, and nothing that overlaps with the next code."
+    },
+    {
+      "kind": "p",
+      "text": "Three habits help:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Describe the claim, not the outcome. \"The customer says they did not authorise the purchase\" works. \"Fraud\" alone invites the model to judge whether fraud happened, which it can't.",
+        "Name the deciding detail. \"Arrived, but faulty or different\" separates `not_as_described` from `not_received` on one fact.",
+        "Keep each description to one line. A long list of examples in one option pulls borderline messages towards it."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "If the line between two codes is still hard, add few-shot examples: up to 10 `(state, label)` pairs per question. Under order debiasing, examples are remapped when the options are reversed, so they stay correct."
+    },
+    {
+      "kind": "p",
+      "text": "Order debiasing matters for a long list. Models tend to favour options by position. Curva asks every question twice, with the options in original and reversed order, and averages the two, so position bias cancels out. It is on by default and costs two calls per decision."
+    },
+    {
+      "kind": "h2",
+      "text": "none_of_these for messages that fit no code"
+    },
+    {
+      "kind": "p",
+      "text": "A message like \"Why is there a charge from you on my statement? Can you send the invoice?\" may not be a dispute at all. Without an escape option, the model has to pick a code anyway, often with high confidence. Curva adds a `none_of_these` option to every Choice by default, so the honest answer is available."
+    },
+    {
+      "kind": "p",
+      "text": "Keep it on for reason codes. Route `none_of_these` to whoever answers general billing questions, not to the disputes team. The key is reserved, so don't use it as one of your own codes. If you ever turn it off with `\"escape\": false`, do it only when one of your codes really covers \"everything else\"."
+    },
+    {
+      "kind": "h2",
+      "text": "Abstain to the disputes team"
+    },
+    {
+      "kind": "p",
+      "text": "`min_confidence` sets the bar. Answers whose top probability is below it come back with `abstain: true`; the field is present only on questions that set the bar."
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "r = d[\"reason\"]\nif r.abstain:\n    queue_for_disputes_team(case_id, d.id)\nelif r.choice == \"none_of_these\":\n    send_to_billing_support(case_id)\nelse:\n    open_dispute(case_id, code=processor_codes[r.choice], decision_id=d.id)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "`probabilities` holds every code, so the person in the queue can see when two codes were close. Show the top two next to the message and the reviewer starts with the model's doubt, not a blank form."
+    },
+    {
+      "kind": "p",
+      "text": "Pick the bar by the cost of a wrong code. A dispute filed under the wrong reason can fail on a technicality, so a strict bar is reasonable. Until the question is calibrated, the bar is a guess about the model. After calibration, an answer at 0.9 is right about 90% of the time on your disputes."
+    },
+    {
+      "kind": "h2",
+      "text": "Feedback from resolved disputes"
+    },
+    {
+      "kind": "p",
+      "text": "Every dispute eventually has a known reason: the one your team filed, or the one the outcome confirmed. That is a label. Keep `d.id` with the case and send it when the case closes:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"reason\", \"not_received\")   # the option key",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Sending feedback again for the same decision and question replaces the earlier label, so a corrected case can update it."
+    },
+    {
+      "kind": "p",
+      "text": "From 30 labels for the same exact question in a project, Curva fits a calibrator. For a Choice with up to 20 options, that can be bias scaling: temperature plus a small per-answer offset, which fixes a model that favours one answer, such as calling almost every complaint unrecognised. Curva uses it only when held-out labels show it beats temperature alone, and keeps any calibrator only when it makes the probabilities more accurate on labels it hasn't seen. Otherwise answers stay raw with `calibrated: false`."
+    },
+    {
+      "kind": "p",
+      "text": "Two cautions. Calibration belongs to the exact wording and options of the question, so adding a code starts it over; settle the list before you collect labels. And send labels for confident, automated cases too, not only the abstained ones, so calibration covers the whole range."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read [debiasing, escape and abstain](https://itsmohitrohilla.github.io/curva-docs/concepts/trust/) and the [questions reference](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/) in the docs. Install with `pip install curva-ai`. For the escape option in depth, see [none of the above for LLMs](/blog/none-of-the-above-llm/). For a similar fine-grained list, read [banking intent classification](/blog/banking-intent-classification/), and for spend data, [expense categorization with AI](/blog/expense-categorization-ai/). More patterns are in [LLM classification use cases](/blog/llm-classification-use-cases/)."
+    }
+  ]
+}

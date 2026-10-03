@@ -1,0 +1,177 @@
+{
+  "slug": "none-of-the-above-llm",
+  "title": "None of the above: an escape option for LLM classifiers",
+  "summary": "A classifier forced to pick a label will, confidently. How a none_of_these option works, why it is on by default, and how to route it to a person.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/trust.md",
+    "recipes/llm-output-qa.json",
+    "recipes/lead-qualification.json",
+    "recipes/rag-check.json",
+    "recipes/content-moderation.json",
+    "site/reference/http-api.md",
+    "site/concepts/questions.md",
+    "site/reference/python-sdk.md",
+    "sdk/typescript/README.md",
+    "site/guides/n8n.md",
+    "site/guides/recipes.md",
+    "site/guides/any-http-tool.md",
+    "site/guides/switching.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "A \"none of the above\" option gives an LLM classifier an honest way to say that no label fits. Without it, a model shown an input that fits none of your options must still pick one, and it often picks with high confidence. Curva adds this option to every Choice question by default, under the reserved key `none_of_these`. You route it to a person the same way you route an unsure answer. This post covers why forced choice fails, how the escape option works, when to turn it off, and the one route where it is off by default."
+    },
+    {
+      "kind": "h2",
+      "text": "Why an LLM needs none of the above: a ticket that fits no team still gets a team"
+    },
+    {
+      "kind": "p",
+      "text": "A Choice question asks the model to pick exactly one option. If your options are billing, technical and sales, and a ticket asks about a partnership, every answer is wrong. The model doesn't know that \"none\" is allowed, so it picks the nearest option, and the probabilities it returns are spread over three wrong answers. Often one of them still comes out confident."
+    },
+    {
+      "kind": "p",
+      "text": "That is the dangerous part. Every downstream rule trusts the confidence. A partnership enquiry routed to sales with 0.9 confidence passes an \"automate above 0.8\" check and lands in the wrong queue. Nothing errors."
+    },
+    {
+      "kind": "p",
+      "text": "Calibration does not fix this on its own, because the right answer is not on the list. A calibrator can make the model less sure of its wrong pick, but it can't produce an answer that doesn't exist. The fix has to be in the question."
+    },
+    {
+      "kind": "h2",
+      "text": "none_of_these is on by default for Choice"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's docs describe the escape option plainly: a Choice question gets an extra option, `none_of_these`, by default. Without it, a model shown a ticket that fits no team has to pick one anyway, often with high confidence. With it, the honest answer is available, and you can route it to a human."
+    },
+    {
+      "kind": "p",
+      "text": "In practice:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "It is added to every Choice unless you turn it off. In Python, `escape` defaults to on when `options` is given.",
+        "It appears in `probabilities` like any other option, and `choice` may be `none_of_these`.",
+        "It counts toward the probabilities the model splits, so a ticket that partly fits shows that doubt across your options and the escape option.",
+        "In TypeScript, the answer type includes it: `d.answers.team.choice` is a union of your option keys plus `\"none_of_these\"`, so code that forgets the case is easier to spot."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "In the n8n node, the Route operation gives `none_of_these` its own output branch when **None of These** is on, which is the default."
+    },
+    {
+      "kind": "h2",
+      "text": "escape: false, and why the key is reserved"
+    },
+    {
+      "kind": "p",
+      "text": "Turn it off when \"none\" is already one of your real answers, or when an answer outside the list is impossible by construction. Over HTTP, set `\"escape\": false` on the question. In Python, the `escape` argument of `Choice` does the same."
+    },
+    {
+      "kind": "p",
+      "text": "The built-in recipes show both cases. The `content-moderation` recipe turns the escape option off because allowed content has its own category, `none`, defined as ordinary content. Every post gets one of the eight categories, and \"nothing wrong\" is a real answer rather than a fallback. Other recipes do the same for questions whose options already cover every case: `lead-qualification` for its timeline, which has an `unknown` option for \"not stated\", `llm-output-qa` for its verdict, and `rag-check` for its next step."
+    },
+    {
+      "kind": "p",
+      "text": "The key `none_of_these` is reserved. You can't use it as one of your own option keys, because Curva needs it to mean exactly one thing: the model said no option fits."
+    },
+    {
+      "kind": "h2",
+      "text": "Route none_of_these and abstain to the same queue"
+    },
+    {
+      "kind": "p",
+      "text": "There are two different kinds of \"not sure\", and both belong with a person:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**`none_of_these`:** the model says none of your options fits.",
+        "**`abstain: true`:** the model picked an option, but its confidence is below the question's `min_confidence`."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Route both the same way:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "if answer.abstain or answer.choice == \"none_of_these\":\n    send_to_human(ticket, decision_id=d.id)"
+    },
+    {
+      "kind": "p",
+      "text": "The routing order matters in tools that branch step by step. The docs' order is: abstain first, then the chosen option, where `none_of_these` also goes to a human. Checking abstain first stops an unsure answer from being routed as if it were sure."
+    },
+    {
+      "kind": "p",
+      "text": "Look at what lands in the escape branch over time. A steady stream of `none_of_these` for the same kind of input is a sign that your option list is missing a category. Add it, and settle the new wording before you collect labels, because a reworded question starts its calibration over."
+    },
+    {
+      "kind": "h2",
+      "text": "On the /v1/systemone alias it is off unless escape: true"
+    },
+    {
+      "kind": "p",
+      "text": "Curva also serves `POST /v1/systemone`, a compatible alias of `/v1/decide` for clients that send questions in the `criteria` shape. On that route a Choice has no escape option unless the question sets `\"escape\": true`. The reason is compatibility: those clients expect answers to stay within the criteria they sent."
+    },
+    {
+      "kind": "p",
+      "text": "The Python SDK follows the same rule for the compatible style. `Choice(..., criteria={...})` has no escape option unless you pass `escape=True`, while `Choice(..., options)` gets one by default."
+    },
+    {
+      "kind": "p",
+      "text": "If you migrate a criteria-style client, decide deliberately. Keep the old behaviour for a like-for-like comparison, then turn the escape option on once your code can route `none_of_these`."
+    },
+    {
+      "kind": "h2",
+      "text": "Escape vs Multi: no label fits vs several labels fit"
+    },
+    {
+      "kind": "p",
+      "text": "The escape option answers one specific problem: no label fits. A different problem is that several labels fit at once, like a ticket that is both a refund request and a bug report. That needs a Multi question, not an escape option."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Situation",
+        "Question type",
+        "What you get"
+      ],
+      "rows": [
+        [
+          "Exactly one option fits",
+          "Choice",
+          "`choice` and a probability per option"
+        ],
+        [
+          "No option fits",
+          "Choice with the escape option",
+          "`choice` is `none_of_these`"
+        ],
+        [
+          "Any number of options fit",
+          "Multi",
+          "`selected`: every option at or above the threshold"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A Multi scores each option as its own yes/no in the same call, with independent probabilities that don't sum to 1. If no option reaches the threshold (0.5 by default), `selected` is empty, which is the Multi's own way of saying none apply."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover the escape option in [debiasing, escape and abstain](https://itsmohitrohilla.github.io/curva-docs/concepts/trust/). For the other \"not sure\" exit, read [LLM confidence threshold and abstain](/blog/llm-confidence-threshold-abstain/). For why forced choices tend to come out overconfident, see [LLM overconfidence](/blog/llm-overconfidence/), and for the full picture, [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/). Install with `pip install curva-ai`."
+    }
+  ]
+}

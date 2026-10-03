@@ -1,0 +1,191 @@
+{
+  "slug": "fair-coin-llm-test",
+  "title": "The fair coin test: can an LLM say 50%?",
+  "summary": "A coin flip has one honest probability. One published probe got 0.92 from a typed-decision model; Curva gave 0.494. What the test shows and its limits.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/benchmarks.md",
+    "site/reference/cli.md",
+    "evals/RESULTS.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/concepts/questions.md",
+    "site/concepts/trust.md",
+    "site/concepts/calibration.md",
+    "Content Box/Jev reference/Jev Problems.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "The fair coin LLM test asks a model one question with exactly one honest answer: a fair coin is flipped and nobody has looked, so what is the probability of heads? The right answer is 0.5. A model whose probabilities reflect real uncertainty should say about 0.5; a model that reports confidence out of habit will lean hard one way. A published probe got P(heads) = 0.92 from Jev, a typed-decision model. Curva, with the logprobs model Ling 3.0 Flash, gave 0.494 on one probe (2026-09-27). Curva's docs set the pass target at `0.50 ± 0.05`. This post explains what the test shows, how to run it yourself, and why one probe is not a benchmark."
+    },
+    {
+      "kind": "h2",
+      "text": "Why a coin is the simplest calibration test"
+    },
+    {
+      "kind": "p",
+      "text": "Calibration usually needs labels. To know whether a model's 0.9 means right 90% of the time, you need many answers with known outcomes. The coin needs none. Its correct probability is known before you ask, so a single answer already tells you something."
+    },
+    {
+      "kind": "p",
+      "text": "It also isolates one skill: saying \"I don't know\" in numbers. Most classification questions have a right answer the model can reason towards. A fair coin has no answer to find, only uncertainty to report. A model that answers 0.92 has turned \"I can't know\" into \"almost certainly heads\", which is the same habit that makes LLM confidence scores run high on real tasks."
+    },
+    {
+      "kind": "p",
+      "text": "The test is simple to state as a typed question: a yes/no question, \"the coin lands heads\", with P(yes) as the answer. In Curva that is a Noul, and its answer, `noul`, is P(yes). A Noul is asked as a normalised two-option choice, so P(heads) and P(not heads) stay consistent with each other, and order debiasing asks it with the two options in both orders."
+    },
+    {
+      "kind": "h2",
+      "text": "Published: P(heads) 0.92 (Molas)"
+    },
+    {
+      "kind": "p",
+      "text": "A probe published by Alex Molas asked Jev for P(heads) on a fair coin and got 0.92. Curva's research notes list it among Jev's calibration problems, next to a finding that calibration doesn't transfer to your own data without recalibration."
+    },
+    {
+      "kind": "p",
+      "text": "Read that number for what it is: one published probe, by a third party, with its own prompt. It is evidence of a failure mode, not a measured rate. It is still a useful warning, because 0.92 on a coin is not a small miss. It is a model reporting near-certainty about something nobody can know."
+    },
+    {
+      "kind": "h2",
+      "text": "Curva with Ling 3.0 Flash: 0.494 on one probe"
+    },
+    {
+      "kind": "p",
+      "text": "Curva ran the same kind of probe through a live server, with auth and order debiasing on, on 2026-09-27. With Ling 3.0 Flash in logprobs mode, P(heads) came out at 0.494. That is inside the target band.",
+      "numbers": true
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Probe",
+        "Result",
+        "Model",
+        "n",
+        "Date"
+      ],
+      "rows": [
+        [
+          "Fair coin P(heads), target `0.50 ± 0.05`",
+          "0.494, pass",
+          "Ling 3.0 Flash (logprobs)",
+          "1 probe",
+          "2026-09-27"
+        ],
+        [
+          "Same probe, published for Jev",
+          "0.92",
+          "Jev",
+          "1 probe",
+          "Molas"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "In logprobs mode the number is read from the model's token probabilities, not written by the model, so 0.494 means the model's own distribution over \"yes\" and \"no\" was close to even. The same model failed a different probe on the same day: asked \"is X?\" and \"is not X?\" about the same tickets, its probabilities summed to 1.33, 0.14 and 0.56 instead of 1. A model can pass one trust probe and fail another. That is why Curva runs several, and why its default config now uses a model that passed the negation probe."
+    },
+    {
+      "kind": "h2",
+      "text": "The fair coin LLM test target: half, within a narrow band"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's benchmark page lists targets for each trust probe before any result is claimed:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Probe",
+        "What must hold",
+        "Target"
+      ],
+      "rows": [
+        [
+          "Negation sum P(x) + P(not x)",
+          "P(x) + P(not x) = 1",
+          "`1.00 ± 0.02`"
+        ],
+        [
+          "Option-order swap",
+          "reordering doesn't change the answer",
+          "under 5% of answers change"
+        ],
+        [
+          "Fair coin P(heads)",
+          "P(heads) ≈ 0.5",
+          "`0.50 ± 0.05`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The narrow band either side of 0.5 allows for the noise in a single reading while still catching a real lean. The mechanism the docs name for the coin is calibration on feedback: if a model's stated probabilities are off on your questions, labels fix the meaning of its numbers over time."
+    },
+    {
+      "kind": "h2",
+      "text": "The coin set among the built-in eval sets"
+    },
+    {
+      "kind": "p",
+      "text": "A single probe is one question. Curva also ships a small coin set among its built-in eval sets (routing, sentiment, policy, adversarial and coin), and `curva bench` runs them:"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "curva bench [OPTIONS] [SETS]..."
+    },
+    {
+      "kind": "p",
+      "text": "The coin set's rows ask about outcomes whose probability is stated in the input, so they test whether a model's answers follow the stated odds. In the first smoke test, the day before the probes, with 6 rows per set, it caught a problem the single probe did not: the logprobs model was overconfident on stated probabilities. Six rows is a smoke test, not a result, but it is the right kind of check to keep running as models change."
+    },
+    {
+      "kind": "p",
+      "text": "You can build the same kind of test for your own model. `curva bench` reads any folder of labeled sets, one JSON file per set:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"question\": {\"type\": \"noul\", \"instructions\": \"The coin lands heads\"},\n \"rows\": [{\"state\": {\"coin\": \"a fair coin, flipped once, nobody has looked\"}, \"label\": true},\n          {\"state\": {\"coin\": \"a fair coin, flipped once, nobody has looked\"}, \"label\": false}]}",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "With rows split evenly between true and false, a model that answers 0.5 on every row is perfectly calibrated on the set, and a model that answers 0.92 is badly overconfident however often it happens to be \"right\"."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "pip install curva-ai\ncurva bench --dir my-evals --model @gemini/gemini-flash-lite-latest --per-set 100 --save run.jsonl refunds\ncurva report run.jsonl --dir my-evals"
+    },
+    {
+      "kind": "p",
+      "text": "Swap the set name and model for your own. `curva report` re-analyses a saved run without new model calls."
+    },
+    {
+      "kind": "h2",
+      "text": "What one probe proves and what it does not"
+    },
+    {
+      "kind": "p",
+      "text": "What a pass shows: on that question, with that model and prompt, the probability reflected uncertainty instead of habit. What it doesn't show: that the model is calibrated on your tasks. The same model that passed the coin probe failed the negation probe, and was overconfident on the coin set."
+    },
+    {
+      "kind": "p",
+      "text": "What a fail shows: the model's raw probabilities can't be trusted at face value, at least for questions about uncertain outcomes. It is a reason to calibrate before you set thresholds."
+    },
+    {
+      "kind": "p",
+      "text": "So treat the coin as a smoke alarm, not an inspection. It is cheap, it needs no labels, and a loud failure is worth knowing about. For decisions, the real test is calibration on your own labels: after 30 labels per question, Curva fits a calibrator and keeps it only when it beats the raw probabilities on held-out labels, and the report tells you what a 0.9 actually means on your data."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The probes and targets are on the docs' [benchmarks page](https://itsmohitrohilla.github.io/curva-docs/benchmarks/). Read about the other trust probe in [LLM negation consistency](/blog/llm-negation-consistency/), and about the habit the coin exposes in [LLM overconfidence](/blog/llm-overconfidence/). For how calibration fixes it on your data, see [LLM calibration explained](/blog/llm-calibration-explained/) and [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

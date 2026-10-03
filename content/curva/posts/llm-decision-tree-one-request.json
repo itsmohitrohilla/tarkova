@@ -1,0 +1,171 @@
+{
+  "slug": "llm-decision-tree-one-request",
+  "title": "An LLM decision tree in one request with @key branches",
+  "summary": "Branch on an earlier LLM answer inside one request: @key in when reads an answer, follow-ups run only on the branch taken, and skips cascade to dependents.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/guides/conditional.md",
+    "site/guides/dependencies.md",
+    "site/reference/http-api.md",
+    "site/guides/rules.md",
+    "site/reference/python-sdk.md",
+    "site/concepts/calibration.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "An LLM decision tree asks a first question, then asks follow-up questions only on the branch the first answer picks. You can build one in your own code with a model call per node. In Curva you can build it in one request: a `when` field written `@<key>` reads the answer to question `<key>` instead of the state, so a follow-up is asked only when an earlier answer calls for it. Branches not taken are skipped, never sent, stored or paid for, and a skipped question skips everything that depends on it. This guide shows how to write the tree, what each answer type compares as, and what a branch costs."
+    },
+    {
+      "kind": "h2",
+      "text": "An LLM decision tree: from if-else in code to @key in the request"
+    },
+    {
+      "kind": "p",
+      "text": "The usual way to build an LLM decision tree is code: call the model, read the answer, `if` it says database, call again with a database question. Each node is a round trip, and the logic lives in your application, invisible to anything that logs the decision."
+    },
+    {
+      "kind": "p",
+      "text": "With `@key`, the branch lives in the request. The docs' incident example:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "\"db_owner\": {\"type\": \"text\", \"instructions\": \"Which team owns the database?\", \"when\": {\"@system\": \"database\"}},\n\"page_oncall\": {\"type\": \"noul\", \"instructions\": \"Page the on-call engineer?\", \"depends_on\": [\"db_owner\"]}"
+    },
+    {
+      "kind": "p",
+      "text": "`db_owner` is asked only when the answer to `system` is `database`. `page_oncall` depends on `db_owner`, so it waits for it and sees its answer. A whole tree written this way looks like this:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"state\": {\"alert\": \"p99 latency 4s on orders-db since 14:02\", \"last_deploy\": \"orders-api v212 at 13:58\"},\n  \"questions\": {\n    \"system\": {\"type\": \"choice\", \"instructions\": \"Which system is failing?\",\n               \"options\": {\"database\": \"\", \"api\": \"\", \"network\": \"\"}},\n    \"db_owner\": {\"type\": \"text\", \"instructions\": \"Which team owns the database?\",\n                 \"when\": {\"@system\": \"database\"}},\n    \"page_oncall\": {\"type\": \"noul\", \"instructions\": \"Page the on-call engineer?\",\n                    \"depends_on\": [\"db_owner\"]},\n    \"deployment_related\": {\"type\": \"noul\", \"instructions\": \"Did a recent deployment cause it?\",\n                           \"when\": {\"@system\": \"api\"}}\n  }\n}",
+      "original": true
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart TD\n  S[\"system: database, api or network\"] -->|\"@system = database\"| D[\"db_owner\"]\n  D --> P[\"page_oncall\"]\n  S -->|\"@system = api\"| R[\"deployment_related\"]\n  S -->|\"network\"| N[\"follow-ups skipped\"]",
+      "title": "An LLM decision tree in one request",
+      "caption": "The first answer picks the branch; questions on branches not taken come back as skipped and cost nothing."
+    },
+    {
+      "kind": "p",
+      "text": "A `when` that reads `@key` makes that question a dependency, so the follow-up runs in a later stage of the same request. Curva runs the request stage by stage, with one model call per stage and at most 8 stages, and every answer carries the `stage` that produced it."
+    },
+    {
+      "kind": "h2",
+      "text": "What @key compares per type: option key, true or false, level index, selected keys, value"
+    },
+    {
+      "kind": "p",
+      "text": "`@key` reads an answer, and what it compares depends on the type of the question it reads:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Earlier question type",
+        "`@key` compares",
+        "Example condition"
+      ],
+      "rows": [
+        [
+          "Choice",
+          "the chosen option key",
+          "`{\"@system\": \"database\"}`"
+        ],
+        [
+          "Noul",
+          "`true` or `false`, by P(yes) ≥ 0.5",
+          "`{\"@refund\": true}`"
+        ],
+        [
+          "Score",
+          "the index of the most likely level",
+          "`{\"@severity\": {\"gte\": 2}}`"
+        ],
+        [
+          "Multi",
+          "the list of selected keys",
+          "a list condition on the keys"
+        ],
+        [
+          "Text, Number, Integer",
+          "the extracted value",
+          "`{\"@amount\": {\"gt\": 100}}`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The Noul and Score rows deserve care. A Noul branches at 0.5, so a barely-yes answer takes the yes branch exactly as a near-certain one does. If a branch should fire only on a confident yes, gate the follow-up differently, for example with a rule, or route low-confidence answers to a person before the tree matters. A Score compares the single most likely level, not the expected level `score`, so an answer split between \"major\" and \"critical\" takes whichever level has more probability."
+    },
+    {
+      "kind": "p",
+      "text": "The operators are the same as everywhere else in `when` and rules: a value, a list of values, or an operator object such as `gte` or `contains`. With several conditions, all must match."
+    },
+    {
+      "kind": "h2",
+      "text": "Skips cascade: a skipped dependency skips its dependents"
+    },
+    {
+      "kind": "p",
+      "text": "When `system` is not `database`, `db_owner` is `{\"skipped\": true}`, and so is `page_oncall`: a skipped dependency skips its dependents. You don't have to repeat the branch condition down the tree. Gate the first node of a branch, hang the rest on it with `depends_on`, and the whole branch disappears when it doesn't apply."
+    },
+    {
+      "kind": "p",
+      "text": "Skipped questions keep their place in `answers`, so the response always has the same keys. Your code can check `skipped` instead of guessing which keys to expect."
+    },
+    {
+      "kind": "h2",
+      "text": "Rules that read @key answers count as answered"
+    },
+    {
+      "kind": "p",
+      "text": "Rule conditions can read `@key` answers too. A rule could, for example, answer `page_oncall` with `true` whenever `@system` is `database` and a top-level field written by your monitoring says the alert is critical. That node then needs no model call at all."
+    },
+    {
+      "kind": "p",
+      "text": "And a dependency answered by a rule counts as answered, with no model call for it. If the root of your tree is often decided by a rule, say a known alert source that always means the database, the tree runs from there with no model call for the root. The rule's answer carries `rule`, the index of the rule that fired, so the audit log shows why the branch was taken."
+    },
+    {
+      "kind": "h2",
+      "text": "The cost of a branch not taken: no call, no storage"
+    },
+    {
+      "kind": "p",
+      "text": "Every question on a branch not taken is skipped: never sent to the model, never stored, never paid for. That is the main argument for a tree over a flat list. A flat file that asks every follow-up for every alert pays for answers it throws away. A tree pays only for the path the data takes."
+    },
+    {
+      "kind": "p",
+      "text": "The trade-off is latency. Each stage is one model call, and stages run one after another, so a three-level tree takes about three calls' worth of time where a flat request takes one. Questions in the same stage share a call, so keep the tree shallow and wide where you can. `latency_ms` and `cost_usd` on the response add up every call."
+    },
+    {
+      "kind": "h2",
+      "text": "Fingerprints and calibration in a tree"
+    },
+    {
+      "kind": "p",
+      "text": "Calibration in Curva belongs to a fingerprint of each question's type, wording and options. Two details apply to trees:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "A `when` condition is not part of the fingerprint. Changing which branch value gates a question doesn't reset its calibration.",
+        "`depends_on` keys are part of it. The same wording asked with and without earlier answers in view is calibrated separately, because the model sees different input."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Feedback works per node. A question that answered gets labels like any other. A skipped question has no answer to correct, so feedback for it gets 404. Label the nodes on the paths your data actually takes; each one builds its own calibration."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover the parts in [conditional questions](https://itsmohitrohilla.github.io/curva-docs/guides/conditional/) and [workflows in one call](https://itsmohitrohilla.github.io/curva-docs/guides/dependencies/). Start with plain conditions in [conditional LLM questions](/blog/conditional-llm-questions-when/), chain stages with [depends_on](/blog/chain-llm-questions-depends-on/), and settle known cases with [LLM rules with no model call](/blog/llm-rules-no-model-call/). For the product overview, read [what is Curva](/blog/what-is-curva/)."
+    }
+  ]
+}

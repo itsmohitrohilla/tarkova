@@ -1,0 +1,226 @@
+{
+  "slug": "logprobs-vs-verbal-confidence",
+  "title": "Logprobs vs verbal confidence: which LLM number to trust",
+  "summary": "Token logprobs or a stated probability per label? How each mode works, which one auto picks, and the probe results that changed Curva's default model.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/questions.md",
+    "site/benchmarks.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/guides/providers.md",
+    "site/reference/http-api.md",
+    "site/reference/cli.md",
+    "site/concepts/projects.md",
+    "site/guides/speed-and-cost.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Logprobs vs verbal confidence comes down to where the number is read. With logprobs, the model answers with one label token per question and the probability of each label is read from the model's token log-probabilities. With verbal confidence, the model writes a probability for each label, and Curva constrains that reply to JSON over your declared labels so it is never a sentence to parse. Neither wins everywhere. Curva's default, `auto`, uses logprobs when the model returns them and verbal otherwise. And a small probe on 3 tickets showed that a logprobs model can fail a basic consistency check that a verbal model passes, which is why Curva's default model changed."
+    },
+    {
+      "kind": "h2",
+      "text": "Logprobs vs verbal confidence: one label token, or JSON with a probability per label"
+    },
+    {
+      "kind": "p",
+      "text": "Curva reads probabilities in one of two modes:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "",
+        "`logprobs`",
+        "`verbal`"
+      ],
+      "rows": [
+        [
+          "What the model returns",
+          "one label token per question",
+          "a JSON object limited to your labels, with a probability for each"
+        ],
+        [
+          "Where the number comes from",
+          "the token log-probabilities",
+          "the model's own stated probabilities"
+        ],
+        [
+          "Reply size",
+          "one token per question",
+          "a short JSON object"
+        ],
+        [
+          "Needs from the provider",
+          "logprobs support, top 20 at most",
+          "JSON output the model follows"
+        ],
+        [
+          "Guard",
+          "if your labels hold less than half the probability at that position, the question is retried on its own",
+          "the reply must match the schema of your labels"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Both modes answer every question of a request in one call. Both map onto your declared labels only, so there is no free text in either case. The difference is what the probability means. A logprobs probability is the model's own distribution over the next token. A verbal probability is a number the model chose to write, which makes it more like a judgement than a measurement."
+    },
+    {
+      "kind": "p",
+      "text": "Here is a real response from the docs, answered in logprobs mode:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"id\": \"dec_19294a3c1f2000000\",\n  \"model\": \"inclusionai/ling-3.0-flash-fin:free\",\n  \"mode\": \"logprobs\",\n  \"latency_ms\": 1144,\n  \"cost_usd\": 0.0,\n  \"cached\": false,\n  \"answers\": {\n    \"department\":       { \"choice\": \"billing\", \"probabilities\": { \"billing\": 0.9999, \"technical\": 0.0, \"sales\": 0.0001 }, \"confidence\": 0.9999 },\n    \"frustration\":      { \"score\": 0.65, \"probabilities\": [0.36, 0.62, 0.02], \"confidence\": 0.62 },\n    \"refund_requested\": { \"noul\": 0.999 }\n  }\n}"
+    },
+    {
+      "kind": "h2",
+      "text": "auto: logprobs when the model returns them, verbal otherwise"
+    },
+    {
+      "kind": "p",
+      "text": "The default `mode` is `auto`. It tries logprobs first and falls back to verbal when the model doesn't return them. The result is remembered per full model id, so the fallback happens once, not on every call. The response's `mode` field always says which one actually answered."
+    },
+    {
+      "kind": "p",
+      "text": "You can force either one with `mode: \"logprobs\"` or `mode: \"verbal\"`. Forcing logprobs on a question that can't use it is an error, not a silent fallback: you get a 422."
+    },
+    {
+      "kind": "p",
+      "text": "To check a model before you rely on it, `curva spike` reports which models return usable label probabilities. Providers without logprobs, or without JSON-schema output, still work in verbal mode, and then results depend on how well the model follows the schema."
+    },
+    {
+      "kind": "h2",
+      "text": "Probe results: Ling (logprobs) failed negation, Nemotron (verbal) passed"
+    },
+    {
+      "kind": "p",
+      "text": "The probe that changed Curva's default asks a yes/no question and its negation about the same ticket: \"is X?\" and \"is not X?\". The two probabilities should add up to 1."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Probe, 2026-09-27",
+        "Ling 3.0 Flash (logprobs)",
+        "Nemotron 3 Super (verbal)"
+      ],
+      "rows": [
+        [
+          "Negation: P(x) + P(not x), 3 tickets",
+          "1.33 / 0.14 / 0.56",
+          "1.000 / 1.000 / 1.000"
+        ],
+        [
+          "Option-order swap, 4 tickets × 2 orders",
+          "0 of 4 answers changed",
+          "not run"
+        ],
+        [
+          "Fair coin P(heads), should be 0.5",
+          "0.494",
+          "not run"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Ling's sums were far from 1 in both directions: the model ignored the word \"NOT\". Nemotron, reading verbally, summed to 1.000 each time. Because Ling failed the negation probe and Nemotron passed it, the default config `curva-1.1.0` (which `curva-latest` points to) uses Nemotron 3 Super. `curva-1.0.0` keeps Ling for callers who pinned it.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Read this carefully. It is a probe on 3 tickets, not a benchmark. It compares two models as much as two modes, so it doesn't prove that verbal beats logprobs in general. What it does show is that a token probability is not automatically a trustworthy one. Note too that a Noul in Curva is asked as a normalised two-option choice, which keeps P(yes) and P(no) for one question consistent; the probe tests something harder, two differently worded questions."
+    },
+    {
+      "kind": "h2",
+      "text": "Built-in sets: 85% vs 40% of decisions at 0.9, both 100% right on those"
+    },
+    {
+      "kind": "p",
+      "text": "The same two models ran Curva's built-in sets (routing, sentiment, policy, adversarial and a coin), 20 rows per model, uncalibrated, on 2026-09-27:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Metric",
+        "Ling 3.0 Flash (logprobs)",
+        "Nemotron 3 Super (verbal)"
+      ],
+      "rows": [
+        [
+          "Accuracy",
+          "85%",
+          "95%"
+        ],
+        [
+          "ECE, uncalibrated",
+          "0.131",
+          "0.088"
+        ],
+        [
+          "Decisions at 0.9 confidence or above",
+          "85%",
+          "40%"
+        ],
+        [
+          "Accuracy on those",
+          "100%",
+          "100%"
+        ],
+        [
+          "p50 latency",
+          "932 ms",
+          "921 ms"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "This is the useful nuance. The logprobs model was more decisive: 85% of its answers reached 0.9, and all of those were right. The verbal model was more accurate overall and better calibrated, but more cautious: only 40% reached 0.9, also all right. So on these 20 rows, the logprobs model would have automated more of the work at the same accuracy. With n = 20, none of this is firm. It shows why you measure your own model on your own data rather than choosing a mode by reputation.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "Always verbal: over 20 options and any extraction question"
+    },
+    {
+      "kind": "p",
+      "text": "Some questions can't use logprobs, whatever the model:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**A Choice with more than 20 options.** Providers return at most 20 logprobs, so Curva answers in verbal mode. `mode: logprobs` on such a question gets 422.",
+        "**Text, Number and Integer questions.** There is no label token to read for an extracted value. A request with any extraction question is answered in verbal mode.",
+        "**`think: true`.** Reasoning before answering is always verbal, with up to 1,024 more output tokens."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Where logprobs are available, they are the cheaper reply: one token per question, so every question in a request costs little more than one. Keep `mode` at `auto`, or `logprobs` where the model returns them, if cost matters."
+    },
+    {
+      "kind": "h2",
+      "text": "Either way, calibrate before trusting thresholds"
+    },
+    {
+      "kind": "p",
+      "text": "Both modes give raw probabilities. Neither is calibrated to your data out of the box. A logprobs model can be overconfident; a verbal model can write tidy numbers that don't match its hit rate. The fix is the same for both: send feedback, and after 30 labels per question Curva fits a calibrator and keeps it only when it beats the raw numbers on held-out labels."
+    },
+    {
+      "kind": "p",
+      "text": "One caution if you change modes or models. Calibrators belong to the exact question and project, and the `auto` decision is remembered per model id. Switching from a logprobs model to a verbal one changes the raw numbers the calibrator learned from. Re-check the calibration report after any switch."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs explain both modes in [questions and answers](https://itsmohitrohilla.github.io/curva-docs/concepts/questions/) and show the probes on the [benchmarks page](https://itsmohitrohilla.github.io/curva-docs/benchmarks/). Test a model with [check LLM logprobs support](/blog/check-llm-logprobs-support/), see why the negation probe matters in [LLM negation consistency](/blog/llm-negation-consistency/), and read [LLM classification with many classes](/blog/llm-classification-many-classes/) for the 20-option limit. The full picture is in [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

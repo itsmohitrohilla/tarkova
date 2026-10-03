@@ -1,0 +1,243 @@
+{
+  "slug": "jev-alternative-self-hosted",
+  "title": "A self-hosted Jev alternative for typed LLM decisions",
+  "summary": "Looking for a self-hosted Jev alternative? How Curva compares on features, measured accuracy, speed and cost, and how to switch by changing two variables.",
+  "tag": "curva vs jev",
+  "source_check": [
+    "Content Box/4 Benchmarks/curva-vs-jev.md",
+    "Content Box/Jev reference/Jev Problems.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "Content Box/Jev reference/Jev.md",
+    "Content Box/Jev reference/Feature Gap.md",
+    "site/guides/switching.md",
+    "site/reference/http-api.md",
+    "site/guides/shadow.md",
+    "site/reference/cli.md",
+    "Content Box/6 Blog/fact-sheet.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "If you want a self-hosted Jev alternative, Curva gives you the same kind of output (typed Choice, Score and yes/no answers with a probability for every option) but runs on your own servers with any LLM you choose. It is free to use under the Curva Free License; you pay only your model provider. It accepts Jev's request shape at `/v1/systemone`, so a client built for Jev can switch by changing two environment variables. Jev is faster on most setups and better calibrated out of the box on several public quiz sets. This post shows where each one is ahead, with the numbers and their sample sizes."
+    },
+    {
+      "kind": "h2",
+      "text": "What Jev is, and what a self-hosted alternative must match"
+    },
+    {
+      "kind": "p",
+      "text": "Jev by TypeSafe AI is a \"System One\" model: unstructured state goes in, typed probabilistic decisions come out, never text. You call one hosted endpoint, `POST https://api.typesafe.ai/v1/systemone`, with a state and questions. It has three primitives: Choice (up to 255 options), Score (2 to 10 levels) and Noul (the probability of true). TypeSafe reports 70 to 500 ms end to end and a price of $0.042 per million input tokens, with output free. Architecture, weights and paper are undisclosed, and it is served only from the US West Coast."
+    },
+    {
+      "kind": "p",
+      "text": "That is a clear, simple product. One API, one model, no model choice to make. An alternative has to give you the same typed answers and probabilities. The reasons to look for one are usually about where it runs, which model answers, and whether the probabilities adapt to your data."
+    },
+    {
+      "kind": "h2",
+      "text": "How Curva differs from Jev"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Area",
+        "Curva",
+        "Jev"
+      ],
+      "rows": [
+        [
+          "Where it runs",
+          "Your servers: one binary with SQLite, or Docker",
+          "Hosted API, US West Coast only"
+        ],
+        [
+          "Which model",
+          "Any OpenAI-compatible model, hosted or local, including your own fine-tune",
+          "One closed model"
+        ],
+        [
+          "Price",
+          "Free to use; your provider's price per call; $0 on free tiers and cached repeats",
+          "$0.042 per 1M input tokens, output free (self-reported)"
+        ],
+        [
+          "Question types",
+          "Choice, Score (2 to 20 levels), Noul, Multi, Text, Number, Integer",
+          "Choice, Score (2 to 10 levels), Noul"
+        ],
+        [
+          "Calibration",
+          "Refit from your feedback per question and project, applied only when it helps",
+          "Fixed at training (RLCD, self-reported)"
+        ],
+        [
+          "Unsure answers",
+          "`none_of_these` escape option, `min_confidence` abstain, coverage sets",
+          "No escape option"
+        ],
+        [
+          "Inputs",
+          "Text plus up to 8 images for vision models",
+          "Text only"
+        ],
+        [
+          "Audit",
+          "Audit log per decision, state stored only as a salted hash",
+          "No per-decision rationale"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The practical difference is ownership. With Curva the data goes only to the model providers you configure, or nowhere at all if you run a local model. Pinned configs freeze the prompt template and default model, so answers don't change when you upgrade until you move `curva-latest` yourself."
+    },
+    {
+      "kind": "h2",
+      "text": "Where Curva measurably wins, and where it doesn't"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's public runs use free-tier models with order debiasing on, and report accuracy reweighted to each dataset's natural label mix with a 95% range. Jev's numbers are published by others on their own samples, so compare with care. All Curva rows are from 2026-10-01.",
+      "numbers": true
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Dataset",
+        "Curva (model, n)",
+        "Curva result",
+        "Jev published"
+      ],
+      "rows": [
+        [
+          "PhishNChips accuracy",
+          "Gemini flash-lite, n = 100",
+          "80.8% (73%–89%), win",
+          "62.6%"
+        ],
+        [
+          "PhishNChips ECE",
+          "Gemini flash-lite, n = 100",
+          "0.138, win",
+          "0.154"
+        ],
+        [
+          "PhishNChips accuracy",
+          "Groq qwen3.8-27b, n = 100",
+          "72.8% (64%–82%), win",
+          "62.6%"
+        ],
+        [
+          "PhishNChips p50 latency",
+          "Groq qwen3.8-27b, n = 100",
+          "178 ms, win",
+          "239 ms"
+        ],
+        [
+          "BoolQ accuracy",
+          "Gemini flash-lite, n = 127",
+          "88.9% (83%–94%), matches",
+          "89.7%"
+        ],
+        [
+          "BANKING77 accuracy",
+          "Gemini flash-lite, n = 120",
+          "79.8% (73%–87%), matches",
+          "75.3%"
+        ],
+        [
+          "HellaSwag accuracy",
+          "Groq qwen3.8-27b, n = 100",
+          "86.0% (79%–93%), matches",
+          "86.1%"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Jev's PhishNChips figures come from anisselbd/jev-phishing-bench (2,000 emails), BANKING77 from sanand0 llmevals, BoolQ from the Nimble public benchmarks subset, and HellaSwag from scienthoon/jev-ood-calibration.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Now the other side, because a fair comparison needs it. On every model except Groq, Curva's median latency on PhishNChips was 720 ms to 13,373 ms, against Jev's 239 ms. Raw calibration error on BoolQ, OpenBookQA, CommonsenseQA and HellaSwag is higher than Jev's published numbers for every model we tested: 0.032 to 0.118 for Curva against 0.024 to 0.038 for Jev. On AITA, Groq scored 55.7% against Jev's 75.4%. And our samples are small: n = 69 to 127 per row on free models, while Jev's published numbers rest on 77 to 2,000 items.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "How to compare the cost"
+    },
+    {
+      "kind": "p",
+      "text": "Curva itself costs nothing to run beyond your servers. The model calls cost what your provider charges, and with debiasing on each decision is two calls. Measured from the `cost_usd` of real runs (160 decisions per model over 8 public sets, 2026-09-30), cost per 1,000 decisions was $0.078 on gpt-4.1-nano, $0.118 on gpt-4o-mini, $0.314 on gpt-4.1-mini and $1.64 on Claude Haiku 4.5. Gemini flash-lite and Groq qwen3.8-27b cost $0 within their free-tier limits.",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "On paid models, that is more per decision than a third-party figure for Jev of $0.025 per 1,000 (manjunathshiva/jev-frontier-bench). Curva is cheaper where it skips the model: free tiers, repeats answered from the decision cache in about a millisecond, and questions answered by rules. Lower the paid-model cost with `debias: \"auto\"`, a cascade, or a local model."
+    },
+    {
+      "kind": "h2",
+      "text": "Switch from Jev without rewriting your client"
+    },
+    {
+      "kind": "p",
+      "text": "Curva serves `POST /v1/systemone`, a compatible alias of `/v1/decide` that accepts Jev's `criteria` question shape. If you use Jev's Python SDK, keep it and point it at your Curva server:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva serve --addr 127.0.0.1:7777\ncurva keys create --name my-app          # prints curva_… once\nexport TYPESAFE_BASE_URL=http://127.0.0.1:7777\nexport TYPESAFE_API_KEY=curva_..."
+    },
+    {
+      "kind": "p",
+      "text": "This was verified with `typesafe-sdk` 0.7.2 against `curva serve`: `system_one`, the three primitives with `criteria`, dict questions, `extra_body`, `usage`, `models.list()`, and 401 and 422 errors. Jev's TypeScript SDK uses the same wire contract and should work the same way, but it was not run."
+    },
+    {
+      "kind": "p",
+      "text": "A raw request in the `criteria` shape looks like this:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"state\": {\"ticket\": \"I was charged twice for order A-104\"},\n  \"model\": \"curva-latest\",\n  \"questions\": {\n    \"team\": {\"type\": \"choice\", \"instructions\": \"Which team?\",\n             \"criteria\": {\"billing\": \"payments, refunds\", \"technical\": \"bugs\", \"sales\": null}},\n    \"anger\": {\"type\": \"score\", \"instructions\": \"How frustrated?\",\n              \"criteria\": [\"calm\", \"annoyed\", \"angry\"]},\n    \"refund\": {\"type\": \"noul\", \"instructions\": \"Asks for a refund\",\n               \"criteria\": {\"true\": \"explicitly asks for money back\", \"false\": \"anything else\"}}\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "Know the differences before you switch:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "There is no `x-typesafe-request-id` header, so `response.request_id` raises in Jev's SDK. The decision id is in the body as `id`.",
+        "Malformed JSON gives 400 (Jev gives 422), and an upstream model failure gives 502 (Jev gives 529).",
+        "`usage.output_tokens` is always 0, and `release_date` in `GET /v1/models` is empty.",
+        "On this route a Choice has no `none_of_these` escape option unless you ask for it."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Shadow-test before you move traffic"
+    },
+    {
+      "kind": "p",
+      "text": "Don't switch on faith. `curva shadow` replays logged traffic through Curva, compares the answers with what your current system decided, and writes a Markdown report with agreement by confidence band. That tells you which share of decisions you could hand over, on your own data, before any user sees a Curva answer."
+    },
+    {
+      "kind": "h2",
+      "text": "When Jev is the better pick"
+    },
+    {
+      "kind": "p",
+      "text": "Pick Jev if you need its published 70 to 500 ms answers on every request without choosing or running a model, if its calibration on general knowledge questions is what you need out of the box, or if you don't want to operate a server at all. Pick Curva if you need to run on your own infrastructure, keep data with you, choose or mix models (including local ones), get extraction and image questions, or have probabilities refit on your own labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The full side-by-side, with every dataset, is on the [Curva vs Jev page](/curva/vs-jev/). The [switching guide](https://itsmohitrohilla.github.io/curva-docs/guides/switching/) in the docs has the checklist. To see how Curva's probabilities become trustworthy on your data, read [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/). Install with `pip install curva-ai`."
+    }
+  ]
+}

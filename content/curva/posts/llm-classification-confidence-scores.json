@@ -1,0 +1,287 @@
+{
+  "slug": "llm-classification-confidence-scores",
+  "title": "LLM classification confidence scores you can act on",
+  "summary": "How to get confidence scores from LLM classification that mean something: a probability per label, debiasing, calibration on your labels and abstain.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/calibration.md",
+    "site/concepts/questions.md",
+    "site/concepts/trust.md",
+    "site/guides/guaranteed-accuracy.md",
+    "site/guides/feedback.md",
+    "Content Box/2 How to use/code-snippets.md",
+    "Content Box/6 Blog/fact-sheet.md",
+    "Content Box/1 Product/how-it-works.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To get LLM classification confidence scores you can automate on, you need four things. First, a probability for every label, read from the model, not a number it writes in a sentence. Second, the same answer whatever order the options are listed in. Third, a check of those probabilities against your own labels, so that 0.9 means right about 90% of the time. Fourth, a rule for what happens when the model is unsure. This guide walks through each step with Curva, a free-to-use decision server that runs on your own machines, and links to a deeper post for every part."
+    },
+    {
+      "kind": "plain",
+      "text": "A confidence score is only useful if it matches how often the answer is right. Raw LLM confidence usually doesn't. You fix that with labels, not with a better prompt."
+    },
+    {
+      "kind": "h2",
+      "text": "Why the confidence an LLM writes is not a score"
+    },
+    {
+      "kind": "p",
+      "text": "Ask a model \"which team should handle this ticket, and how sure are you?\" and you get a sentence with a number in it. The number is text the model generated. It is not measured against anything."
+    },
+    {
+      "kind": "p",
+      "text": "Curva's docs put the problem plainly: a model that answers \"0.95\" on questions it gets right 70% of the time is overconfident, and every rule built on that 0.95, such as \"automate above 0.9\", will quietly fail. Nothing errors. The wrong tickets just get routed with high confidence."
+    },
+    {
+      "kind": "p",
+      "text": "So the work splits into two jobs. Get a real probability distribution over your labels. Then check it against reality."
+    },
+    {
+      "kind": "h2",
+      "text": "Where a real probability comes from"
+    },
+    {
+      "kind": "p",
+      "text": "Curva never parses free text. You declare typed questions (a Choice, a Score, a yes/no Noul, a Multi), and every answer is mapped onto the labels you declared, with a probability for each one. There are two ways to read those probabilities:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`logprobs`: the model answers with one label token per question, and Curva reads each label's probability from the token log-probabilities. If your labels hold less than half of the probability at that position, the question is retried on its own.",
+        "`verbal`: the model returns JSON limited to your labels, with a probability for each."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The default, `auto`, uses logprobs when the model returns them and switches to verbal when it doesn't. The response's `mode` field tells you which one answered. Choices with more than 20 options always use verbal mode, because providers return at most 20 logprobs."
+    },
+    {
+      "kind": "p",
+      "text": "Here is a full decision in Python, from the Curva quickstart:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nfrom curva import Choice, Score, Noul\n\nclient = curva.local()      # or curva.Curva(\"http://your-server:7777\")\nd = client.decide(\n    state={\"ticket\": \"I was charged twice for order A-104. Please refund the duplicate!\"},\n    questions={\n        \"team\": Choice(\"Which team should handle this?\",\n                       {\"billing\": \"payments, refunds\", \"technical\": \"bugs\", \"sales\": \"pricing\"}),\n        \"frustration\": Score(\"How frustrated is the customer?\", [\"calm\", \"annoyed\", \"angry\"]),\n        \"refund\": Noul(\"The customer explicitly asks for a refund\"),\n    },\n)\nprint(d[\"team\"].choice, d[\"team\"].confidence)   # e.g. billing 0.9999\nprint(d[\"frustration\"].score)                   # e.g. 0.65\nprint(d[\"refund\"].noul)                         # e.g. 0.999\n\nclient.feedback(d.id, \"team\", \"billing\")        # teach it; calibrates after 30 labels"
+    },
+    {
+      "kind": "p",
+      "text": "Two details matter for confidence. A Score returns the expected level, so probabilities of `[0.36, 0.62, 0.02]` give `0.65`, between \"calm\" and \"annoyed\", instead of rounding the doubt away. A Noul is asked as a normalised two-option choice, so P(yes) and P(no) stay consistent with each other."
+    },
+    {
+      "kind": "h2",
+      "text": "Remove what the prompt layout adds"
+    },
+    {
+      "kind": "p",
+      "text": "Models tend to favour options by position. List `billing` first and it may win more often than it should. Curva asks every question twice, at the same time, with the options in the original and the reversed order, and averages the two. The first-position boost lands on a different option in each call and cancels out. It is on by default and costs two calls per decision; `debias: \"auto\"` drops to one call once a question has shown no position bias. The full mechanism, its cost and a bug we fixed along the way are in [LLM position bias, and how order debiasing cancels it](/blog/llm-position-bias/)."
+    },
+    {
+      "kind": "p",
+      "text": "A second source of false confidence is a forced choice. Show a model a ticket that fits no team and it still has to pick one, often with high confidence. Every Choice gets an extra option, `none_of_these`, by default, so the honest answer is available."
+    },
+    {
+      "kind": "h2",
+      "text": "Calibrate LLM classification confidence scores on your labels"
+    },
+    {
+      "kind": "p",
+      "text": "Calibration needs one input from you: the true answer, whenever you learn it. Keep the decision `id`, and when an agent closes the ticket or a reviewer fixes a label, send it back:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(d.id, \"team\", \"billing\")\nreport = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "After 30 labels for the same exact question in a project, Curva fits a small calibrator:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Question type",
+        "Calibrator"
+      ],
+      "rows": [
+        [
+          "Choice, Score",
+          "Temperature scaling: one parameter that softens or sharpens the whole distribution"
+        ],
+        [
+          "Choice, Score (up to 20 options)",
+          "Bias scaling: temperature plus a per-answer offset, for a model that favours one answer"
+        ],
+        [
+          "Noul",
+          "Platt scaling: a logistic fit on P(yes)"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The calibrator is applied only when it helps. Curva fits it on four fifths of the labels and scores it on the fifth it hasn't seen, five times over. It keeps it only if log-loss drops by at least 1%, the gain in both log-loss and Brier score is larger than its own noise, and a statistical test says the raw probabilities are off. Otherwise answers stay raw, with `calibrated: false`, because a well-calibrated model should be left alone. With few labels it moves cautiously: about a third of the way at 30 labels, nearly all the way at 1,000."
+    },
+    {
+      "kind": "p",
+      "text": "Calibrators belong to the exact wording of a question and to a `project`. Rewording a question starts a fresh calibration, so settle the wording before you collect labels."
+    },
+    {
+      "kind": "h2",
+      "text": "What calibration did on real runs"
+    },
+    {
+      "kind": "p",
+      "text": "These are held-out results from Curva's public benchmark runs (2026-10-01, debiasing on, free-tier models). \"After\" means each half of the rows was calibrated by a fit on the other half, which is what you get once feedback flows in.",
+      "numbers": true
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "Dataset",
+        "n",
+        "ECE raw",
+        "ECE after calibration"
+      ],
+      "rows": [
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "AITA",
+          "100",
+          "0.404",
+          "0.149"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "Yelp",
+          "100",
+          "0.259",
+          "0.138"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "BANKING77",
+          "69",
+          "0.252",
+          "0.157"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "PhishNChips",
+          "100",
+          "0.283",
+          "0.209"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "BoolQ",
+          "127",
+          "0.081",
+          "0.081 (left raw)"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "Read it three ways. Bias scaling fixed models that favour one answer: on Yelp, Gemini's accuracy also rose from 54% to 59% after calibration. Calibration improved an overconfident model (Groq on PhishNChips) without making it perfect. And on BoolQ it changed nothing, which is the point of the held-out gate. These are samples of 69 to 127 rows, so treat them as first measurements, not guarantees.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "Decide what to automate: abstain and coverage sets"
+    },
+    {
+      "kind": "p",
+      "text": "A good score is still only useful once it drives a decision. Curva gives you two tools."
+    },
+    {
+      "kind": "p",
+      "text": "Set `min_confidence` on a question, and answers below it come back with `abstain: true`. That is your review queue:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "q = {\"team\": Choice(\"Which team?\", {\"billing\": \"\", \"technical\": \"\", \"sales\": \"\"}, min_confidence=0.9)}\nd = client.decide(ticket, q, project=\"support\")\n\nif d[\"team\"].abstain:\n    team = ask_a_human(ticket)\n    client.feedback(d.id, \"team\", team)\nelse:\n    route(ticket, d[\"team\"].choice)"
+    },
+    {
+      "kind": "p",
+      "text": "The person's answer goes straight back as feedback, so the queue also feeds calibration. Once calibrated, the threshold means what it says. Before that, it is a guess about the model."
+    },
+    {
+      "kind": "p",
+      "text": "Set `coverage` instead (or as well) and, once the question has 30 labels, each answer carries a `set` of options that contains the true answer at least that often, as long as new inputs look like the labeled ones. It uses split conformal prediction on your own feedback labels. One option in the set: automate. Several: show them or route to a person. A worse model gets bigger sets, not a broken promise. The docs' routing rule combines both: automate when the set has one option and `abstain` is false."
+    },
+    {
+      "kind": "h2",
+      "text": "Measure it: ECE, Brier and accuracy when automated"
+    },
+    {
+      "kind": "p",
+      "text": "`GET /v1/calibration` (or `client.calibration` in Python) reports three numbers, before and after calibration, on held-out labels:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Metric",
+        "What it tells you",
+        "Better"
+      ],
+      "rows": [
+        [
+          "ECE",
+          "Average gap between confidence and accuracy, weighted by bin",
+          "Lower"
+        ],
+        [
+          "Brier score",
+          "Mean squared error of the probabilities",
+          "Lower"
+        ],
+        [
+          "Accuracy when automated",
+          "Accuracy on answers at or above 0.9, and the share that reach it",
+          "Higher"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The third one is the number to plan around. It answers the business question directly: if we automate everything at 0.9 or above, how much is that, and how often is it right?"
+    },
+    {
+      "kind": "h2",
+      "text": "The whole path in one request"
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart TD\n  A[\"state + typed questions\"] --> B{\"rules or when match?\"}\n  B -- yes --> Z[\"answer, no model call\"]\n  B -- no --> C{\"same request cached?\"}\n  C -- yes --> Y[\"cached answer\"]\n  C -- no --> D[\"ask the model in original and reversed order\"]\n  D --> E[\"average the probabilities\"]\n  E --> F[\"calibrate, if it beats raw on held-out labels\"]\n  F --> G[\"coverage set and abstain flag\"]\n  G --> H[\"typed answer + audit log\"]\n  H --> I[\"your feedback refits the calibrator\"]",
+      "title": "The path from question to calibrated answer",
+      "caption": "Rules, `when` and the cache avoid a model call; everything else is asked in two orders, calibrated if that helps, then checked against coverage and abstain."
+    },
+    {
+      "kind": "h2",
+      "text": "What this does not fix"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "No labels, no calibration. A fresh install returns raw probabilities with `calibrated: false`. Plan to label at least 30 answers per question, including confident ones, not only the abstained ones.",
+        "Wording is part of the question. A reworded question has no calibrator and no coverage guarantee until it collects its own labels.",
+        "Counting, sums and date comparisons belong in code. Compute them and put the result in the state; ask the model only the judgement.",
+        "A probability can't rescue a model that can't do the task. Measure on your own data first with `curva bench` or `curva shadow`."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Where to go next"
+    },
+    {
+      "kind": "p",
+      "text": "Start with the [Python LLM classification tutorial](/blog/python-llm-classification/) to run this end to end, then read [how order debiasing cancels position bias](/blog/llm-position-bias/). For a worked use case with measured numbers, see [phishing detection with an LLM](/blog/phishing-detection-llm/). The reference is the docs page on [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/). Install with `pip install curva-ai`."
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+{
+  "slug": "install-curva",
+  "title": "Install Curva with pip, npm or Docker and check it runs",
+  "summary": "Three ways to install Curva, what each gives you, which to pick, and three checks that prove it runs: curva --version, GET /health and a first decision.",
+  "tag": "curva guides",
+  "source_check": [
+    "site/getting-started.md",
+    "sdk/typescript/README.md",
+    "site/self-hosting.md",
+    "site/reference/http-api.md",
+    "sdk/python/README.md",
+    "site/reference/python-sdk.md",
+    "site/reference/cli.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To install Curva, pick one of three paths. `pip install curva-ai` gives you the Python SDK and the `curva` server binary in one package. `npm install curva-ai` gives you a zero-dependency TypeScript client that needs a running server. The Docker image `ghcr.io/itsmohitrohilla/curva` gives you the server alone, for production. Then three checks prove it runs: `curva --version` prints `curva 0.1.0`, `GET /health` returns `{\"status\": \"ok\", \"version\": \"0.1.0\"}`, and a first decision comes back typed. This guide covers what each path contains, the gotchas, and which one to pick."
+    },
+    {
+      "kind": "p",
+      "text": "Curva is free to use under the Curva Free License. It calls the LLM you configure, so you also need a provider key, or a local model. Any OpenRouter key works, and free models are fine for trying it out."
+    },
+    {
+      "kind": "h2",
+      "text": "pip install curva-ai: SDK and server binary in one wheel"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "pip install curva-ai\ncurva --version        # curva 0.1.0"
+    },
+    {
+      "kind": "p",
+      "text": "One package holds both halves. The Python SDK is what your code imports. The `curva` binary is the CLI and the HTTP server, and it comes inside the wheel, so there is nothing else to install and no Rust toolchain to set up."
+    },
+    {
+      "kind": "p",
+      "text": "That bundling is what makes the zero-setup path work. The first `curva.decide` call starts a private server for your Python process on a free localhost port, reuses it for every later call, and stops it when Python exits. `curva.local()` does the same and keeps its database at `~/.curva/curva.db`, so calibration learned in one run is still there in the next."
+    },
+    {
+      "kind": "p",
+      "text": "The binary also gives you every command-line tool: `curva serve`, `curva map` for batch files, `curva shadow`, `curva bench`, `curva recipe` and the rest."
+    },
+    {
+      "kind": "h2",
+      "text": "Platform wheels: Linux x86_64 and aarch64, macOS, Windows, Python 3.9+"
+    },
+    {
+      "kind": "p",
+      "text": "Platform wheels exist for:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Platform",
+        "Wheels"
+      ],
+      "rows": [
+        [
+          "Linux",
+          "x86_64, aarch64"
+        ],
+        [
+          "macOS",
+          "Apple Silicon, Intel"
+        ],
+        [
+          "Windows",
+          "included"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The SDK itself uses only the Python standard library and needs Python 3.9 or newer. Nothing else is pulled in, which keeps it easy to add to an existing environment."
+    },
+    {
+      "kind": "p",
+      "text": "Set a provider key before your first call:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "export OPENROUTER_API_KEY=sk-or-v1-..."
+    },
+    {
+      "kind": "p",
+      "text": "Without `OPENROUTER_API_KEY`, the first key set among `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `GROQ_API_KEY` and a few others picks a small, fast model of that provider. `CURVA_MODEL` chooses one yourself, for example `CURVA_MODEL=@ollama/qwen3:4b` for a local model. With no key at all, `curva.decide` raises an error that names the variables to set."
+    },
+    {
+      "kind": "h2",
+      "text": "npm install curva-ai: a zero-dependency client that needs a server"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "npm install curva-ai"
+    },
+    {
+      "kind": "p",
+      "text": "The npm package has the same name and a different job. It is a TypeScript and JavaScript client with zero runtime dependencies. It uses the global `fetch`, so it runs on Node 18+, Deno, Bun and in browsers, and it ships as ESM with type declarations."
+    },
+    {
+      "kind": "p",
+      "text": "The gotcha: the TypeScript SDK does not start a server. Unlike the Python package, it contains no binary. Run a server first, with `curva serve` from the pip package or with Docker:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "docker run --rm -p 127.0.0.1:7777:7777 -e OPENROUTER_API_KEY ghcr.io/itsmohitrohilla/curva \\\n  serve --addr 0.0.0.0:7777 --no-auth"
+    },
+    {
+      "kind": "p",
+      "text": "The client reads `CURVA_BASE_URL`, which defaults to `http://localhost:7777`, and `CURVA_API_KEY`. That docker command uses `--no-auth` for a quick local test only; it publishes the port on 127.0.0.1, so nothing outside your machine can reach it."
+    },
+    {
+      "kind": "h2",
+      "text": "Docker: ghcr.io/itsmohitrohilla/curva with data in /data"
+    },
+    {
+      "kind": "p",
+      "text": "For production, the release publishes `ghcr.io/itsmohitrohilla/curva` for amd64 and arm64: a distroless, non-root image of about 62 MB. Its data lives in the `/data` volume: decisions, feedback, calibrators, audit log and keys, all in one SQLite file. Back that volume up."
+    },
+    {
+      "kind": "p",
+      "text": "Create an API key first. Without one, Curva refuses to listen on a public address."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "docker run --rm -v curva-data:/data ghcr.io/itsmohitrohilla/curva keys create --name prod"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "docker run -d --restart unless-stopped --name curva \\\n  -p 127.0.0.1:7777:7777 -v curva-data:/data \\\n  -e OPENROUTER_API_KEY=sk-or-v1-... \\\n  ghcr.io/itsmohitrohilla/curva"
+    },
+    {
+      "kind": "p",
+      "text": "The key (`curva_…`) is printed once and stored only as a SHA-256 hash, so save it. Once any key exists, every route except `/health` needs `Authorization: Bearer curva_…`. Curva speaks plain HTTP, so on the public internet put it behind a reverse proxy for TLS."
+    },
+    {
+      "kind": "h2",
+      "text": "Check the Curva install: curva --version, GET /health and a first decide call"
+    },
+    {
+      "kind": "p",
+      "text": "Three checks, from the inside out."
+    },
+    {
+      "kind": "p",
+      "text": "**1. The binary.** `curva --version` should print `curva 0.1.0`."
+    },
+    {
+      "kind": "p",
+      "text": "**2. The server.** With a server running, `GET /health` should return `{\"status\": \"ok\", \"version\": \"0.1.0\"}`. It never needs an API key, which makes it the right target for a load balancer or container health check. From Python, against a server with keys:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "export CURVA_BASE_URL=https://api.example.com CURVA_API_KEY=curva_...\npython -c \"from curva import Curva; print(Curva().health())\""
+    },
+    {
+      "kind": "p",
+      "text": "**3. A first decision.** The three-line version, with no server of your own:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "You get one of your labels, `True` or `False` for the yes/no question, and a number or `None` for the extraction. If this works, the binary, the provider key and the model are all in place."
+    },
+    {
+      "kind": "h2",
+      "text": "Which path to pick for a script, a service or a TypeScript app"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "You are building",
+        "Install",
+        "Why"
+      ],
+      "rows": [
+        [
+          "A script or notebook in Python",
+          "`pip install curva-ai`",
+          "Nothing to run: the first call starts a private server"
+        ],
+        [
+          "A Python service",
+          "`pip install curva-ai`, plus one shared `curva serve` or the Docker image",
+          "One audit log, one set of calibrators, one decision cache for every client"
+        ],
+        [
+          "A TypeScript or JavaScript app",
+          "`npm install curva-ai`, plus a server",
+          "The client needs a running server"
+        ],
+        [
+          "A production server",
+          "the Docker image",
+          "Distroless, non-root, data in one volume"
+        ],
+        [
+          "A batch job over files",
+          "`pip install curva-ai`",
+          "`curva map` calls the provider directly, no server needed"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The pip and Docker paths run the same binary, so you can start with pip on a laptop and move to Docker without changing your questions."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs cover this in [getting started](https://itsmohitrohilla.github.io/curva-docs/getting-started/) and [self-hosting](https://itsmohitrohilla.github.io/curva-docs/self-hosting/). For what you just installed, read [what is Curva](/blog/what-is-curva/) and [what is a typed decision](/blog/what-is-a-typed-decision/). Then build something: the [Python LLM classification tutorial](/blog/python-llm-classification/), [TypeScript LLM classification](/blog/typescript-llm-classification/), or the [local Python server](/blog/curva-local-python-server/)."
+    }
+  ]
+}

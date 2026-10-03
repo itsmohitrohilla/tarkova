@@ -1,0 +1,233 @@
+{
+  "slug": "python-llm-classification",
+  "title": "Python LLM classification with confidence and feedback",
+  "summary": "A start-to-finish Python tutorial: typed LLM labels with a probability each, abstain, feedback, calibration reports, async batches and errors.",
+  "tag": "curva guides",
+  "source_check": [
+    "README.md",
+    "sdk/python/README.md",
+    "site/reference/python-sdk.md",
+    "site/getting-started.md",
+    "site/guides/feedback.md",
+    "site/concepts/trust.md",
+    "site/concepts/questions.md",
+    "site/reference/cli.md",
+    "Content Box/6 Blog/fact-sheet.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To do Python LLM classification with a confidence you can act on, install `curva-ai`, declare your labels as typed questions, and call `decide`. You get one of your labels back with a probability for every option, never free text to parse. Send the true answer when you learn it, and after 30 labels Curva calibrates those probabilities on your data. This tutorial covers the whole loop: install, decide, abstain, feedback, the calibration report, async batches and error handling."
+    },
+    {
+      "kind": "p",
+      "text": "Most Python classification code built on an LLM looks the same today: a prompt that says \"reply with one of: billing, technical, sales\", a call, and a parser that hopes the reply is one of those words. Then someone adds \"and how confident are you?\", and the model writes a high number on almost everything, right or wrong. The steps below replace that pattern."
+    },
+    {
+      "kind": "h2",
+      "text": "Install curva-ai"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "pip install curva-ai\nexport OPENROUTER_API_KEY=sk-or-v1-...     # any OpenRouter key; free models work"
+    },
+    {
+      "kind": "p",
+      "text": "The package includes the Curva server binary for Linux, macOS and Windows, so there is nothing else to install. It needs Python 3.9 or newer and uses only the standard library. Other providers work too: without `OPENROUTER_API_KEY`, the first of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` and a few more picks a small, fast model of that provider. Set `CURVA_MODEL` to choose one yourself. Curva is free to use; you pay only your model provider, and free models work."
+    },
+    {
+      "kind": "h2",
+      "text": "Python LLM classification in three lines"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nd = curva.decide(\"I was charged twice, please refund me\",\n                 {\"team\": [\"billing\", \"technical\"], \"refund\": \"Asks for a refund?\", \"total\": float})\nprint(d.team, d.refund, d.total)           # billing True None"
+    },
+    {
+      "kind": "p",
+      "text": "The first `curva.decide` starts a private server for this process and reuses it. The shorthand maps Python values to question types:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "You write",
+        "You get"
+      ],
+      "rows": [
+        [
+          "`[\"billing\", \"technical\"]` or `{\"billing\": \"payments\"}`",
+          "Choice"
+        ],
+        [
+          "`\"Asks for a refund?\"` (ends in `?`)",
+          "Noul (yes or no)"
+        ],
+        [
+          "`bool`, `float`, `int`, `str`",
+          "Noul, Number, Integer, Text, named after the key"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "`d.team` is the plain answer. `d[\"team\"]` is the full one, with `confidence` and `probabilities`. `d.to_dict()` gives all plain answers as a dict. For a yes/no question, the plain answer is `True` when P(yes) is at least 0.5; read `d[\"refund\"].noul` when you want the probability itself. The shorthand is good for scripts and notebooks. For anything you will run in production, switch to explicit question objects, because they let you set thresholds, examples and coverage per question."
+    },
+    {
+      "kind": "h2",
+      "text": "The full client with typed questions"
+    },
+    {
+      "kind": "p",
+      "text": "For real code, use explicit question objects and a client:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import curva\nfrom curva import Choice, Score, Noul\n\nclient = curva.local()      # or curva.Curva(\"http://your-server:7777\")\n\nQUESTIONS = {\n    \"team\": Choice(\"Which team should handle this?\",\n                   {\"billing\": \"payments, refunds\", \"technical\": \"bugs\", \"sales\": \"pricing\"},\n                   min_confidence=0.8),\n    \"frustration\": Score(\"How frustrated is the customer?\", [\"calm\", \"annoyed\", \"angry\"]),\n    \"refund\": Noul(\"The customer explicitly asks for a refund\"),\n}\n\nd = client.decide({\"ticket\": \"I was charged twice for order A-104. Please refund the duplicate!\"},\n                  QUESTIONS, project=\"support\")\n\nprint(d[\"team\"].choice, d[\"team\"].confidence)   # e.g. billing 0.9999\nprint(d[\"frustration\"].score)                   # e.g. 0.65\nprint(d[\"refund\"].noul)                         # e.g. 0.999\nprint(d.mode, d.latency_ms, d.cost_usd, d.cached)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "A few details worth knowing:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`state` is any JSON value. It is fenced as data in the prompt, never treated as instructions.",
+        "All questions are answered in one request.",
+        "The Choice gets an extra option, `none_of_these`, so the model is never forced into a wrong pick.",
+        "`score` is the expected level: 0.65 sits between \"calm\" (level 0) and \"annoyed\" (level 1).",
+        "`project` is a calibration namespace. Use one per use case.",
+        "`curva.local()` keeps its database in `~/.curva/curva.db`, so what it learns survives restarts.",
+        "A Score answer knows its level names: `d[\"frustration\"].level` is the most likely one."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Abstain: send unsure answers to a person"
+    },
+    {
+      "kind": "p",
+      "text": "Because the Choice set `min_confidence=0.8`, answers below 0.8 come back with `abstain=True`:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "answer = d[\"team\"]\nif answer.abstain:\n    team = ask_a_human(ticket)\n    client.feedback(d.id, \"team\", team)      # the person's answer teaches Curva\nelse:\n    route(ticket, answer.choice)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "`abstain` is only set on questions that have `min_confidence`. Until the question is calibrated, 0.8 is a guess about the model. Once calibrated, it means what it says. The thinking behind the threshold is in [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Feedback and the calibration report"
+    },
+    {
+      "kind": "p",
+      "text": "Keep `d.id` next to whatever you did with the answer. When you learn the truth (an agent closes the ticket, a reviewer fixes a label), send it:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "client.feedback(decision_id, \"team\", \"billing\")     # Choice: the option key\nclient.feedback(decision_id, \"frustration\", 2)      # Score: the level index\nclient.feedback(decision_id, \"refund\", True)        # Noul: True or False",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Sending feedback again for the same decision and question replaces the earlier label. After 30 labels for a question in a project, Curva fits a calibrator. It keeps it only when it clearly beats the raw probabilities on held-out labels in both log-loss and Brier score; then answers come back with `calibrated=True`. Otherwise the raw probabilities stay, because the model is already well calibrated. Check what happened:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "`after` is held out: each half of the labels is calibrated by a fit on the other half, so the number isn't flattered by testing on the data it was fitted to. Also send feedback for a sample of confident answers, not only the abstained ones, so calibration covers the whole range."
+    },
+    {
+      "kind": "p",
+      "text": "One rule to remember: calibration belongs to the exact wording of a question. Settle the wording before you collect labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Many records at once with AsyncCurva"
+    },
+    {
+      "kind": "p",
+      "text": "For a batch, run the async client against a server:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "import asyncio\nfrom curva import AsyncCurva\n\nasync def classify(rows):\n    async with AsyncCurva() as client:          # CURVA_BASE_URL, CURVA_API_KEY\n        results = await client.decide_many(\n            [({\"ticket\": r[\"text\"]}, QUESTIONS) for r in rows],\n            concurrency=16, project=\"support\", return_exceptions=True,\n        )\n    return [\n        {\"id\": r[\"id\"], \"error\": str(d)} if isinstance(d, Exception)\n        else {\"id\": r[\"id\"], \"decision_id\": d.id, \"team\": d[\"team\"].choice,\n              \"needs_human\": bool(d[\"team\"].abstain)}\n        for r, d in zip(rows, results)\n    ]",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Results keep the input order. `return_exceptions=True` puts each failure in its slot, so one bad row doesn't fail the batch. `concurrency` defaults to 8. For files on disk, `curva map` on the command line is the other route: it resumes after a stop."
+    },
+    {
+      "kind": "h2",
+      "text": "Error handling with CurvaError"
+    },
+    {
+      "kind": "p",
+      "text": "The client retries 429 and 5xx responses (three times by default) and honours `Retry-After`. Anything it doesn't retry raises a `CurvaError` with `status`, `type` and `message`. Catch a subclass when you care about one case:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import CurvaError, RateLimitError, InvalidRequestError\n\ntry:\n    d = client.decide(state, QUESTIONS)\nexcept RateLimitError as e:\n    wait(e.retry_after)\nexcept InvalidRequestError as e:\n    log.error(\"bad question: %s\", e.message)    # a 422 names the question\nexcept CurvaError as e:\n    log.error(\"%s %s\", e.status, e.type)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Status 0 means the server wasn't reachable."
+    },
+    {
+      "kind": "h2",
+      "text": "Move to a shared server"
+    },
+    {
+      "kind": "p",
+      "text": "`curva.local()` is right for scripts and notebooks. For a service, run one server and point clients at it:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva serve --addr 127.0.0.1:7777 --db curva.db\ncurva keys create --name my-service",
+      "original": true
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva\nclient = Curva()        # reads CURVA_BASE_URL and CURVA_API_KEY",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "A shared server keeps one audit log, one set of calibrators per project, and one decision cache. Identical requests come back from the cache in about a millisecond, at no cost."
+    },
+    {
+      "kind": "h2",
+      "text": "What not to ask the model"
+    },
+    {
+      "kind": "p",
+      "text": "Don't ask a model to count, add up or compare dates. Do that in Python and put the result in the state. Ask Curva the judgement questions: which team, how urgent, is this a refund request."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "Read the [Python SDK reference](https://itsmohitrohilla.github.io/curva-docs/reference/python-sdk/) and the [feedback guide](https://itsmohitrohilla.github.io/curva-docs/guides/feedback/) in the docs. To see why Curva asks every question in two orders, read [LLM position bias](/blog/llm-position-bias/). For a full worked use case, try [phishing detection with an LLM](/blog/phishing-detection-llm/)."
+    }
+  ]
+}

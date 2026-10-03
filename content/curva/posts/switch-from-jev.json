@@ -1,0 +1,234 @@
+{
+  "slug": "switch-from-jev",
+  "title": "Switch from Jev to Curva: a step-by-step guide",
+  "summary": "Move a Jev integration to Curva: /v1/systemone, the criteria shape, two environment variables, a shadow test, and the differences to expect.",
+  "tag": "curva vs jev",
+  "source_check": [
+    "Content Box/Jev reference/Feature Gap.md",
+    "site/reference/cli.md",
+    "site/guides/providers.md",
+    "site/guides/switching.md",
+    "site/guides/shadow.md",
+    "site/reference/http-api.md",
+    "site/reference/python-sdk.md",
+    "site/self-hosting.md",
+    "Content Box/Jev reference/Jev.md",
+    "site/guides/speed-and-cost.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "To switch from Jev to Curva, run a Curva server, create an API key, and point your existing client at it: Curva serves `POST /v1/systemone`, which accepts Jev's `criteria` request shape, so a client built for Jev keeps working after you change two environment variables. Then replay logged traffic through Curva with a shadow test, read where the two disagree, and move traffic once the numbers say so. This guide walks the steps in order, says what was verified and what wasn't, and lists the differences to expect before you cut over."
+    },
+    {
+      "kind": "p",
+      "text": "Jev by TypeSafe AI is a hosted \"System One\" model: unstructured state in, typed probabilistic decisions out. Curva gives the same kind of output from any LLM you choose, on your own servers. It is free to use under the Curva Free License; you pay only your model provider."
+    },
+    {
+      "kind": "h2",
+      "text": "Run Curva and create a key"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva serve --addr 127.0.0.1:7777\ncurva keys create --name my-app          # prints curva_… once\nexport TYPESAFE_BASE_URL=http://127.0.0.1:7777\nexport TYPESAFE_API_KEY=curva_..."
+    },
+    {
+      "kind": "p",
+      "text": "`pip install curva-ai` installs the `curva` binary. The server needs a model provider key, such as `OPENROUTER_API_KEY`, or a local model. Curva doesn't ship a model of its own, so pick one before you compare and write it down: every number you measure belongs to that model."
+    },
+    {
+      "kind": "p",
+      "text": "Two details about keys. Once any key exists, every route except `/health` needs one, and Jev's SDK always sends one. And a server started without keys stays open until it is restarted, so restart it after creating the first key. For production, the Docker image `ghcr.io/itsmohitrohilla/curva` runs the same binary."
+    },
+    {
+      "kind": "h2",
+      "text": "Point the client at /v1/systemone"
+    },
+    {
+      "kind": "p",
+      "text": "You have two ways to switch from Jev."
+    },
+    {
+      "kind": "p",
+      "text": "**Keep Jev's Python SDK.** Set `TYPESAFE_BASE_URL` to your Curva server and `TYPESAFE_API_KEY` to a Curva key, as above. Nothing else changes. This was verified with `typesafe-sdk` 0.7.2 against `curva serve`: `system_one`, all three primitives with `criteria`, dict questions, `extra_body`, `response.choices/scores/nouls`, `usage`, `models.list()`, and 401 and 422 errors all behaved. Jev's TypeScript SDK uses the same wire contract and should work the same way, but it was not run. Test it before you rely on it."
+    },
+    {
+      "kind": "p",
+      "text": "**Move to Curva's SDK.** Its Python client accepts the same style, so most code survives an import change:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from curva import Curva as TypeSafeClient, CurvaError as TypeSafeError, Choice, Score, Noul\n\nwith TypeSafeClient(base_url=\"http://127.0.0.1:7777\", api_key=\"curva_...\") as client:\n    result = client.system_one(\n        state={\"ticket\": \"I was charged twice for order A-104\"},\n        questions={\n            \"department\": Choice(instructions=\"Which team\",\n                                 criteria={\"billing\": \"payments, refunds\", \"technical\": \"bugs\"}),\n            \"frustration\": Score(instructions=\"How frustrated\", criteria=[\"Calm\", \"Frustrated\", \"Angry\"]),\n            \"refund_requested\": Noul(instructions=\"Customer explicitly asks for a refund\"),\n        },\n    )\n    print(result.choices[\"department\"].choice)",
+      "original": true
+    },
+    {
+      "kind": "p",
+      "text": "Pass `base_url` and `api_key` by keyword. Also drop any `model=` argument that names jev-latest: through Curva's own SDK a model name is sent to the provider as is, and your provider doesn't know that name. On `/v1/systemone`, a name without a provider prefix means the server's default model."
+    },
+    {
+      "kind": "h2",
+      "text": "Questions in the criteria shape"
+    },
+    {
+      "kind": "p",
+      "text": "If you call the HTTP API yourself, the body stays in the `criteria` shape:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\n  \"state\": {\"ticket\": \"I was charged twice for order A-104\"},\n  \"model\": \"curva-latest\",\n  \"questions\": {\n    \"team\": {\"type\": \"choice\", \"instructions\": \"Which team?\",\n             \"criteria\": {\"billing\": \"payments, refunds\", \"technical\": \"bugs\", \"sales\": null}},\n    \"anger\": {\"type\": \"score\", \"instructions\": \"How frustrated?\",\n              \"criteria\": [\"calm\", \"annoyed\", \"angry\"]},\n    \"refund\": {\"type\": \"noul\", \"instructions\": \"Asks for a refund\",\n               \"criteria\": {\"true\": \"explicitly asks for money back\", \"false\": \"anything else\"}}\n  }\n}"
+    },
+    {
+      "kind": "p",
+      "text": "How Curva reads each part:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Choice `criteria`** maps a key to a description: text, `null` or JSON. On this route there is no `none_of_these` escape option unless the question sets `\"escape\": true`, so answers stay inside your criteria, as your client expects.",
+        "**Score `criteria`** lists level descriptions, lowest first. Curva takes 2 to 20 levels; Jev takes 2 to 10.",
+        "**Noul `criteria`** is optional: `{\"true\": ..., \"false\": ...}`.",
+        "**`instructions`** may be omitted, or be JSON.",
+        "**`{\"type\": \"string\"}`** without `enum` is answered as a text question.",
+        "**`model`** set to `curva-latest` or a pinned `curva-x.y.z` selects a config. Anything with a provider prefix is a model id or a multi-model plan."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The response is Curva's normal response plus `usage` and a `type` on every answer. A Score's `probabilities` and `legend` are keyed `\"0\"`, `\"1\"` and so on, as Jev's SDK expects."
+    },
+    {
+      "kind": "h2",
+      "text": "Shadow-test on logged traffic"
+    },
+    {
+      "kind": "p",
+      "text": "Don't move traffic on faith. Log a day of Jev's decisions, one per line, with its answers as labels in feedback format (option key, level index, or true and false):"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"state\": {\"ticket\": \"I was charged twice\"}, \"labels\": {\"team\": \"billing\", \"refund_requested\": true}}"
+    },
+    {
+      "kind": "p",
+      "text": "Then replay it:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "curva shadow traffic.jsonl -q questions.json -o shadow.jsonl"
+    },
+    {
+      "kind": "p",
+      "text": "`questions.json` holds the same questions in Curva's `/v1/decide` format, with `options` and `levels` instead of `criteria`. The Markdown report shows agreement per question, agreement by Curva's confidence band, and the share of traffic you could hand to Curva at or above each band. The most confident disagreements come first. In each one, one of the two systems is clearly wrong, so read them. Agreement is not accuracy: label a sample of the disagreements yourself. The run is resumable, so a quota error costs nothing but time."
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  A[\"run curva serve, create a key\"] --> B[\"point the client at /v1/systemone\"]\n  B --> C[\"curva shadow on logged Jev traffic\"]\n  C --> D{\"agreement high enough at a confidence band?\"}\n  D -- yes --> E[\"move that band of traffic\"]\n  D -- no --> F[\"read disagreements, label a sample\"]\n  F --> C",
+      "title": "Switch from Jev in four steps",
+      "caption": "Run Curva beside Jev, compare on logged traffic, then move traffic band by band."
+    },
+    {
+      "kind": "h2",
+      "text": "Differences: headers, error codes, usage"
+    },
+    {
+      "kind": "p",
+      "text": "Know these before you cut over:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Area",
+        "Jev",
+        "Curva"
+      ],
+      "rows": [
+        [
+          "Request id header",
+          "`x-typesafe-request-id`",
+          "Not sent; the decision id is `id` in the body, and `response.request_id` raises in Jev's SDK"
+        ],
+        [
+          "Malformed JSON",
+          "422",
+          "400"
+        ],
+        [
+          "Upstream model failure",
+          "529",
+          "502"
+        ],
+        [
+          "`usage.output_tokens`",
+          "tracked",
+          "always 0; input tokens are summed over calls"
+        ],
+        [
+          "`GET /v1/models`",
+          "model list",
+          "Curva's pinned configs, with an empty `release_date`"
+        ],
+        [
+          "Latency",
+          "70 to 500 ms, self-reported",
+          "about 0.3 to 3 s on remote models; about 1 ms on cache hits"
+        ],
+        [
+          "Calls per decision",
+          "one",
+          "two by default, for order debiasing"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Latency is the big one. If you need sub-second answers, test a fast provider such as Groq, a local model, `rules` for the easy cases, and `debias: \"auto\"`, which drops to one call once a question has shown no position bias."
+    },
+    {
+      "kind": "h2",
+      "text": "Turn on what Jev didn't have"
+    },
+    {
+      "kind": "p",
+      "text": "Once traffic flows, add the parts Curva adds:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Feedback.** Store the decision `id` and send the true answer with `POST /v1/feedback`. After 30 labels per question, Curva calibrates when that helps.",
+        "**Abstain.** Set `min_confidence` where a wrong answer is expensive, and send `abstain: true` answers to a person.",
+        "**Coverage sets.** Set `coverage` for a set of options with a guaranteed hit rate, once a question has 30 labels.",
+        "**Pinned configs.** Pin `curva-1.1.0` so answers don't shift when you upgrade.",
+        "**Audit log.** Every decision is logged with model, config and answers, and a salted hash of the state, never the state."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "The checklist to switch from Jev"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Each question mapped to Choice, Score, Noul or Multi.",
+        "Curva running, API key created, server restarted after the first key.",
+        "Base URL changed to the Curva server.",
+        "`model` removed or set to a Curva config.",
+        "Shadow run on logged traffic, disagreements read and a sample labeled.",
+        "Decision ids stored, feedback flowing.",
+        "`min_confidence` set where mistakes cost money."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs have the [switching guide](https://itsmohitrohilla.github.io/curva-docs/guides/switching/) and [shadow mode](https://itsmohitrohilla.github.io/curva-docs/guides/shadow/). For measured accuracy, speed and cost side by side, read [a self-hosted Jev alternative](/blog/jev-alternative-self-hosted/) or the [Curva vs Jev page](/curva/vs-jev/). For the shadow test in depth, see [shadow-test an LLM classifier](/blog/shadow-test-llm-classifier/), and for what feedback buys you, [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}

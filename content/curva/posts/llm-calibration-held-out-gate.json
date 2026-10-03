@@ -1,0 +1,232 @@
+{
+  "slug": "llm-calibration-held-out-gate",
+  "title": "Calibrate only when it helps: a held-out gate for LLMs",
+  "summary": "Calibration can make LLM probabilities worse. How a five-fold held-out gate on log-loss and Brier decides when to apply it, with a real CommonsenseQA case.",
+  "tag": "curva concepts",
+  "source_check": [
+    "site/concepts/calibration.md",
+    "CHANGELOG.md",
+    "Content Box/4 Benchmarks/benchmarks.md",
+    "site/reference/http-api.md",
+    "site/guides/feedback.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Calibration with held-out validation means you only apply a calibrator after testing it on labels it was not fitted on, and only if it clearly wins. That matters because calibration can make LLM probabilities worse: a calibrator fitted on a few dozen labels can chase noise. Curva guards against this with a five-fold check. It fits on four fifths of a question's labels, scores on the fifth, five times over, and applies the calibrator only if log-loss drops by at least 1%, the gain in both log-loss and Brier score is above 1.28 standard errors of its own noise, and a score test at the 1% level says the raw probabilities are off. Otherwise answers stay raw, with `calibrated: false`."
+    },
+    {
+      "kind": "h2",
+      "text": "Calibration can hurt: CommonsenseQA went 0.118 to 0.176 under a looser gate"
+    },
+    {
+      "kind": "p",
+      "text": "A calibrator is a small model fitted on your labels. Like any fitted model, it can fit the noise in a small sample instead of the signal. Then it moves well-placed probabilities in the wrong direction, and the calibration error goes up."
+    },
+    {
+      "kind": "p",
+      "text": "Curva saw this in its own benchmark runs. On CommonsenseQA, Gemini flash-lite's raw expected calibration error was 0.118 (n = 100). An earlier, looser gate applied a calibrator fitted on 50-label halves, and the held-out error rose to 0.176. Calibration made the model's confidence less honest, not more. The fix was a stricter gate: the held-out gain in log-loss and Brier score must beat its own noise. Under that gate, CommonsenseQA stays raw at 0.118 (2026-10-01).",
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "The lesson is general. \"Always calibrate\" is not a safe default for LLM classifiers. \"Calibrate when held-out labels prove it helps\" is."
+    },
+    {
+      "kind": "h2",
+      "text": "Calibration with held-out validation: fit on four fifths, score on the fifth"
+    },
+    {
+      "kind": "p",
+      "text": "The core of the gate is cross-validation on the question's own feedback labels:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Split the labels into five parts.",
+        "Fit the calibrator on four parts.",
+        "Score it, and the raw probabilities, on the fifth part it has not seen.",
+        "Repeat five times, so every label is held out once."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart TD\n  L[\"30+ labels for one exact question\"] --> S[\"split into five folds\"]\n  S --> F[\"fit on four folds, score on the fifth, five times\"]\n  F --> C1{\"log-loss down at least 1%?\"}\n  C1 -- no --> R[\"stay raw: calibrated false\"]\n  C1 -- yes --> C2{\"log-loss and Brier gains above 1.28 standard errors?\"}\n  C2 -- no --> R\n  C2 -- yes --> C3{\"score test at 1%: raw probabilities off?\"}\n  C3 -- no --> R\n  C3 -- yes --> A[\"apply: calibrated true\"]",
+      "title": "The held-out calibration gate",
+      "caption": "A calibrator is applied only when it beats the raw probabilities on labels it never saw, by more than chance."
+    },
+    {
+      "kind": "p",
+      "text": "Scoring on held-out labels is what makes the comparison fair. A calibrator scored on the labels it was fitted to always looks at least as good as raw, because fitting is exactly the act of reducing the error on those labels."
+    },
+    {
+      "kind": "h2",
+      "text": "Three conditions: 1% log-loss, 1.28 standard errors, a score test at 1%"
+    },
+    {
+      "kind": "p",
+      "text": "The calibrator is kept only when all three hold:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Condition",
+        "What it guards against"
+      ],
+      "rows": [
+        [
+          "Held-out log-loss drops by at least 1%",
+          "Changes too small to matter"
+        ],
+        [
+          "The gain in both log-loss and Brier score is above 1.28 standard errors of its own noise",
+          "A lucky fold switching it on"
+        ],
+        [
+          "A score test at the 1% level says the raw probabilities are off by more than chance",
+          "Calibrating a model that is already calibrated"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The second condition needs both metrics. Log-loss punishes confident mistakes hard, and Brier score is the mean squared error of the probabilities. A calibrator that improves one by trading against the other doesn't pass. The 1.28 is a one-sided margin: the measured gain has to stand clear of the spread across folds, not just be positive on average."
+    },
+    {
+      "kind": "p",
+      "text": "The third condition asks a different question: is there anything to fix? A model whose raw probabilities already match its hit rate gets left alone, even if some calibrator scores fractionally better on the folds."
+    },
+    {
+      "kind": "p",
+      "text": "Even after it passes, a calibrator moves cautiously with few labels: about a third of the way to what the labels suggest at 30 labels, nearly all the way at 1,000. It is refitted as new labels arrive."
+    },
+    {
+      "kind": "h2",
+      "text": "Well-calibrated models left raw: BoolQ, PhishNChips, the quiz sets"
+    },
+    {
+      "kind": "p",
+      "text": "Under the gate, several of Curva's public runs stayed raw on 2026-10-01:",
+      "numbers": true
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Model",
+        "Dataset",
+        "n",
+        "Raw ECE",
+        "After the gate"
+      ],
+      "rows": [
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "PhishNChips",
+          "100",
+          "0.138",
+          "0.138, left raw"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "BoolQ",
+          "127",
+          "0.081",
+          "0.081, left raw"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "CommonsenseQA",
+          "100",
+          "0.118",
+          "0.118, left raw"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "OpenBookQA",
+          "100",
+          "0.051",
+          "0.051, left raw"
+        ],
+        [
+          "`@groq/qwen/qwen3.8-27b`",
+          "PhishNChips",
+          "100",
+          "0.283",
+          "0.209, calibrated"
+        ],
+        [
+          "`@gemini/gemini-flash-lite-latest`",
+          "AITA",
+          "100",
+          "0.404",
+          "0.149, calibrated"
+        ]
+      ],
+      "numbers": true
+    },
+    {
+      "kind": "p",
+      "text": "The pattern is what the gate is for. Where raw probabilities were badly off (Groq on phishing, Gemini on AITA), calibration passed and helped. Where they were close, or the evidence was thin, the gate kept them raw. Leaving raw is not always a win in absolute terms: Gemini's BoolQ error of 0.081 is still above the 0.038 Jev publishes for that set. But a calibrator that couldn't prove itself on held-out labels would not have closed that gap reliably either.",
+      "numbers": true
+    },
+    {
+      "kind": "h2",
+      "text": "How the benchmark reports it: each half calibrated by the other"
+    },
+    {
+      "kind": "p",
+      "text": "Curva's calibration report and its public benchmark both report \"after calibration\" numbers held out. The method is two-fold: each half of the labels is calibrated by a fit on the other half, and the reported error is measured on the half that wasn't used for fitting. With 100 rows, each fit sees 50 labels."
+    },
+    {
+      "kind": "p",
+      "text": "The benchmark reports a calibrated figure only from 30 rows up, the same minimum Curva uses before it fits anything. That is why the paid-model rows, with 20 rows per set, have no calibrated number."
+    },
+    {
+      "kind": "p",
+      "text": "On your own data, `GET /v1/calibration` gives the same view:"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "report = client.calibration(\"team\", project=\"support\")\nprint(report[\"before\"][\"ece\"], \"→\", report[\"after\"][\"ece\"])\nprint(report[\"after\"][\"accuracy_when_automated\"], report[\"after\"][\"automated\"])"
+    },
+    {
+      "kind": "p",
+      "text": "`before` is raw. `after` is held out, so it can come out worse than `before`, and when it does you know calibration would not have helped."
+    },
+    {
+      "kind": "h2",
+      "text": "What calibrated: false tells you in a response"
+    },
+    {
+      "kind": "p",
+      "text": "Every answer carries `calibrated`. When it is false, one of four things is true:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "The question has fewer than 30 labels in this project.",
+        "The question was reworded. Calibrators belong to a fingerprint of the question's type, wording and options, so new wording starts from zero labels.",
+        "The gate ran and said no: the raw probabilities were already good, or the gain wasn't clear enough.",
+        "The answer came from a rule, which always reports `calibrated: false` because it is not model output."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "To tell them apart, read the report. `labels` and `min_labels` show how far you are from 30. If you have enough labels and answers are still raw, the gate decided, and `before` against `after` shows why."
+    },
+    {
+      "kind": "p",
+      "text": "The practical advice follows. Don't treat `calibrated: false` as a problem to fix. Treat it as information: either collect more labels, including for confident answers, or accept that the model's own probabilities are as good as your labels can make them."
+    },
+    {
+      "kind": "h2",
+      "text": "Next steps"
+    },
+    {
+      "kind": "p",
+      "text": "The docs describe the gate in [probabilities and calibration](https://itsmohitrohilla.github.io/curva-docs/concepts/calibration/). For how many labels you need, read [how many calibration labels you need](/blog/calibration-labels-needed/). For the full mechanism, see [LLM calibration explained](/blog/llm-calibration-explained/) and [expected calibration error](/blog/expected-calibration-error-llm/), and for how calibrated scores drive automation, [LLM classification confidence scores you can act on](/blog/llm-classification-confidence-scores/)."
+    }
+  ]
+}
