@@ -250,6 +250,11 @@ body:has(.about) .topbar { --nav-accent: #fff; }
 .prose a:hover { color: var(--accent); }
 .prose :not(pre) > code { font-family: var(--mono); font-size: 0.86em; background: var(--card); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; }
 .prose > :is(figure, .callout, .pull, .table) { margin-block: 1.9em; }
+.prose h3 { font-size: 22px; font-weight: 650; letter-spacing: -0.015em; line-height: 1.3; margin-top: 1.7em; text-wrap: balance; }
+.prose > h3 + * { margin-top: 0.6em; }
+.prose > :is(ul, ol) { padding-left: 1.4em; }
+.prose > :is(ul, ol) > li + li { margin-top: 0.5em; }
+.prose > :is(ul, ol) > li::marker { color: var(--ink-2); }
 
 .callout { padding: 20px 24px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
 .callout p { margin: 0; font-size: 17px; line-height: 1.6; }
@@ -542,6 +547,7 @@ figcaption strong, .fig-n { color: var(--ink); font-weight: 600; }
   .post-art { aspect-ratio: 16 / 10; border-radius: 12px; margin-bottom: 40px; }
   .prose { font-size: 17px; }
   .prose h2 { font-size: 24px; }
+  .prose h3 { font-size: 20px; }
   .prose .anchor { display: none; }
   .code pre { padding: 16px; font-size: 13px; }
   .diagram, .art, .bars, .venn { padding: 16px; }

@@ -8,12 +8,16 @@ export const ACCENT = {
   guides: '#FF4407', features: '#C41A1A', 'use cases': '#FF4407', 'vs the field': '#1800ad',
   engineering: '#1800ad', economics: '#FF4407', security: '#C41A1A', reference: '#52555A',
   operations: '#1800ad', benchmarks: '#C41A1A',
+  'curva guides': '#1800ad', 'curva concepts': '#3324d6', 'curva use cases': '#1800ad',
+  'curva vs jev': '#4a3df0', 'curva benchmarks': '#3324d6', 'curva engineering': '#4a3df0',
 }
 // Each topic draws from its own few motifs, so a topic reads as a family without repeating.
 const MOTIF = {
   guides: ['waves', 'orbits', 'grid', 'stack'], features: ['rings', 'orbits', 'arcs', 'stack'], 'use cases': ['venn', 'nodes', 'arcs'],
   'vs the field': ['venn', 'slashes'], engineering: ['slashes', 'grid', 'vectors'], economics: ['bars', 'waves'],
   security: ['slashes', 'rings', 'stack'], reference: ['grid', 'vectors'], operations: ['waves', 'arcs', 'bars'], benchmarks: ['bars', 'vectors'],
+  'curva guides': ['grid', 'stack', 'waves'], 'curva concepts': ['arcs', 'rings', 'venn'], 'curva use cases': ['nodes', 'venn', 'arcs'],
+  'curva vs jev': ['venn', 'slashes'], 'curva benchmarks': ['bars', 'vectors'], 'curva engineering': ['slashes', 'grid', 'vectors'],
 }
 const PAPER = '#f3f2ee', INK = '#161616'
 
@@ -40,7 +44,7 @@ export function coverArt(slug, tag) {
   // Mostly paper, some ink, a few in the topic colour: a grid of them reads varied but related.
   const g = r()
   const ground = g < 0.55 ? 'paper' : g < 0.85 ? 'ink' : 'accent'
-  const cool = accent === '#1800ad' || accent === '#52555A' // too dark to read on ink
+  const cool = accent !== '#FF4407' && accent !== '#C41A1A' // the blues and grey: too dark to read on ink
   const bg = ground === 'paper' ? PAPER : ground === 'ink' ? INK : accent
   const fg = ground === 'paper' ? INK : PAPER
   const hi = ground === 'accent' ? (cool ? '#FF4407' : INK) : ground === 'ink' && cool ? '#7d70ff' : accent

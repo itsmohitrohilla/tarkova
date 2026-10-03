@@ -1,6 +1,6 @@
 // Static pages for the blog, products and legal routes. Runs in Node (vite.config.js),
 // in dev per request and at build time once, so every page ships as real HTML crawlers can read.
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { coverArt, ACCENT } from './art.js'
 import { products } from './products.js'
 import { footerHTML, MARK } from './footer.js'
@@ -29,6 +29,16 @@ const GLOSSARY = [
   ['what-is-agent-memory', /(?<![\w-])agent memory(?![\w-])/i],
 ]
 const MAX_AUTO_LINKS = 4
+// Links authors write in post text as [text](href): site paths, plus the public Curva URLs the
+// content README allows. Anything else renders as its plain text.
+const LINK = /\[([^\]]+)\]\(([^)\s`]+)\)/g
+const EXTERNAL_OK = ['https://itsmohitrohilla.github.io/curva-docs/', 'https://pypi.org/project/curva-ai/', 'https://www.npmjs.com/package/curva-ai', 'https://www.npmjs.com/package/n8n-nodes-curva', 'https://github.com/itsmohitrohilla/curva-docs', 'https://ghcr.io/itsmohitrohilla/curva']
+// `/\host` is read as `//host` by browsers, so a site path may not start with either.
+const okHref = (h) => /^\/(?![/\\])/.test(h) || EXTERNAL_OK.some((u) => h === u || h.startsWith(u.replace(/\/?$/, '/')))
+const isCurva = (p) => /^curva\b/.test(p.tag)
+// Each Curva topic's planned internal links ("related" in the topic map), read at build time by slug.
+const MAP_FILE = new URL('../../content/curva/topic-map.json', import.meta.url)
+const PLANNED = new Map(existsSync(MAP_FILE) ? JSON.parse(readFileSync(MAP_FILE, 'utf8')).map((e) => [e.slug, e.related || []]) : [])
 
 // The footer wordmark in bright halftone dots (like the landing's particle wordmark),
 // with an orange shimmer sweeping through the same letters.
@@ -54,7 +64,7 @@ const topicPath = (t) => `/blog/topic/${topicSlug(t)}/`
 const postPath = (p) => `/blog/${p.slug}/`
 const fmtDate = (d) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 const clip = (s, n) => (s.length <= n ? s : s.slice(0, s.lastIndexOf(' ', n - 1)) + '…')
-const titleCase = (s) => s.replace(/^\w/, (c) => c.toUpperCase())
+const titleCase = (s) => s.replace(/^\w/, (c) => c.toUpperCase()).replace(/\bjev\b/, 'Jev')
 const jsonld = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`
 
 /* ---------- chrome shared by every static page ---------- */
@@ -116,12 +126,19 @@ function linkIndex(posts) {
     ...[...hubs].map(([fw, p]) => ({ re: new RegExp(`(?<![\\w.])${escRe(fw)}(?![\\w]|\\.\\w)`), to: p })),
   ]
   const frameworkOf = (p) => (p.title.match(MATRIX) || p.title.match(HUB) || p.title.match(MEMORY) || [])[1]
-  return { hubs, terms, frameworkOf }
+  return { bySlug, hubs, terms, frameworkOf }
 }
 
-// Escaped text → HTML with `code` spans and at most a few first-mention links.
+// Escaped text → HTML with authored links, `code` spans and at most a few first-mention links.
+// A link to a post that isn't live yet (a later wave) stays plain text until it is.
 function inline(text, ctx) {
-  let html = esc(text).replace(/`([^`]+)`/g, '<code>$1</code>')
+  let html = esc(text)
+    .replace(LINK, (m, label, href) => {
+      const slug = href.match(/^\/blog\/([a-z0-9-]+)\/$/)?.[1]
+      if (!okHref(href) || (slug && !ctx.live.has(slug))) return label
+      return `<a href="${href}"${href.startsWith('/') ? '' : ' rel="noopener"'}>${label}</a>`
+    })
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
   const guarded = /(<code>[\s\S]*?<\/code>|<a [\s\S]*?<\/a>)/
   const tryLink = (re, href, cls) => {
     const parts = html.split(guarded)
@@ -157,6 +174,14 @@ function block(b, ctx) {
       ctx.outline.push({ id, text: b.text })
       return `<h2 id="${id}"><a class="anchor" href="#${id}" aria-hidden="true" tabindex="-1">#</a>${esc(b.text)}</h2>`
     }
+    case 'h3':
+      return `<h3>${esc(b.text)}</h3>`
+    case 'list': {
+      const tag = b.ordered ? 'ol' : 'ul'
+      return `<${tag}>${b.items.map((t) => `<li>${inline(t, ctx)}</li>`).join('')}</${tag}>`
+    }
+    case 'callout':
+      return `<div class="callout" role="note"><p>${b.title ? `<strong>${esc(b.title)}</strong> ` : ''}${inline(b.text, ctx)}</p></div>`
     case 'quote':
       return `<blockquote class="pull"><p>${esc(b.text)}</p></blockquote>`
     case 'code':
@@ -269,6 +294,12 @@ const TOPIC_LEDE = {
   reference: 'Short references for Crowkis commands, one command per page.',
   operations: 'Running Crowkis in production: cache warming, rate limits, dedup and dashboards.',
   benchmarks: 'Latency, throughput and memory results from our own test runs.',
+  'curva guides': 'Hands-on Curva setups: LLM classification in Python, TypeScript, n8n or over HTTP, with a probability on every answer.',
+  'curva concepts': 'The ideas behind Curva: confidence scores, calibration, position bias and letting the model abstain.',
+  'curva use cases': 'Curva on real decisions: phishing, ticket triage, moderation, extraction and more.',
+  'curva vs jev': 'How Curva compares with Jev by TypeSafe AI, and how to switch.',
+  'curva benchmarks': 'Curva on public datasets: accuracy, calibration and latency, with the wins and the losses.',
+  'curva engineering': 'How Curva works inside, and the decisions behind it.',
 }
 
 function listingPages({ site, posts, topics, base, topic, allCount }) {
@@ -287,7 +318,7 @@ function listingPages({ site, posts, topics, base, topic, allCount }) {
     const title = `${name}${n > 1 ? ` · page ${n}` : ''} | Tarkova`
     const description = topic
       ? `${TOPIC_LEDE[topic] || `Tarkova articles on ${topic}.`} ${posts.length} articles from Tarkova.`
-      : 'Practical reads on semantic caching, agent memory, LLM cost and the engineering behind Crowkis, from the team at Tarkova.'
+      : 'Practical reads on semantic caching, agent memory, LLM cost and LLM classification with confidence scores, from the team building Crowkis and Curva.'
     const tabs = [['All', '/blog/', allCount, !topic], ...topics.map(([t, c]) => [titleCase(t), topicPath(t), c, t === topic])]
     const ld = {
       '@context': 'https://schema.org',
@@ -299,7 +330,7 @@ function listingPages({ site, posts, topics, base, topic, allCount }) {
     }
     const lede = topic
       ? `${esc(TOPIC_LEDE[topic] || '')} ${posts.length} articles.`
-      : 'Guides, benchmarks and deep dives on semantic caching, agent memory and LLM cost, from the team building Crowkis.'
+      : 'Guides, benchmarks and deep dives on semantic caching, agent memory, LLM cost and LLM classification, from the team building Crowkis and Curva.'
     const main = `<div class="blog-wrap">
 <header class="mast${n > 1 ? ' mast-sub' : ''}">
   <h1>${topic ? esc(titleCase(topic)) : 'Practical reads to help you spend less on AI.'}</h1>
@@ -332,30 +363,34 @@ const breadcrumbs = (site, items) => ({
 
 /* ---------- a post ---------- */
 
-const STOP = new Set('a an and the to of in on for with your you is are how what why when it its vs not just your crowkis'.split(' '))
+const STOP = new Set('a an and the to of in on for with your you is are how what why when it its vs not just your crowkis curva'.split(' '))
 const words = (s) => new Set(s.toLowerCase().split(/[^a-z0-9.]+/).filter((w) => w.length > 2 && !STOP.has(w)))
 
+// The topic map's planned links come first (those already live), then the closest posts by tag and title.
 function related(p, posts, idx, n = 3) {
+  const planned = (PLANNED.get(p.slug) || []).map((s) => idx.bySlug.get(s)).filter((q) => q && q !== p)
   const fw = idx.frameworkOf(p)
   const mine = words(p.title)
-  return posts
-    .filter((q) => q !== p)
+  const scored = posts
+    .filter((q) => q !== p && !planned.includes(q))
     .map((q) => {
-      let s = (q.tag === p.tag ? 2 : 0) + (q.indexable ? 1 : 0) + (fw && idx.frameworkOf(q) === fw ? 4 : 0)
+      let s = (q.tag === p.tag ? 2 : 0) + (isCurva(q) === isCurva(p) ? 2 : 0) + (q.indexable ? 1 : 0) + (fw && idx.frameworkOf(q) === fw ? 4 : 0)
       for (const w of words(q.title)) if (mine.has(w)) s++
       return [s, q]
     })
     .sort((a, b) => b[0] - a[0])
-    .slice(0, n)
     .map(([, q]) => q)
+  return [...planned, ...scored].slice(0, n)
 }
 
 function postPage({ site, p, posts, idx, topics, prev, next }) {
   const path = postPath(p)
   const url = site + path
-  const ctx = { terms: idx.terms, linked: new Set(), self: p.slug, crowkisLinked: false, fig: 0, outline: [] }
+  // The glossary and framework hubs are Crowkis posts, so Curva posts don't auto-link them.
+  const curva = isCurva(p)
+  const ctx = { terms: curva ? [] : idx.terms, live: idx.bySlug, linked: new Set(), self: p.slug, crowkisLinked: false, fig: 0, outline: [] }
   const body = p.body.map((b) => block(b, ctx)).join('\n')
-  const wordCount = p.body.reduce((n, b) => n + String(b.text || b.code || '').split(/\s+/).length, 0)
+  const wordCount = p.body.reduce((n, b) => n + String(b.text || b.code || b.items?.join(' ') || '').split(/\s+/).length, 0)
   const fw = idx.frameworkOf(p)
   const hub = fw && idx.hubs.get(fw)
   // A framework's hub lists its use-case pages, so every one of them is a click from a real guide.
@@ -383,9 +418,10 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
         wordCount,
         inLanguage: 'en',
         isPartOf: { '@id': `${site}/blog/#blog` },
-        mentions: [{ '@type': 'SoftwareApplication', name: 'Crowkis', url: CROWKIS, applicationCategory: 'DeveloperApplication' }],
+        mentions: [curva ? { '@id': `${site}/curva/#app` } : { '@type': 'SoftwareApplication', name: 'Crowkis', url: CROWKIS, applicationCategory: 'DeveloperApplication' }],
       },
       breadcrumbs(site, [['Home', '/'], ['Blog', '/blog/'], [titleCase(p.tag), topicPath(p.tag)], [p.title, path]]),
+      ...(curva ? [curvaApp(site)] : []),
       org(site),
     ],
   }
@@ -393,8 +429,8 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
 <meta property="article:modified_time" content="${p.updated_at.toISOString()}" />
 <meta property="article:section" content="${esc(p.tag)}" />
 `
-  // The closing pitch is for the product the post is about.
-  const prod = products.find((x) => x.id === (/\bcurva\b/i.test(`${p.title} ${p.summary}`) ? 'curva' : 'crowkis'))
+  // The closing pitch is for the product the post is about: its tag, or failing that its title or summary.
+  const prod = products.find((x) => x.id === (curva || /\bcurva\b/i.test(`${p.title} ${p.summary}`) ? 'curva' : 'crowkis'))
   const pitch = prod.id === 'curva'
     ? [`${CV_META.title.replace(/^Curva: /, '').replace(/^\w/, (c) => c.toUpperCase())}.`, CV_META.description]
     : ['Stop paying twice for the same answer.', 'Crowkis is a semantic cache for LLM workloads, built in Rust. Free community edition, one Docker image.']
@@ -684,7 +720,7 @@ function rss(site, posts) {
   const items = posts.filter((p) => p.indexable).slice(0, 50)
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
-<title>Tarkova Blog</title><link>${site}/blog/</link><description>Practical reads on semantic caching, agent memory and LLM cost.</description><language>en</language>
+<title>Tarkova Blog</title><link>${site}/blog/</link><description>Practical reads on semantic caching, agent memory, LLM cost and LLM classification.</description><language>en</language>
 <atom:link href="${site}/rss.xml" rel="self" type="application/rss+xml"/>
 ${items.map((p) => `<item><title>${xml(p.title)}</title><link>${site}${postPath(p)}</link><guid>${site}${postPath(p)}</guid><pubDate>${new Date(p.published_at + 'T00:00:00Z').toUTCString()}</pubDate><category>${xml(p.tag)}</category><description>${xml(p.summary)}</description></item>`).join('\n')}
 </channel></rss>`
@@ -695,7 +731,7 @@ function llms(site, posts, topics) {
   const idx = posts.filter((p) => p.indexable)
   return `# Tarkova
 
-> Tarkova builds new age software businesses. Products: Crowkis (${CROWKIS}), a semantic cache and agent memory layer for LLM workloads, built in Rust; and Curva (coming soon).
+> Tarkova builds new age software businesses. Products: Crowkis (${CROWKIS}), a semantic cache and agent memory layer for LLM workloads, built in Rust; and Curva (${site}/curva/), LLM classification with confidence scores.
 
 ${products.map((p) => `- [${p.name}](${site}/${p.id}/): ${p.summary}`).join('\n')}
 - [Curva vs Jev](${site}${VJ_PATH}): ${VJ_META.description}
@@ -711,7 +747,10 @@ ${topics.map(([t]) => `## ${titleCase(t)}\n\n${idx.filter((p) => p.tag === t).ma
 
 // rows: posts ordered newest first. Returns route → {head, body} plus raw files.
 export function buildSite(rows, { site }) {
-  const posts = rows.map((p) => ({ ...p, indexable: INDEX_MATRIX_PAGES || !MATRIX.test(p.title) }))
+  // A published post dated in the future stays out of every page and feed until its day (UTC), so
+  // waves go live on their date. ponytail: static site, so that needs a build on or after the day.
+  const today = new Date().toISOString().slice(0, 10)
+  const posts = rows.filter((p) => String(p.published_at).slice(0, 10) <= today).map((p) => ({ ...p, indexable: INDEX_MATRIX_PAGES || !MATRIX.test(p.title) }))
   const idx = linkIndex(posts)
   const counts = new Map()
   for (const p of posts) counts.set(p.tag, (counts.get(p.tag) || 0) + 1)
@@ -725,7 +764,8 @@ export function buildSite(rows, { site }) {
     ...posts.map((p, i) => postPage({ site, p, posts, idx, topics, prev: posts[i + 1], next: posts[i - 1] })),
     productsPage(site, topics),
     aboutPage(site, topics),
-    ...products.map((p) => productPage(site, topics, p, p.url ? indexable.slice(0, 3) : [])),
+    // Only Crowkis has a url today, and its page shows Crowkis posts.
+    ...products.map((p) => productPage(site, topics, p, p.url ? indexable.filter((q) => !isCurva(q)).slice(0, 3) : [])),
     vsJevPage(site, topics),
     privacy(site, topics),
     terms(site, topics),
