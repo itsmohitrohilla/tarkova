@@ -10,8 +10,9 @@
   content: "";
   position: absolute;
   inset: auto 0 0;
-  height: 45%;
-  background: linear-gradient(to bottom, rgba(11, 18, 8, 0), rgba(11, 18, 8, 0.6) 55%, #0b1208);
+  height: 60%;
+  /* Eased stops, so the fade has no visible line where it reaches solid. */
+  background: linear-gradient(to bottom, rgba(12, 12, 13, 0), rgba(12, 12, 13, 0.12) 25%, rgba(12, 12, 13, 0.35) 45%, rgba(12, 12, 13, 0.65) 65%, rgba(12, 12, 13, 0.9) 85%, #0c0c0d);
   pointer-events: none;
 }
 
@@ -27,8 +28,6 @@
   user-select: none;
   -webkit-user-drag: none;
 }
-
-
 
 /* Liquid-glass surface for the menu bar. */
 .glass {
@@ -118,3 +117,70 @@
   min-height: 100svh;
 }
 
+/* Galaxy section (src/Galaxy.jsx): a full-screen canvas of twinkling grid stars. */
+.galaxy { position: relative; height: 100svh; }
+.galaxy canvas {
+  display: block; width: 100%; height: 100%;
+  /* Stars fade in below the hero and out before the next section, so neither edge is a line. */
+  -webkit-mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent);
+  mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent);
+}
+
+/* The galaxy's words and its constellation of products. */
+.galaxy-copy { position: absolute; top: clamp(72px, 13svh, 140px); left: clamp(20px, 4vw, 64px); right: clamp(20px, 4vw, 64px); max-width: 560px; }
+.galaxy-copy h2 { margin: 0; font-size: clamp(32px, 4.2vw, 60px); font-weight: 400; line-height: 1.05; letter-spacing: -0.03em; }
+.galaxy-copy p { margin: 14px 0 0; max-width: 42ch; font-size: clamp(15px, 1.25vw, 18px); line-height: 1.5; color: rgba(255, 255, 255, 0.66); }
+
+.constellation { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.constellation line { stroke: rgba(255, 255, 255, 0.22); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.constellation.phone { display: none; }
+
+.stars { list-style: none; margin: 0; padding: 0; }
+.stars li { position: absolute; left: var(--x); top: var(--y); }
+.star { position: relative; display: block; width: max-content; max-width: 260px; padding-left: 28px; color: #fff; text-decoration: none; transform: translate(-7px, -12px); } /* the dot's centre sits exactly on the star's point */
+.star i {
+  position: absolute; left: 0; top: 5px; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08), 0 0 18px 4px rgba(205, 210, 255, 0.55), 0 0 60px 12px rgba(205, 210, 255, 0.18);
+  animation: starPulse 3.6s ease-in-out infinite;
+}
+.stars li:nth-child(2) .star i { animation-delay: -1.2s; }
+.star strong { display: block; font-size: 19px; line-height: 24px; font-weight: 500; letter-spacing: -0.01em; }
+.star span { display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: rgba(255, 255, 255, 0.6); }
+.star i { transition: transform 0.25s; }
+.star:hover i, .star:focus-visible i { transform: scale(1.35); }
+.star:hover span, .star:focus-visible span { color: rgba(255, 255, 255, 0.9); }
+@keyframes starPulse { 50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.04), 0 0 26px 7px rgba(205, 210, 255, 0.7), 0 0 80px 18px rgba(205, 210, 255, 0.24); } }
+
+@media (max-width: 700px) {
+  .stars li { left: var(--mx); top: var(--my); }
+  .constellation.wide { display: none; }
+  .constellation.phone { display: block; }
+  .star { max-width: 210px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .star i { animation: none; }
+}
+
+/* What we make, after the Tarkova mark (src/Sections.jsx). */
+.make { padding: clamp(80px, 12vw, 160px) clamp(20px, 4vw, 64px); }
+.make h2 { margin: 0 0 clamp(36px, 5vw, 64px); font-size: clamp(32px, 4.2vw, 60px); font-weight: 400; letter-spacing: -0.03em; }
+.make ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(16px, 2vw, 28px); }
+.make li {
+  padding: clamp(24px, 3vw, 40px); border-radius: 28px;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(205, 210, 255, 0.07), transparent 60%), rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.3s, background-color 0.3s;
+}
+.make li:hover { border-color: rgba(255, 255, 255, 0.18); background-color: rgba(255, 255, 255, 0.035); }
+.make h3 { margin: 28px 0 8px; font-size: clamp(20px, 1.8vw, 24px); font-weight: 500; letter-spacing: -0.01em; }
+.make p { margin: 0; max-width: 32ch; font-size: 16px; line-height: 1.5; color: rgba(255, 255, 255, 0.62); }
+.glyph { display: block; width: clamp(120px, 11vw, 150px); height: auto; }
+.glyph circle { fill: rgba(255, 255, 255, 0.07); }
+.glyph circle.on { fill: #eef0ff; animation: dotTwinkle 3.2s ease-in-out infinite; }
+.make li:hover .glyph circle.on { animation-duration: 1.4s; }
+@keyframes dotTwinkle { 50% { opacity: 0.35; } }
+@media (max-width: 900px) { .make ul { grid-template-columns: 1fr; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .glyph circle.on { animation: none; }
+}

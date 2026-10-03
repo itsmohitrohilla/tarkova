@@ -8,6 +8,8 @@ import { footerHTML, WORDMARK_PROPS } from './site/footer.js'
 import './site/footer.css'
 import { mountMusic } from './music.js'
 import { mountGlass } from './glass.js'
+import Galaxy from './Galaxy.jsx'
+import Sections from './Sections.jsx'
 
 export default function App() {
   const [latest, setLatest] = useState([])
@@ -51,6 +53,8 @@ export default function App() {
 
       </main>
 
+      <Galaxy />
+
       <section id="about" className="section">
         <div className="shader-frame">
           <TextPathStudies
@@ -64,6 +68,8 @@ export default function App() {
           />
         </div>
       </section>
+      <Sections />
+
       <footer className="foot">
         <div dangerouslySetInnerHTML={{ __html: footerHTML(topics) }} />
         <div className="foot-wordmark" aria-hidden="true">

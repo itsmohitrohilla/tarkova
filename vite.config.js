@@ -118,7 +118,10 @@ function tarkovaSite(env) {
           if (!path.endsWith('/') && pages.has(path + '/')) return res.writeHead(301, { Location: path + '/' }).end()
           const { fillShell } = await import('./src/site/pages.js')
           const page = pages.get(path)
-          const html = await server.transformIndexHtml(req.url, fillShell(readFileSync(SHELL, 'utf8'), page || pages.get('/404.html')))
+          // Link site.js's stylesheets up front, as the build does; otherwise dev paints each page unstyled
+          // until site.js injects them, which shows as a flash when switching pages.
+          const html = (await server.transformIndexHtml(req.url, fillShell(readFileSync(SHELL, 'utf8'), page || pages.get('/404.html'))))
+            .replace('</head>', '<link rel="stylesheet" href="/src/global.css"><link rel="stylesheet" href="/src/site/site.css"></head>')
           res.statusCode = page ? 200 : 404
           res.setHeader('Content-Type', 'text/html').end(html)
         } catch (e) {

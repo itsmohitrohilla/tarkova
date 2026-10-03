@@ -3,10 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b1208" />
+    <meta name="theme-color" content="#0c0c0d" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="application/rss+xml" title="Tarkova Blog" href="/rss.xml" />
+    <!-- The page stays hidden on the dark ground until the app has drawn itself with its styles
+         (src/main.jsx adds .ready), then fades in whole: no unstyled flash when arriving from another page. -->
+    <style>
+      html { background: #0c0c0d; }
+      #root { opacity: 0; transition: opacity 0.45s cubic-bezier(0.2, 0.7, 0.1, 1); }
+      html.ready #root { opacity: 1; }
+      @media (prefers-reduced-motion: reduce) { #root { transition: none; } }
+    </style>
     <title>Tarkova | Building new age businesses</title>
     <meta name="description" content="Tarkova is a studio building new age software businesses. Meet Crowkis, the semantic cache for LLMs, and Curva, coming next." />
     <link rel="canonical" href="https://www.tarkova.com/" />
