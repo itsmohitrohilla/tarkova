@@ -1,0 +1,1200 @@
+[
+ {
+  "slug": "read-curva-decision-response",
+  "title": "Reading a Curva decision response, field by field",
+  "summary": "Every field of a Curva decision response, including the ones that appear only sometimes: abstain, skipped, rule, stage, agreement, answered_by and set.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "curva response fields",
+  "keywords": [
+   "curva decision json",
+   "cached and debiased fields",
+   "latency_ms cost_usd",
+   "calibrated abstain fields"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "table",
+  "angle": "Walks a real response top to bottom and focuses on the conditional fields (abstain, skipped, rule, stage, agreement, answered_by, set, guaranteed) and what their absence means.",
+  "why_it_can_rank": "One annotated table of every conditional field and when it appears, which the reference spreads across footnotes.",
+  "outline": [
+   "Decision fields: id, model, mode, latency_ms, cost_usd",
+   "cached and debiased: what false really tells you",
+   "project and config: where it was calibrated and how it was asked",
+   "Answer fields per type: choice, score, noul, selected, value",
+   "calibrated: false until a calibrator helps this exact question",
+   "Fields that appear only sometimes: abstain, skipped, rule, stage, agreement, answered_by",
+   "Matching a decision to server logs with x-request-id"
+  ],
+  "facts": [
+   "site/reference/http-api.md:L44-L60",
+   "site/reference/http-api.md:L99-L133",
+   "site/reference/http-api.md:L13-L15"
+  ],
+  "source_check": [
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": "site/reference/http-api.md:L46-L59",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "what-is-a-typed-decision",
+   "curva-api-endpoints",
+   "trace-llm-request-x-request-id"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-shorthand-questions",
+  "title": "Curva shorthand questions in Python and TypeScript",
+  "summary": "The shorthand that turns lists, strings ending in ? and types into Curva questions, side by side for Python and TypeScript, with two gotchas.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "curva shorthand questions",
+  "keywords": [
+   "curva.decide shorthand",
+   "decide values typescript",
+   "d.to_dict curva",
+   "curva plain answers"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "table",
+  "angle": "One table for both SDKs (list or dict, '?' strings, bool/float/int/str vs Boolean/Number/String), how key names become questions, plain vs full answers, and the two gotchas: a ValueError for anything else and decision fields shadowing a question named id.",
+  "why_it_can_rank": "The only side-by-side Python and TypeScript shorthand mapping, including the documented d[\"id\"] name-collision gotcha.",
+  "outline": [
+   "The shorthand table: Python and TypeScript side by side",
+   "Key names become questions: total_due asks Total due",
+   "Plain answers: d.team, d.to_dict(), d.values",
+   "Full answers when you need confidence: d[\"team\"] and d.answers",
+   "Gotcha: a question named id, model or mode",
+   "When to switch to Choice(...) and the other builders"
+  ],
+  "facts": [
+   "site/getting-started.md:L25-L40",
+   "sdk/typescript/README.md:L29-L33",
+   "README.md:L43-L49"
+  ],
+  "source_check": [
+   "site/getting-started.md",
+   "sdk/typescript/README.md",
+   "README.md"
+  ],
+  "code_snippet_ref": "site/getting-started.md:L14-L19",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "install-curva",
+   "llm-yes-no-probability",
+   "python-llm-classification",
+   "typescript-llm-classification"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-projects",
+  "title": "Curva projects: separate calibration per team or customer",
+  "summary": "A project scopes feedback, calibrators, audit, drift and the dashboard, and can carry its own provider key and bound API keys. What it does not isolate.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "curva projects",
+  "keywords": [
+   "llm calibration namespace",
+   "per team llm calibration",
+   "project-bound api key",
+   "per-project provider key"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "none",
+  "angle": "One string that scopes feedback, calibrators, audit, drift and the dashboard, can carry its own provider key and its own bound API keys; what it doesn't do is isolate tenants, which takes one server each.",
+  "why_it_can_rank": "Pulls every project-scoped behaviour into one list, including the 403 for a key bound to another project and the documented one-server-per-tenant limit.",
+  "outline": [
+   "One string scopes feedback, calibrators and reports",
+   "Same question, two projects, two calibrations",
+   "Audit, drift and dashboard filter by project",
+   "A project's own provider key, encrypted with CURVA_MASTER_KEY",
+   "API keys bound to a project: 403 elsewhere",
+   "Projects are not tenants: one server per isolated customer"
+  ],
+  "facts": [
+   "site/concepts/projects.md:L7-L20",
+   "site/reference/http-api.md:L255-L263",
+   "site/self-hosting.md:L66-L78",
+   "site/self-hosting.md:L169"
+  ],
+  "source_check": [
+   "site/concepts/projects.md",
+   "site/self-hosting.md",
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": "site/concepts/projects.md:L12-L16",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "pin-llm-prompt-version",
+   "curva-403-project-bound-key",
+   "llm-audit-log"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "llm-feedback-loop-labels",
+  "title": "Send labels back to your LLM classifier with feedback",
+  "summary": "How to close the LLM feedback loop: keep the decision id, send the label in the right format per type, correct it later, and label automated answers too.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "llm feedback loop labels",
+  "keywords": [
+   "post /v1/feedback",
+   "human in the loop labels",
+   "decision id feedback",
+   "label format per question type"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "code",
+  "angle": "The mechanics, not the theory: store the decision id, send labels in the right format per type, resend to correct, label a sample of automated answers as well as the unsure ones, and read labels against min_labels 30 in the reply.",
+  "why_it_can_rank": "Gives the label format for every type (key, level index, true or false, the value, null when nullable, a list for Multi) and the reply shape, which is where most feedback calls go wrong.",
+  "outline": [
+   "Keep the decision id next to what you did",
+   "Label formats: key, level index, true or false, the value",
+   "The reply: labels, min_labels 30, calibrated",
+   "Resending replaces the label",
+   "The abstain-and-learn pattern",
+   "Label automated answers too, not only the unsure ones"
+  ],
+  "facts": [
+   "site/guides/feedback.md:L10-L49",
+   "site/guides/feedback.md:L68-L84",
+   "site/reference/http-api.md:L160-L177"
+  ],
+  "source_check": [
+   "site/guides/feedback.md",
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": "site/guides/feedback.md:L72-L81",
+  "diagram": "mermaid",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "curva-feedback-errors",
+   "calibrated-false-after-30-labels",
+   "llm-classification-confidence-scores"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "compare-llm-models-labeled-data",
+  "title": "Pick an LLM setup on your labeled data with curva tune",
+  "summary": "curva tune searches models, modes, debias, few-shot and multi-model plans on one labeled set and writes the winner as a ready request.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "compare llm models on labeled data",
+  "keywords": [
+   "curva tune",
+   "llm model selection for classification",
+   "tune llm mode debias few-shot",
+   "tuned.json"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "code",
+  "angle": "curva tune runs a small, predictable grid (each model, a council and cascades at 0.7, 0.8 and 0.9, mode auto or verbal, debias on or off, 0 or 4 examples) on a fixed-seed split, ranks by accuracy then ECE then cost, and writes the winner as a /v1/decide body.",
+  "why_it_can_rank": "Shows the exact candidate count (8 per plan, 48 for two models), the 200-call guard and the scoring split, so readers can predict cost before running.",
+  "outline": [
+   "The eval set format: a question plus labeled rows",
+   "The grid: 8 candidates per plan, 48 with two models",
+   "The 200-call guard and --yes",
+   "Scoring: fixed-seed split, a few-shot pool, calibrated ECE from n = 30",
+   "Ranking: accuracy, then ECE, then cost, against the untuned default",
+   "Using tuned.json in a request or a curva map batch"
+  ],
+  "facts": [
+   "site/guides/tune.md:L5-L70",
+   "site/reference/cli.md:L108-L124"
+  ],
+  "source_check": [
+   "site/guides/tune.md",
+   "site/reference/cli.md"
+  ],
+  "code_snippet_ref": "site/guides/tune.md:L12-L15",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "few-shot-examples-llm-classification",
+   "choose-a-model-for-llm-classification"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "export-llm-decisions-fine-tuning",
+  "title": "Export LLM decisions as fine-tuning data with curva export",
+  "summary": "curva export turns decisions and feedback, or a curva map run, into training rows in Curva's own prompt format. The flags, the row shape, what's left out.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "export llm decisions for fine-tuning",
+  "keywords": [
+   "curva export",
+   "llm distillation training data",
+   "classification fine-tuning jsonl",
+   "chat format training rows"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "code",
+  "angle": "The export step on its own: labels plus confident answers at 0.9 or more from the store, or distillation from a map run, written in Curva's prompt with a one-letter reply in both option orders, so a fine-tuned model can later be read by logprobs.",
+  "why_it_can_rank": "Documents the flags and the chat row shape, which decide whether the fine-tuned model works with Curva at all.",
+  "outline": [
+   "Hold out test states first",
+   "From the store: labels plus confident answers at 0.9 or more",
+   "From a curva map run: distillation only",
+   "Flags: --project, --question, --labels-only, --min-confidence, --format",
+   "The chat row: Curva's prompt and a one-letter reply, both orders",
+   "What is left out: Multi and questions over 20 labels"
+  ],
+  "facts": [
+   "site/guides/own-model.md:L61-L112",
+   "site/guides/own-model.md:L15",
+   "CHANGELOG.md:L44-L45"
+  ],
+  "source_check": [
+   "site/guides/own-model.md",
+   "CHANGELOG.md"
+  ],
+  "code_snippet_ref": "site/guides/own-model.md:L73-L79",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "check-llm-logprobs-support",
+   "batch-llm-classification-jsonl",
+   "choose-a-model-for-llm-classification"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-api-endpoints",
+  "title": "Curva HTTP API endpoints: every route and what it returns",
+  "summary": "A route map of Curva's frozen v1 HTTP API: decide, feedback, calibration, audit, drift, models, systemone, plus health, metrics and openapi.json.",
+  "tag": "curva guides",
+  "cluster": "core",
+  "pillar": false,
+  "primary_keyword": "curva api endpoints",
+  "keywords": [
+   "curva rest api",
+   "/v1/decide /v1/feedback",
+   "curva openapi.json",
+   "curva health metrics endpoints"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "table",
+  "angle": "A one-screen map of every route: what it does, what it returns, whether it needs a key, plus the versioning promise (v1 only changes additively) and the shared error envelope.",
+  "why_it_can_rank": "One table of all eleven routes with auth requirements and response shape, including which routes deliberately skip auth.",
+  "outline": [
+   "v1 is frozen: additive changes only, breaking ones go to /v2",
+   "The decision routes: POST /v1/decide and /v1/feedback",
+   "The reporting routes: calibration, audit, drift, models",
+   "POST /v1/systemone: the criteria-shaped alias",
+   "Routes that need no key: /health, /dashboard, /openapi.json",
+   "/metrics for Prometheus",
+   "The error envelope and x-request-id on every response"
+  ],
+  "facts": [
+   "site/reference/http-api.md:L5-L15",
+   "site/reference/http-api.md:L144-L158",
+   "site/reference/http-api.md:L219-L263",
+   "Content Box/6 Blog/fact-sheet.md:L291-L312"
+  ],
+  "source_check": [
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": "site/reference/http-api.md:L167-L171",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "what-is-curva",
+   "read-curva-decision-response",
+   "curva-troubleshooting-guide",
+   "llm-decisions-over-http"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-422-workflow-errors",
+  "title": "Curva 422 on when, rules or depends_on: causes and fixes",
+  "summary": "422 errors from workflow features: unknown operators, a non-object state, invalid rule answers, dependency cycles, too many stages, explain plus stages.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "curva depends_on cycle 422",
+  "keywords": [
+   "unknown when operator 422",
+   "rule answer invalid 422",
+   "explain with depends_on 422",
+   "state must be a json object"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "Each workflow 422 paired with its fix: when and rules need an object state, operators and argument types are checked, a rule answer must be a valid label, dependency keys must exist, cycles are named in the message (a then b then a), at most 8 stages, and explain can't run with dependencies.",
+  "why_it_can_rank": "Covers the cycle message format and every workflow-specific trigger, which the generic error table lumps into one line.",
+  "outline": [
+   "when and rules need an object state",
+   "Unknown operators and wrong-typed arguments",
+   "A rule answer that isn't a valid label",
+   "depends_on: unknown keys, self-dependency and cycles",
+   "More than 8 stages",
+   "explain is not supported with dependencies"
+  ],
+  "facts": [
+   "site/guides/rules.md:L38-L62",
+   "site/guides/conditional.md:L23-L33",
+   "site/guides/dependencies.md:L110-L118",
+   "site/reference/http-api.md:L94-L97"
+  ],
+  "source_check": [
+   "site/guides/rules.md",
+   "site/guides/conditional.md",
+   "site/guides/dependencies.md"
+  ],
+  "code_snippet_ref": "site/guides/dependencies.md:L17-L31",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "curva-422-invalid-request",
+   "chain-llm-questions-depends-on",
+   "llm-rules-no-model-call"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-422-privacy-strict",
+  "title": "privacy strict returns 422 on a named provider: why",
+  "summary": "privacy strict is enforced through OpenRouter or a model on your own machine. Why a hosted @provider request gets 422, and the two ways to keep strict on.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "curva privacy strict 422",
+  "keywords": [
+   "privacy strict provider",
+   "openrouter data_collection deny",
+   "local model privacy strict",
+   "llm provider no data retention"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "The one 422 that looks like a bug but is the guarantee working: strict is enforced by OpenRouter's data_collection deny, and a named provider passes only when its URL is on this machine, so a hosted @provider with strict is refused.",
+  "why_it_can_rank": "Explains why the refusal happens and the documented ways to satisfy it, including the audit-log redaction strict also turns on.",
+  "outline": [
+   "What privacy strict promises",
+   "How it is enforced on OpenRouter: data_collection deny",
+   "Why a named hosted provider gets 422",
+   "Local providers pass: Ollama, LM Studio, vLLM, llama.cpp",
+   "Strict also stores extracted values as redacted",
+   "Per-project keys apply to OpenRouter only"
+  ],
+  "facts": [
+   "site/guides/providers.md:L99-L101",
+   "site/guides/providers.md:L109-L110",
+   "site/concepts/projects.md:L53-L56",
+   "site/reference/http-api.md:L74"
+  ],
+  "source_check": [
+   "site/guides/providers.md",
+   "site/concepts/projects.md",
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": "Content Box/6 Blog/fact-sheet.md:L888-L896",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "curva-422-invalid-request",
+   "llm-audit-log",
+   "self-host-llm-decision-api"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-403-project-bound-key",
+  "title": "Curva 403 forbidden: a key bound to another project",
+  "summary": "A Curva key created with --project works only for that project: other projects get 403 and their decisions look missing (404). How to spot it and fix it.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "curva 403 project key",
+  "keywords": [
+   "project-bound api key",
+   "curva keys create --project",
+   "curva 404 decision other project"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "Explains the paired behaviour of project-bound keys: 403 when a request names another project, and 404 for another project's decisions, including the easy miss that a request without project uses 'default'.",
+  "why_it_can_rank": "Explains the 403 and 404 pairing that otherwise looks like data loss, with the default-project trap.",
+  "outline": [
+   "Keys made with --project",
+   "403 when the request names another project",
+   "Why another project's decision returns 404, not 403",
+   "Requests without project use default",
+   "Fix: the right key, or the right project field"
+  ],
+  "facts": [
+   "site/reference/http-api.md:L255-L263",
+   "site/concepts/projects.md:L18-L20"
+  ],
+  "source_check": [
+   "site/reference/http-api.md",
+   "site/concepts/projects.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "curva-401-unauthorized",
+   "curva-feedback-errors",
+   "curva-projects"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "calibration-reset-after-rewording",
+  "title": "Calibration reset after changing the question wording",
+  "summary": "Curva keys calibration by type, wording and options, so an edit starts over. What is safe to change, what is not, and how to edit without losing labels.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "calibration reset after rewording",
+  "keywords": [
+   "question fingerprint calibration",
+   "rewording llm question",
+   "when not in fingerprint",
+   "depends_on changes calibration"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "The list of what does and doesn't reset calibration: the fingerprint is type, wording and options; when, think and coverage sit outside it; depends_on keys sit inside; a switch to curva-1.2.0 needs calibrating again; debias auto also starts over on a reworded question.",
+  "why_it_can_rank": "The only list of every change that does or doesn't reset calibration, with a freeze-then-label workflow for recipe edits.",
+  "outline": [
+   "The fingerprint: type, wording, options",
+   "Safe to change: when conditions, think, coverage",
+   "Not safe: depends_on keys, options, any wording",
+   "Switching to curva-1.2.0: calibrate again",
+   "debias auto also starts over on a reworded question",
+   "Settle wording with curva shadow before collecting labels"
+  ],
+  "facts": [
+   "site/concepts/calibration.md:L55-L62",
+   "site/guides/conditional.md:L72-L73",
+   "site/guides/dependencies.md:L119-L121",
+   "site/guides/guaranteed-accuracy.md:L65-L66",
+   "site/guides/speed-and-cost.md:L35-L37",
+   "site/guides/speed-and-cost.md:L47-L52"
+  ],
+  "source_check": [
+   "site/concepts/calibration.md",
+   "site/guides/conditional.md",
+   "site/guides/dependencies.md",
+   "site/guides/guaranteed-accuracy.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "calibrated-false-after-30-labels",
+   "write-llm-classification-instructions",
+   "pin-llm-prompt-version"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-server-refuses-non-localhost",
+  "title": "curva serve refuses 0.0.0.0 without API keys: the fix",
+  "summary": "With no API keys, curva serve won't listen beyond localhost. Create a key and restart, or use --no-auth on a trusted network, as the Docker one-liner does.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "curva serve non-localhost no keys",
+  "keywords": [
+   "curva --no-auth",
+   "curva docker 0.0.0.0",
+   "curva serve addr",
+   "llm server bind safety"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "Bind safety explained: no keys means localhost only, unless --no-auth; the two documented ways out, the restart needed after the first key, and the Docker pattern of --addr 0.0.0.0 inside the container with -p 127.0.0.1 outside.",
+  "why_it_can_rank": "Explains the refusal, both documented fixes and the restart trap, with the exact Docker one-liner from the docs.",
+  "outline": [
+   "Why the server won't bind to a public address",
+   "Option 1: create a key, then restart",
+   "Option 2: --no-auth on a trusted network only",
+   "Docker: --addr 0.0.0.0 inside, -p 127.0.0.1 outside",
+   "Public internet: Caddy or nginx in front for TLS"
+  ],
+  "facts": [
+   "site/self-hosting.md:L15-L30",
+   "site/self-hosting.md:L61-L64",
+   "site/reference/cli.md:L37-L42",
+   "site/getting-started.md:L54-L60"
+  ],
+  "source_check": [
+   "site/self-hosting.md",
+   "site/reference/cli.md",
+   "site/getting-started.md"
+  ],
+  "code_snippet_ref": "site/getting-started.md:L57-L60",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "curva-401-unauthorized",
+   "curva-serve-wont-start",
+   "self-host-llm-decision-api"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-serve-wont-start",
+  "title": "curva serve won't start: master key and provider settings",
+  "summary": "The two documented reasons curva serve refuses to start: project keys without CURVA_MASTER_KEY, and a provider setting out of range. Plus what isn't one.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "curva serve won't start",
+  "keywords": [
+   "CURVA_MASTER_KEY missing",
+   "curva provider timeout out of range",
+   "curva startup error"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "A short, exact list: the server refuses to start when project provider keys exist but CURVA_MASTER_KEY is missing, or when a CURVA_PROVIDER_<NAME>_* value is outside its range (the message names the variable); having no provider key at all is not a startup error.",
+  "why_it_can_rank": "Separates what stops startup from what only fails per request, which saves a round of guessing.",
+  "outline": [
+   "Project keys without CURVA_MASTER_KEY",
+   "CURVA_MASTER_KEY format: 64 hex characters",
+   "Provider variables out of range: the message names the variable",
+   "Not a startup error: no provider key at all",
+   "Read the startup log: providers found and where plain ids go"
+  ],
+  "facts": [
+   "site/self-hosting.md:L66-L78",
+   "site/guides/providers.md:L56-L70",
+   "site/guides/providers.md:L79-L81",
+   "site/self-hosting.md:L114-L118"
+  ],
+  "source_check": [
+   "site/self-hosting.md",
+   "site/guides/providers.md"
+  ],
+  "code_snippet_ref": "site/self-hosting.md:L70-L73",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "curva-server-refuses-non-localhost",
+   "curva-no-provider-key-error",
+   "self-host-llm-decision-api"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "curva-server-unreachable-status-0",
+  "title": "CurvaError status 0: the SDK can't reach the server",
+  "summary": "Status 0 in a CurvaError means no HTTP response at all. Check CURVA_BASE_URL, whether a server runs (TypeScript never starts one), and container hosts.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "curvaerror status 0",
+  "keywords": [
+   "curva connection refused",
+   "CURVA_BASE_URL",
+   "typescript sdk needs curva serve",
+   "curva server unreachable"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "Status 0 means nothing answered: nothing listening at CURVA_BASE_URL (default http://localhost:7777), a TypeScript app expecting a server it never started (Python's curva.decide starts one, TypeScript doesn't), or localhost used from inside a container.",
+  "why_it_can_rank": "Pins the most common cause, the difference between the Python and TypeScript SDKs on starting a server, which the error alone doesn't reveal.",
+  "outline": [
+   "Status 0 means no response",
+   "CURVA_BASE_URL and its default",
+   "TypeScript never starts a server; Python's curva.decide does",
+   "Check with GET /health",
+   "From a container, localhost is the container",
+   "Retries: dropped connections count in TypeScript"
+  ],
+  "facts": [
+   "sdk/python/README.md:L55-L58",
+   "sdk/typescript/README.md:L111-L114",
+   "site/getting-started.md:L21-L23",
+   "site/getting-started.md:L54-L56",
+   "sdk/typescript/README.md:L69-L76"
+  ],
+  "source_check": [
+   "sdk/python/README.md",
+   "sdk/typescript/README.md",
+   "site/getting-started.md"
+  ],
+  "code_snippet_ref": "site/getting-started.md:L157-L161",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "install-curva",
+   "n8n-credential-test-fails-curva",
+   "curva-server-refuses-non-localhost"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "trace-llm-request-x-request-id",
+  "title": "Trace a failed LLM request with x-request-id and JSON logs",
+  "summary": "Curva keeps provider errors out of responses, so debugging means joining the request id to the server log. Send your own x-request-id, use JSON logs.",
+  "tag": "curva guides",
+  "cluster": "troubleshooting",
+  "pillar": false,
+  "primary_keyword": "x-request-id tracing",
+  "keywords": [
+   "curva server log",
+   "CURVA_LOG=json",
+   "request_id python sdk",
+   "provider error details log"
+  ],
+  "search_intent": "troubleshooting",
+  "serp_feature": "faq",
+  "angle": "Because provider error details never reach the caller, debugging a 502 or a surprising answer means joining the client's request id to the server's log line: send your own x-request-id, read request_id or requestId in the SDKs, and switch to JSON logs.",
+  "why_it_can_rank": "Shows the exact join path (header, SDK attribute, log line fields) that the reference spreads over three pages.",
+  "outline": [
+   "Why the response hides provider errors",
+   "Every response carries x-request-id",
+   "Send your own: 1 to 64 visible ASCII characters",
+   "request_id in Python, requestId in TypeScript",
+   "The log line: method, path, status, latency, key id, decision id",
+   "CURVA_LOG=json and CURVA_LOG_LEVEL=debug"
+  ],
+  "facts": [
+   "site/reference/http-api.md:L13-L15",
+   "site/self-hosting.md:L114-L124",
+   "sdk/python/README.md:L37",
+   "site/self-hosting.md:L96-L98"
+  ],
+  "source_check": [
+   "site/reference/http-api.md",
+   "site/self-hosting.md",
+   "sdk/python/README.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-troubleshooting-guide",
+   "curva-502-model-error",
+   "read-curva-decision-response",
+   "curva-api-endpoints"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "calibration-projects-namespace",
+  "title": "One question, two calibrations: projects as namespaces",
+  "summary": "Projects keep feedback, calibrators and audit separate per team or customer. How the project field flows through decide, feedback and calibration reports.",
+  "tag": "curva concepts",
+  "cluster": "concepts",
+  "pillar": false,
+  "primary_keyword": "calibration namespace",
+  "keywords": [
+   "per-tenant calibration",
+   "multi-tenant llm calibration",
+   "project calibration"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "code",
+  "angle": "Same wording, different data: projects keep feedback, calibrators, audit and optionally the provider key separate, and they also decide how traffic must be split when you run several instances.",
+  "why_it_can_rank": "Shows the project field end to end (decide, feedback, calibration report, audit filter, sticky routing by project), not just a definition.",
+  "outline": [
+   "Two teams, one question, different label mixes",
+   "project on decide, feedback and calibration",
+   "'default' when you send nothing",
+   "Audit log and per-project provider keys follow the project",
+   "Several instances: keep a project's decisions and labels together",
+   "When to split a project and when to keep one"
+  ],
+  "facts": [
+   "site/concepts/projects.md:L7-L20",
+   "site/scaling.md:L122-L135",
+   "site/self-hosting.md:L66-L78"
+  ],
+  "source_check": [
+   "site/concepts/projects.md",
+   "site/scaling.md"
+  ],
+  "code_snippet_ref": "site/concepts/projects.md:L12-L16",
+  "diagram": "mermaid",
+  "indexable": true,
+  "related": [
+   "llm-classification-confidence-scores",
+   "calibration-per-question-fingerprint",
+   "scale-llm-api-sticky-routing",
+   "llm-calibration-explained"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "typed-output-vs-correct-output",
+  "title": "Structured output is not a correct LLM answer",
+  "summary": "A schema guarantees the shape of an LLM answer, not its truth. What typed labels remove, what they cannot, and how a probability per label fills the gap.",
+  "tag": "curva concepts",
+  "cluster": "concepts",
+  "pillar": false,
+  "primary_keyword": "structured output accuracy llm",
+  "keywords": [
+   "llm json schema accuracy",
+   "typed llm output",
+   "structured outputs reliability"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "none",
+  "angle": "Schema-constrained output guarantees shape, not truth; Curva maps answers onto declared labels so there is nothing to validate, then attaches a probability so you know how often the label is right.",
+  "why_it_can_rank": "Separates the two guarantees using a real response object (mode, probabilities, calibrated) and measured accuracy on always-valid labels ranging from 54.0% to 92.2% across sets (n = 100, 2026-10-01).",
+  "outline": [
+   "Two guarantees: shape and truth",
+   "Labels mapped, never parsed: what typed answers remove",
+   "What typing cannot remove: a well-formed wrong label",
+   "Probabilities per option, the calibrated flag, mode",
+   "Extraction: wrong type or out of range becomes value null, confidence 0",
+   "Measured: always-valid labels, 54.0% to 92.2% accuracy across sets"
+  ],
+  "facts": [
+   "site/concepts/questions.md:L5-L11",
+   "site/concepts/questions.md:L102-L124",
+   "site/concepts/questions.md:L77-L84",
+   "site/benchmarks.md:L59-L70"
+  ],
+  "source_check": [
+   "site/concepts/questions.md"
+  ],
+  "code_snippet_ref": "site/concepts/questions.md:L104-L118",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "llm-classification-confidence-scores",
+   "stop-parsing-llm-text",
+   "none-of-the-above-llm"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "built-in-llm-eval-sets",
+  "title": "A smoke-test suite for LLM classifiers in five small sets",
+  "summary": "Routing, sentiment, policy, adversarial and coin: five small eval sets, each aimed at one failure, with measured results per model and a format to copy.",
+  "tag": "curva benchmarks",
+  "cluster": "benchmarks",
+  "pillar": false,
+  "primary_keyword": "llm classifier eval set",
+  "keywords": [
+   "adversarial eval set llm",
+   "smoke test llm classifier",
+   "llm eval suite design"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "table",
+  "angle": "Uses Curva's five built-in sets as a model for a minimal eval suite where each set targets one failure (injection, stated-probability overconfidence), with the n = 20 results and the JSON format for your own.",
+  "why_it_can_rank": "Measured per-model results (Nemotron 95%, ECE 0.088; Ling 85%, ECE 0.131; n = 20 each, 2026-09-27) next to the purpose of each set and a copyable row format.",
+  "outline": [
+   "A smoke suite, not a benchmark: 4 rows per set",
+   "Routing, sentiment and policy: the everyday questions",
+   "Adversarial: injected inputs, never confidently wrong",
+   "Coin: a test of stated probabilities",
+   "Results: Nemotron 95% and ECE 0.088, Ling 85% and ECE 0.131",
+   "Your own set: a question plus rows with labels"
+  ],
+  "facts": [
+   "Content Box/4 Benchmarks/benchmarks.md:L248-L251",
+   "Content Box/6 Blog/fact-sheet.md:L525-L534",
+   "site/benchmarks.md:L37-L50",
+   "site/benchmarks.md:L112-L120"
+  ],
+  "source_check": [
+   "site/benchmarks.md",
+   "evals/RESULTS.md",
+   "site/concepts/trust.md"
+  ],
+  "code_snippet_ref": "site/benchmarks.md:L116-L119",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "curva-benchmarks-explained",
+   "measure-llm-on-your-own-labels",
+   "prompt-injection-data-fencing",
+   "llm-selective-accuracy"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "sqlite-million-rows-performance",
+  "title": "Keeping SQLite flat at a million LLM decisions",
+  "summary": "A 470 MB SQLite database with 1,000,000 decisions still answers in 0.2 ms. The techniques: capped label reads, covering indexes, read-only connections.",
+  "tag": "curva engineering",
+  "cluster": "engineering",
+  "pillar": false,
+  "primary_keyword": "sqlite performance million rows",
+  "keywords": [
+   "sqlite read only connections wal",
+   "sqlite covering index range scan",
+   "sqlite wal checkpoint"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "table",
+  "angle": "On a 470 MB database with 1,000,000 decisions, decide stays at 0.2 ms median and a 53-week drift report at 23 ms; the post covers capped label reads, refit throttling, covering indexes, seek pagination, read-only connections and a WAL checkpoint every second.",
+  "why_it_can_rank": "Before and after numbers per technique (refits up to 3 s cold before, 16 ms now; decision p99 5 ms vs 1.3 s with long reads on the writer).",
+  "outline": [
+   "The test database: 1,000,000 decisions, 105,000 labels, 470 MB",
+   "Refits read the latest 5,000 labels: 16 ms instead of up to 3 s",
+   "Refit at most every 5 s per question",
+   "Drift from one covering index, audit pages by seek",
+   "Four read-only connections: p99 5 ms vs 1.3 s",
+   "Checkpointing the WAL once a second"
+  ],
+  "facts": [
+   "site/scaling.md:L36-L68",
+   "site/scaling.md:L100-L105"
+  ],
+  "source_check": [
+   "site/scaling.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "svg",
+  "indexable": true,
+  "related": [
+   "how-curva-works",
+   "sqlite-single-writer-limit",
+   "llm-api-load-test-results",
+   "calibration-labels-needed"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "single-binary-llm-server",
+  "title": "One binary, one file: the design of a small LLM server",
+  "summary": "Curva ships as one Rust binary with embedded SQLite: a 62 MB image, a pip wheel that carries it, and under 1 ms of overhead. The trade-offs, stated.",
+  "tag": "curva engineering",
+  "cluster": "engineering",
+  "pillar": false,
+  "primary_keyword": "single binary llm server",
+  "keywords": [
+   "rust llm server",
+   "embedded sqlite server",
+   "distroless docker image llm api"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "none",
+  "angle": "One Rust binary with an embedded SQLite database: a 62 MB distroless image, a pip wheel that carries the binary, well under a millisecond of overhead, and what the design gives up (one writer, one tenant per server).",
+  "why_it_can_rank": "Concrete footprint numbers (62 MB image, p50 0.59 ms at 500 req/s, tens of MB idle) and the explicit trade-offs, not a language-war post.",
+  "outline": [
+   "What ships: CLI and server in one curva binary",
+   "pip install curva-ai carries the binary; curva.local() starts it",
+   "A 62 MB distroless, non-root image for amd64 and arm64",
+   "Overhead: p50 0.59 ms at 500 req/s",
+   "Memory: tens of MB idle, 50 to 100 KB per request in flight",
+   "Trade-offs: one writer, one tenant per server"
+  ],
+  "facts": [
+   "site/self-hosting.md:L7-L13",
+   "CHANGELOG.md:L58-L59",
+   "site/self-hosting.md:L157-L169",
+   "site/scaling.md:L88-L98",
+   "site/index.md:L17-L17"
+  ],
+  "source_check": [
+   "site/self-hosting.md",
+   "site/index.md",
+   "CHANGELOG.md"
+  ],
+  "code_snippet_ref": "site/self-hosting.md:L25-L30",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "how-curva-works",
+   "sqlite-single-writer-limit",
+   "self-host-llm-decision-api",
+   "llm-api-load-test-results"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "scale-llm-api-sticky-routing",
+  "title": "Scaling an LLM decision API: sticky routing by project",
+  "summary": "Run several Curva instances today, each with its own database: route sticky by project, create keys per instance, and know the per-project ceiling.",
+  "tag": "curva engineering",
+  "cluster": "engineering",
+  "pillar": false,
+  "primary_keyword": "scale llm api multiple instances",
+  "keywords": [
+   "sticky load balancing by tenant",
+   "shard sqlite by tenant",
+   "horizontal scaling sqlite api"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "how-to-steps",
+  "angle": "Several instances each with their own database work today if a project's decisions and feedback reach the same one; route by a hash of the project, create API keys per instance, and accept that one hot project stays on one instance.",
+  "why_it_can_rank": "Gives the concrete routing rule (hash of the project name), what lives per instance (audit, drift, calibrators, API keys) and the ~10,000 decisions/s per-project ceiling.",
+  "outline": [
+   "Why calibrators tie a project to one database",
+   "Route on the project field, a header or a hostname",
+   "A hash of the project name across instances",
+   "What lives per instance: audit, drift, calibration reports, API keys",
+   "One server per isolated customer",
+   "The limit: one hot project stays on one instance"
+  ],
+  "facts": [
+   "site/scaling.md:L122-L135",
+   "site/self-hosting.md:L169-L169",
+   "site/concepts/projects.md:L7-L20"
+  ],
+  "source_check": [
+   "site/scaling.md",
+   "site/concepts/projects.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "mermaid",
+  "indexable": true,
+  "related": [
+   "how-curva-works",
+   "calibration-projects-namespace",
+   "sqlite-single-writer-limit",
+   "self-host-llm-decision-api"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "typescript-custom-fetch-llm-client",
+  "title": "Custom fetch for an LLM client: proxies and tests",
+  "summary": "Swap the HTTP layer of curva-ai with the fetch option: wrap it for tracing or proxies, or return a recorded response so tests need no server.",
+  "tag": "curva guides",
+  "cluster": "typescript",
+  "pillar": false,
+  "primary_keyword": "typescript custom fetch",
+  "keywords": [
+   "mock llm api typescript",
+   "test llm code without api calls",
+   "fetch option curva-ai",
+   "proxy llm client node"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "code",
+  "angle": "The fetch option replaces the client's HTTP layer. Wrap the global fetch to log x-request-id or route through a proxy, or pass a fake that returns a recorded /v1/decide body so unit tests exercise your abstain and none_of_these branches with no server and no model.",
+  "why_it_can_rank": "Gives a working fake-fetch test fixture built from the documented /v1/decide response, a pattern LLM SDK docs rarely show.",
+  "outline": [
+   "The fetch option and what it replaces",
+   "A wrapper that logs x-request-id from every response",
+   "A fake fetch that returns a recorded /v1/decide body",
+   "Testing routing branches: abstain, none_of_these and a 429",
+   "maxRetries: 0 in tests so a fake 429 throws RateLimitError at once",
+   "headers for fixed metadata, fetch for anything per request"
+  ],
+  "facts": [
+   "sdk/typescript/README.md:L65-L78",
+   "site/reference/http-api.md:L13-L15",
+   "site/reference/http-api.md:L44-L60",
+   "sdk/typescript/README.md:L111-L119"
+  ],
+  "source_check": [
+   "sdk/typescript/README.md",
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": "site/reference/http-api.md:L46-L59",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "typescript-llm-classification",
+   "typescript-llm-api-error-handling",
+   "llm-classification-deno-bun",
+   "llm-api-structured-logs-request-id"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "n8n-http-request-llm-decision-api",
+  "title": "n8n HTTP Request node to an LLM decision API",
+  "summary": "Call a typed LLM decision API from n8n's HTTP Request node where the community node can't be installed: body, Bearer key, Switch on abstain.",
+  "tag": "curva guides",
+  "cluster": "n8n",
+  "pillar": false,
+  "primary_keyword": "n8n http request llm api",
+  "keywords": [
+   "n8n cloud llm classification",
+   "n8n http request json body",
+   "n8n switch on llm answer"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "how-to-steps",
+  "angle": "The community node needs self-hosted n8n. Anywhere you cannot install it, call /v1/decide from the HTTP Request node: a reachable server with a key, a JSON body built from expressions rather than a text template, and a Switch that checks abstain before the choice.",
+  "why_it_can_rank": "The fallback path for n8n users who cannot install community nodes, with the exact request contract and branch order.",
+  "outline": [
+   "When to skip the community node: it needs self-hosted n8n",
+   "The server must be reachable from n8n: a public URL, TLS and a key",
+   "HTTP Request: POST /v1/decide with Authorization: Bearer curva_...",
+   "Building the JSON body so quotes and newlines in text do not break it",
+   "Switch on answers.<key>.abstain first, then on the choice",
+   "Feedback with a second HTTP Request to /v1/feedback"
+  ],
+  "facts": [
+   "integrations/n8n-nodes-curva/README.md:L7-L11",
+   "site/guides/any-http-tool.md:L15-L37",
+   "site/guides/any-http-tool.md:L70-L76",
+   "site/guides/zapier.md:L10-L14"
+  ],
+  "source_check": [
+   "integrations/n8n-nodes-curva/README.md",
+   "site/guides/any-http-tool.md"
+  ],
+  "code_snippet_ref": "site/guides/any-http-tool.md:L17-L22",
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "n8n-ai-routing",
+   "llm-decisions-over-http",
+   "n8n-llm-multiple-questions-decide",
+   "self-host-llm-decision-api"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "llm-api-structured-logs-request-id",
+  "title": "Structured logs and request ids for an LLM API",
+  "summary": "Trace one LLM decision end to end: CURVA_LOG=json lines, your own x-request-id from the caller, and request_id in the Python and TypeScript SDKs.",
+  "tag": "curva guides",
+  "cluster": "http-tools",
+  "pillar": false,
+  "primary_keyword": "llm api request id logging",
+  "keywords": [
+   "curva_log json",
+   "x-request-id tracing",
+   "llm api structured logging"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "code",
+  "angle": "One log line per request with method, path, status, latency, request id, key id and decision id. Turn on CURVA_LOG=json for a pipeline, send your own x-request-id from the caller, and match it to d.request_id (Python) or requestId (TypeScript) when a user reports a bad answer.",
+  "why_it_can_rank": "Connects the caller's header, the SDK field and the server log line into one tracing recipe, with the exact header rules (1 to 64 visible ASCII characters).",
+  "outline": [
+   "What each request log line contains",
+   "CURVA_LOG=json and CURVA_LOG_LEVEL filters",
+   "x-request-id: send 1 to 64 visible ASCII characters, or get one generated",
+   "Reading it in the SDKs: d.request_id and requestId",
+   "Provider errors stay in the log, never in responses",
+   "docker logs curva"
+  ],
+  "facts": [
+   "site/self-hosting.md:L114-L124",
+   "site/reference/http-api.md:L13-L15",
+   "docs/Product/API.md:L206-L209",
+   "site/reference/python-sdk.md:L157-L157"
+  ],
+  "source_check": [
+   "site/self-hosting.md",
+   "site/reference/http-api.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "llm-decisions-over-http",
+   "llm-api-prometheus-metrics",
+   "curl-llm-classification-api",
+   "llm-client-retries-timeouts-python"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "llm-server-disk-sizing",
+  "title": "Size disk and capacity for an LLM decision server",
+  "summary": "About 0.5 KB per answer plus 0.3 KB of audit per decision: size disk for a million decisions, and why your model provider limits you first.",
+  "tag": "curva guides",
+  "cluster": "self-hosting",
+  "pillar": false,
+  "primary_keyword": "llm decision server capacity",
+  "keywords": [
+   "curva disk usage",
+   "llm server sizing"
+  ],
+  "search_intent": "how-to",
+  "serp_feature": "table",
+  "angle": "Capacity planning from the scaling docs: disk per decision, store throughput, and the provider as the real limit.",
+  "why_it_can_rank": "Turns the measured per-decision disk cost into a sizing table.",
+  "outline": [
+   "Disk per answer and per decision",
+   "A million two-question decisions",
+   "Where one node stops",
+   "The provider limit comes first",
+   "When to run several instances"
+  ],
+  "facts": [
+   "site/scaling.md:L12-L99",
+   "Content Box/6 Blog/fact-sheet.md:L405-L418"
+  ],
+  "source_check": [
+   "site/scaling.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "self-host-llm-decision-api",
+   "llm-api-load-test-results",
+   "sqlite-single-writer-limit",
+   "back-up-curva-database"
+  ],
+  "draft": null
+ },
+ {
+  "slug": "jev-fair-coin-negation",
+  "title": "Jev fair coin and negation probes, explained",
+  "summary": "Published probes put Jev at 0.92 on a fair coin and 1.19 on a negation pair. What these probes test, and Curva's results with their tiny n.",
+  "tag": "curva vs jev",
+  "cluster": "jev",
+  "pillar": false,
+  "primary_keyword": "jev fair coin",
+  "keywords": [
+   "jev negation",
+   "llm probability probes"
+  ],
+  "search_intent": "informational",
+  "serp_feature": "table",
+  "angle": "Explains two cheap probes anyone can run, with Jev's published numbers and Curva's 2026-09-27 probes, clearly labelled as tiny samples.",
+  "why_it_can_rank": "Collects the probe results with sources and n, and explains what each probe can and can't show.",
+  "outline": [
+   "The fair coin test",
+   "The negation pair test",
+   "Jev's published results",
+   "Curva's probes and their n",
+   "What probes can't tell you"
+  ],
+  "facts": [
+   "Content Box/4 Benchmarks/benchmarks.md:L237-L251",
+   "Content Box/Jev reference/Competitor Benchmarks.md:L10-L40"
+  ],
+  "source_check": [
+   "Content Box/4 Benchmarks/benchmarks.md",
+   "Content Box/Jev reference/Competitor Benchmarks.md"
+  ],
+  "code_snippet_ref": null,
+  "diagram": "none",
+  "indexable": true,
+  "related": [
+   "jev-alternative-self-hosted",
+   "jev-calibration",
+   "fair-coin-llm-test",
+   "llm-negation-consistency"
+  ],
+  "draft": null
+ }
+]
