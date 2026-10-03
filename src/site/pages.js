@@ -305,7 +305,7 @@ const TOPIC_LEDE = {
 }
 
 function listingPages({ site, posts, topics, base, topic, allCount }) {
-  const lead = posts.find((p) => p.indexable) || posts[0]
+  const lead = posts[0] // strictly newest first, everywhere
   const rest = posts.filter((p) => p !== lead)
   // Page one also carries the five "Also new" entries beside the lead, so its grid keeps rows of three.
   const FIRST = PER_PAGE + 2
