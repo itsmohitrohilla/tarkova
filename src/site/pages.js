@@ -633,11 +633,11 @@ function aboutPage(site, topics) {
 
 const UPDATED = 'September 29, 2026'
 
-function legal(site, topics, path, heading, description, sections) {
+function legal(site, topics, path, heading, description, sections, updated = UPDATED) {
   const main = `<article class="legal narrow">
 <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/">Home</a></li></ol></nav>
 <h1>${esc(heading)}</h1>
-<p class="byline"><span>Last updated ${UPDATED}</span></p>
+<p class="byline"><span>Last updated ${updated}</span></p>
 ${sections.map(([h, ...ps]) => `<h2>${h}</h2>${ps.map((t) => `<p>${t}</p>`).join('')}`).join('\n')}
 </article>`
   return [path, { head: head({ site, title: `${heading} | Tarkova`, description, path, ld: { '@context': 'https://schema.org', '@graph': [breadcrumbs(site, [['Home', '/'], [heading, path]]), org(site)] } }), body: page('', topics, main) }]
@@ -646,17 +646,17 @@ ${sections.map(([h, ...ps]) => `<h2>${h}</h2>${ps.map((t) => `<p>${t}</p>`).join
 const mail = `<a href="mailto:${CONTACT}">${CONTACT}</a>`
 
 const privacy = (site, topics) =>
-  legal(site, topics, '/privacy/', 'Privacy policy', 'How Tarkova handles information when you visit tarkova.com: no tracking cookies, no ads, no data sales.', [
+  legal(site, topics, '/privacy/', 'Privacy policy', 'How Tarkova handles information when you visit tarkova.com: visit analytics, no ads, no data sales.', [
     ['Who we are', `This policy covers tarkova.com, run by Tarkova ("we", "us"). Our products, such as <a href="${CROWKIS}" rel="noopener">Crowkis</a>, have their own sites and policies, which apply when you use them.`],
     ['What we collect', 'You can read everything on this site without an account, and we do not ask you for personal information.', 'Like any website, the servers that host this site keep standard request logs: your IP address, browser type, the page you asked for and when. We use these only to keep the site running and secure, and they are deleted on the hosting provider\'s normal schedule.', `If you email us at ${mail}, we keep your message and address so we can reply.`],
-    ['Cookies', 'This site does not set cookies, run analytics, or show ads, so there is nothing to consent to. Fonts and images are served from our own domain. If we ever add analytics, we will update this page and ask for consent where the law requires it.'],
+    ['Cookies and analytics', 'This site uses Google Analytics to count visits and see which pages are read. Google Analytics sets cookies (their names start with "_ga") and sends Google your IP address, your browser and device details, and the pages you open. <a href="https://policies.google.com/technologies/partner-sites" rel="noopener">Google explains how it uses this information</a>. We do not show ads.', 'You can refuse these cookies in your browser settings, or install <a href="https://tools.google.com/dlpage/gaoptout" rel="noopener">Google\'s opt-out add-on</a>. The site works the same without them. Fonts and images are served from our own domain.'],
     ['Links to other sites', 'Posts link to other websites, and the share buttons open X, LinkedIn, Hacker News or Reddit. Those sites have their own privacy practices, which we do not control.'],
-    ['Sharing', 'We do not sell or rent personal information. We share it only with the service providers that host this site, or when the law requires it.'],
+    ['Sharing', 'We do not sell or rent personal information. We share it only with the service providers that host this site and measure its traffic (Google Analytics), or when the law requires it.'],
     ['Your rights', `Depending on where you live (for example under the GDPR or India's Digital Personal Data Protection Act, 2023), you can ask us to access, correct or delete personal information we hold about you. Email ${mail} and we will respond within 30 days.`],
     ['Children', 'This site is not aimed at children under 13, and we do not knowingly collect their information.'],
     ['Changes', 'When we change this policy we update the date at the top of this page.'],
     ['Contact', `Questions about privacy: ${mail}.`],
-  ])
+  ], 'October 4, 2026')
 
 const terms = (site, topics) =>
   legal(site, topics, '/terms/', 'Terms & conditions', 'The terms for using tarkova.com and its blog, including how you can quote our articles and reuse code samples.', [

@@ -7,6 +7,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="application/rss+xml" title="Tarkova Blog" href="/rss.xml" />
+    <!-- Google tag (gtag.js). Also in shell.html, which every other page is built from. -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2FYF61BX95"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-2FYF61BX95');
+    </script>
     <!-- The page stays hidden on the dark ground until the app has drawn itself with its styles
          (src/main.jsx adds .ready), then fades in whole: no unstyled flash when arriving from another page. -->
     <style>
