@@ -6,6 +6,7 @@ export const products = [
     name: 'Crowkis',
     status: 'Live',
     url: 'https://www.crowkis.com/',
+    docs: 'https://www.crowkis.com/docs',
     logo: '/products/crowkis.png',
     logoAlt: 'Crowkis logo: a white geometric crow on red',
     wordmark: ['/products/crowkis-wordmark-white.webp', 1200, 231], // white on transparent
@@ -108,6 +109,7 @@ export const products = [
     name: 'Curva',
     status: 'Coming soon',
     url: null, // ponytail: no domain yet; set it here and every page picks it up.
+    docs: 'https://docs.tarkova.com/curva/',
     logo: '/products/curva.png',
     logoAlt: 'Curva logo: a halftone letter C in white on deep blue',
     wordmark: ['/products/curva-wordmark-white.png', 1200, 305], // white on transparent
@@ -116,7 +118,7 @@ export const products = [
     // TODO(tarkova): replace with Curva's real one-liner once it's announced.
     summary: 'Curva is the next product from Tarkova. It is in the works now, and details land here first.',
     facts: [],
-    links: [['Curva vs Jev, every number', '/curva/vs-jev/']],
+    links: [['Read the docs', 'https://docs.tarkova.com/curva/'], ['Curva vs Jev, every number', '/curva/vs-jev/']],
     page: {
       title: 'Curva: coming soon from Tarkova',
       description: 'Curva is the next product from Tarkova, the studio behind Crowkis. It is in the works now, and details land here first.',

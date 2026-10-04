@@ -32,7 +32,9 @@ const MAX_AUTO_LINKS = 4
 // Links authors write in post text as [text](href): site paths, plus the public Curva URLs the
 // content README allows. Anything else renders as its plain text.
 const LINK = /\[([^\]]+)\]\(([^)\s`]+)\)/g
-const EXTERNAL_OK = ['https://itsmohitrohilla.github.io/curva-docs/', 'https://pypi.org/project/curva-ai/', 'https://www.npmjs.com/package/curva-ai', 'https://www.npmjs.com/package/n8n-nodes-curva', 'https://github.com/itsmohitrohilla/curva-docs', 'https://ghcr.io/itsmohitrohilla/curva']
+const EXTERNAL_OK = ['https://docs.tarkova.com/curva/', 'https://itsmohitrohilla.github.io/curva-docs/', 'https://pypi.org/project/curva-ai/', 'https://www.npmjs.com/package/curva-ai', 'https://www.npmjs.com/package/n8n-nodes-curva', 'https://github.com/itsmohitrohilla/curva-docs', 'https://ghcr.io/itsmohitrohilla/curva']
+// The Curva docs moved to docs.tarkova.com with the same page paths; posts written with the old address link to the new one.
+const OLD_CURVA_DOCS = 'https://itsmohitrohilla.github.io/curva-docs/', CURVA_DOCS = 'https://docs.tarkova.com/curva/'
 // `/\host` is read as `//host` by browsers, so a site path may not start with either.
 const okHref = (h) => /^\/(?![/\\])/.test(h) || EXTERNAL_OK.some((u) => h === u || h.startsWith(u.replace(/\/?$/, '/')))
 const isCurva = (p) => /^curva\b/.test(p.tag)
@@ -132,6 +134,7 @@ function inline(text, ctx) {
     .replace(LINK, (m, label, href) => {
       const slug = href.match(/^\/blog\/([a-z0-9-]+)\/$/)?.[1]
       if (!okHref(href) || (slug && !ctx.live.has(slug))) return label
+      if (href.startsWith(OLD_CURVA_DOCS)) href = CURVA_DOCS + href.slice(OLD_CURVA_DOCS.length)
       return `<a href="${href}"${href.startsWith('/') ? '' : ' rel="noopener"'}>${label}</a>`
     })
     .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -585,7 +588,7 @@ const curvaApp = (site) => ({
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any (Python, Node.js or Docker)',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-  softwareHelp: { '@type': 'CreativeWork', url: 'https://itsmohitrohilla.github.io/curva-docs/' },
+  softwareHelp: { '@type': 'CreativeWork', url: 'https://docs.tarkova.com/curva/' },
   downloadUrl: 'https://pypi.org/project/curva-ai/',
   publisher: { '@id': `${site}/#org` },
 })
@@ -732,6 +735,7 @@ function llms(site, posts, topics) {
 > Tarkova builds new age software businesses. Products: Crowkis (${CROWKIS}), a semantic cache and agent memory layer for LLM workloads, built in Rust; and Curva (${site}/curva/), LLM classification with confidence scores.
 
 ${products.map((p) => `- [${p.name}](${site}/${p.id}/): ${p.summary}`).join('\n')}
+${products.map((p) => `- [${p.name} documentation](${p.docs})`).join('\n')}
 - [Curva vs Jev](${site}${VJ_PATH}): ${VJ_META.description}
 - [About Tarkova](${site}/about/)
 - [Products](${site}/products/)

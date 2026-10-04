@@ -6,7 +6,7 @@
 // load, so a scroll scrub would start empty), then a faint sheen on Curva's bars (CSS). Pre-states only under html.cv-motion.
 export const id = 'hero'
 
-const DOCS = 'https://itsmohitrohilla.github.io/curva-docs/'
+const DOCS = 'https://docs.tarkova.com/curva/'
 const VS = '/curva/vs-jev/'
 const JEV_LOGO = '/compare/jev-logo.svg'
 

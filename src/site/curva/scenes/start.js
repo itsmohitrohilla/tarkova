@@ -2,7 +2,7 @@
 // Root id="start": the hero and close buttons link here.
 export const id = 'start'
 
-const DOCS = 'https://itsmohitrohilla.github.io/curva-docs/'
+const DOCS = 'https://docs.tarkova.com/curva/'
 const SH = 'pip install curva-ai\nexport OPENROUTER_API_KEY=sk-or-v1-...     # or any one provider key'
 const PY = `import curva
 d = curva.decide("I was charged twice, please refund me",

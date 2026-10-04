@@ -11,7 +11,7 @@ export const VJ_META = {
 }
 
 const DATE = '2026-10-01'
-const DOCS = 'https://itsmohitrohilla.github.io/curva-docs/'
+const DOCS = 'https://docs.tarkova.com/curva/'
 const GEM = 'Gemini flash-lite'
 const GROQ = 'Groq qwen3.8-27b'
 const JEV_IMG = (s = 18) => `<img class="vj-jev" src="/compare/jev-logo.svg" alt="" width="${s}" height="${s}" />`

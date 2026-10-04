@@ -12,6 +12,7 @@ export function footerHTML(topics = []) {
   <div class="foot-brand"><a href="/" class="foot-logo">${MARK}<span>Tarkova</span></a></div>
   <div class="foot-cols">
   <div><h2>Products</h2><ul>${products.map((p) => `<li><a href="/${p.id}/">${p.name}</a></li>`).join('')}<li><a href="/products/">All products</a></li></ul></div>
+  <div><h2>Docs</h2><ul>${products.map((p) => `<li><a href="${p.docs}" rel="noopener">${p.name} docs</a></li>`).join('')}</ul></div>
   <div><h2>Read</h2><ul><li><a href="/blog/">Blog</a></li>${topics.slice(0, 4).map(([t]) => topicLink(t)).join('')}<li><a href="/rss.xml">RSS feed</a></li></ul></div>
   <div><h2>Company</h2><ul><li><a href="/about/">About</a></li><li><a href="/privacy/">Privacy policy</a></li><li><a href="/terms/">Terms &amp; conditions</a></li></ul></div>
   </div>

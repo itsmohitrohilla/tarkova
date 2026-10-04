@@ -3,7 +3,7 @@
 // The halftone C logo sits still; a halftone wash rises behind it as the scene scrolls in.
 export const id = 'close'
 
-const DOCS = 'https://itsmohitrohilla.github.io/curva-docs/'
+const DOCS = 'https://docs.tarkova.com/curva/'
 
 export const html = ({ p, esc }) => `<section class="cv-scene cv-close" data-scene="close" aria-labelledby="cv-close-h">
   <div class="cv-close-wash" aria-hidden="true"></div>
