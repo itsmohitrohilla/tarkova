@@ -6,5 +6,7 @@ export const crowkisMain = (ctx) => `<div class="ck" data-ck>\n${scenes.map((s) 
 
 // Runs before first paint, so scenes can style their pre-motion state (under `html.ck-motion`) without a
 // flash. If the motion bundle never starts (JS error, blocked), the class drops and the page shows as-is.
-export const CK_HEAD = `<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.classList.add('ck-motion');setTimeout(function(){if(!window.__ck)document.documentElement.classList.remove('ck-motion')},location.hostname==='localhost'?20000:4000)}</script>
+// The hero tagline is set large in the serif; preloading it stops the fallback font's swap from shifting the hero.
+export const CK_HEAD = `<link rel="preload" href="/InstrumentSerif-Italic.woff2" as="font" type="font/woff2" crossorigin />
+<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.classList.add('ck-motion');setTimeout(function(){if(!window.__ck)document.documentElement.classList.remove('ck-motion')},location.hostname==='localhost'?20000:4000)}</script>
 `

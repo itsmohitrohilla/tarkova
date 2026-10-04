@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { TextAnimationCollection, TextPathStudies } from '@designcodeio/threeui'
 import '@designcodeio/threeui/style.css'
 import './global.css'
 import './App.css'
-import { products } from './site/products.js'
 import { footerHTML, WORDMARK_PROPS } from './site/footer.js'
 import './site/footer.css'
 import { mountMusic } from './music.js'
@@ -29,29 +29,17 @@ export default function App() {
 
   return (
     <>
-      <main className="scene">
-        <img className="bg" src="/bg.jpg" alt="" />
-
-        <nav className="glass nav" aria-label="Main">
-          <a href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" /></a>
-          <div className="nav-links">
-            <a href="/about/">About</a>
-            {products.map((p) => <a key={p.id} href={`/${p.id}/`}>{p.name}</a>)}
-            <div className="nav-blog">
-              <a href="/blog/">Blog<span className="nav-dot" aria-hidden="true" /></a>
-              {latest[0] && (
-                <a className="blog-peek" href={latest[0].url}>
-                  <span className="peek-art" dangerouslySetInnerHTML={{ __html: latest[0].cover }} />
-                  <span className="peek-k">New on the blog</span>
-                  <strong>{latest[0].title}</strong>
-                  <span className="peek-go">Read it →</span>
-                </a>
-              )}
-            </div>
-          </div>
-        </nav>
-
-      </main>
+      {/* The hero (photo and menu) is plain HTML in index.html, so it shows before this script loads.
+          Only the Blog peek, which needs the newest post, is added to that menu from here. */}
+      {latest[0] && createPortal(
+        <a className="blog-peek" href={latest[0].url}>
+          <span className="peek-art" dangerouslySetInnerHTML={{ __html: latest[0].cover }} />
+          <span className="peek-k">New on the blog</span>
+          <strong>{latest[0].title}</strong>
+          <span className="peek-go">Read it →</span>
+        </a>,
+        document.querySelector('.nav-blog'),
+      )}
 
       <Galaxy />
 

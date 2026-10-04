@@ -28,20 +28,25 @@ if (diagrams.length) {
   })
 }
 
-// Footer: the landing's animated particle wordmark, mounted with the page (it sits below the fold,
-// so it's ready before anyone scrolls to it). Reduced motion keeps the still dotted SVG.
+// Footer: the landing's animated particle wordmark. It sits below the fold, so its 240 KB of script waits
+// until the page has loaded and the browser is idle; that is still well before anyone scrolls to it.
+// Reduced motion keeps the still dotted SVG.
 const wordmark = document.querySelector('.foot-wordmark')
 if (wordmark && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  Promise.all([
+  const mount = () => Promise.all([
     import('react'),
     import('react-dom/client'),
-    import('@designcodeio/threeui'),
+    // Destructured in the .then, so the bundler keeps only this component instead of the whole 6.5 MB library.
+    import('@designcodeio/threeui').then(({ TextAnimationCollection }) => TextAnimationCollection),
     import('./footer.js'),
     import('@designcodeio/threeui/style.css'),
-  ]).then(([{ createElement }, { createRoot }, { TextAnimationCollection }, { WORDMARK_PROPS }]) => {
+  ]).then(([{ createElement }, { createRoot }, TextAnimationCollection, { WORDMARK_PROPS }]) => {
     wordmark.textContent = ''
     createRoot(wordmark).render(createElement(TextAnimationCollection, WORDMARK_PROPS))
   })
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1)) // Safari has no requestIdleCallback
+  if (document.readyState === 'complete') idle(mount)
+  else addEventListener('load', () => idle(mount), { once: true })
 }
 
 // The Crowkis page's motion engine, only where its scenes are on the page.

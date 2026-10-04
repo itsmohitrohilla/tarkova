@@ -68,12 +68,15 @@ body:has(.ck-hero:hover) .ck-cursor span { color: #1a1c25; }
 /* One-time intro (≤1.2s). Everything is in place from the first paint; the wordmark and crow never animate.
    `backwards` fill so nothing lingers after it ends. */
 html.ck-motion .ck-hero-w > span { animation: ckHeroRise 0.85s calc(0.12s + var(--i) * 0.05s) var(--ck-ease) backwards; }
-html.ck-motion .ck-hero-lede { animation: ckHeroUp 0.8s 0.3s var(--ck-ease) backwards; }
+/* The lede is the largest thing in the hero, so it is visible from the first paint and only rises: content that
+   starts at opacity 0 is not timed by browsers until much later, which cost this page its load score. */
+html.ck-motion .ck-hero-lede { animation: ckHeroLede 0.8s 0.3s var(--ck-ease) backwards; }
 html.ck-motion .ck-hero-cta { animation: ckHeroUp 0.8s 0.38s var(--ck-ease) backwards; }
 html.ck-motion .ck-hero-facts div::before { animation: ckHeroLine 0.75s calc(0.25s + var(--i) * 0.06s) var(--ck-ease) backwards; }
 html.ck-motion .ck-hero-facts dt { animation: ckHeroFade 0.6s calc(0.4s + var(--i) * 0.06s) var(--ck-ease) backwards; }
 @keyframes ckHeroRise { from { transform: translateY(110%); } }
 @keyframes ckHeroUp { from { opacity: 0; transform: translateY(18px); } }
+@keyframes ckHeroLede { from { transform: translateY(18px); } }
 @keyframes ckHeroLine { from { transform: scaleX(0); } }
 @keyframes ckHeroFade { from { opacity: 0; } }
 

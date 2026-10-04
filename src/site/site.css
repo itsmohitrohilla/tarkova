@@ -128,7 +128,6 @@ body:has(.about) .topbar { --nav-accent: #fff; }
 .btn-ghost { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
 .btn-ghost:hover { box-shadow: var(--shadow-up); }
 
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ---------- blog: index and topic pages ---------- */
 .blog-wrap { width: min(1240px, 100% - 40px); margin-inline: auto; }

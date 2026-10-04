@@ -12,7 +12,9 @@ const write = (store, key, v) => { try { store.setItem(key, v) } catch {} }
 
 export function mountMusic() {
   if (document.querySelector('.mute')) return
-  const audio = Object.assign(new Audio('/music.mp3'), { loop: true, preload: 'auto' })
+  // The track is 3.9 MB, so it is fetched only once it will be heard: on the first click, tap or key press,
+  // or straight away on later pages of a visit where it was already playing.
+  const audio = Object.assign(new Audio('/music.mp3'), { loop: true, preload: 'none' })
   let muted = read(localStorage, 'tk-muted') === '1'
   audio.muted = muted
   const at = Number(read(sessionStorage, 'tk-music-t')) || 0
@@ -37,7 +39,7 @@ export function mountMusic() {
   document.body.append(btn)
 
   const play = () => audio.play().catch(() => {})
-  play()
+  if (read(sessionStorage, 'tk-music-t') !== null) play()
   const onGesture = () => { play(); removeEventListener('pointerdown', onGesture); removeEventListener('keydown', onGesture) }
   addEventListener('pointerdown', onGesture)
   addEventListener('keydown', onGesture)

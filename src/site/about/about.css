@@ -45,6 +45,7 @@ body:has(.about) .foot { margin-top: 0; }
 /* ---------- 1 · hero: the mountains open up behind the question ---------- */
 .ab-hero { position: relative; height: 100svh; min-height: 560px; margin-top: -58px; isolation: isolate; overflow: hidden; background: var(--ab-black); }
 .ab-hero-photo { position: absolute; inset: 0; margin: 0; overflow: hidden; }
+.ab-hero-photo picture { display: contents; } /* AVIF with a WebP fallback; the files are already grey, as the filter shows them */
 .ab-hero-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 74%; filter: grayscale(1) contrast(1.2) brightness(0.68); }
 .ab-hero-dim { position: absolute; inset: 0; background: var(--ab-black); opacity: 0; }
 .ab-hero-h {

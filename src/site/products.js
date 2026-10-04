@@ -8,8 +8,8 @@ export const products = [
     url: 'https://www.crowkis.com/',
     logo: '/products/crowkis.png',
     logoAlt: 'Crowkis logo: a white geometric crow on red',
-    wordmark: ['/products/crowkis-wordmark-white.png', 1200, 231], // white on transparent
-    mark: ['/products/crowkis-mark-white.png', 900, 634], // the crow alone, white on transparent, for brand-colour grounds
+    wordmark: ['/products/crowkis-wordmark-white.webp', 1200, 231], // white on transparent
+    mark: ['/products/crowkis-mark-white.webp', 900, 634], // the crow alone, white on transparent, for brand-colour grounds
     color: '#C41A1A',
     tagline: 'Smarter caching, smaller bills.',
     summary:

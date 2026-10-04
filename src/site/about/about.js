@@ -32,7 +32,7 @@ export function aboutMain({ esc }) {
 <div class="ab-grain" aria-hidden="true"></div>
 
 <section class="ab-hero">
-  <figure class="ab-hero-photo"><img src="/about/mountains.jpg" alt="The Tarkova mark held up in the mountains" width="1086" height="1448" fetchpriority="high" /></figure>
+  <figure class="ab-hero-photo"><picture><source srcset="/about/mountains.avif" type="image/avif" /><img src="/about/mountains.webp" alt="The Tarkova mark held up in the mountains" width="1086" height="1448" fetchpriority="high" /></picture></figure>
   <div class="ab-hero-dim" aria-hidden="true"></div>
   <h1 class="ab-hero-h"><span class="ab-hl">how did</span> <span class="ab-hl">it start?</span></h1>
 </section>

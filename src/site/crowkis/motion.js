@@ -28,6 +28,8 @@ export function start(root) {
   const ready = scenes.map(async (s) => {
     const el = root.querySelector(`[data-scene="${s.id}"]`)
     if (!el) return
+    // Each scene sets up in its own task, so the page stays responsive instead of freezing for one long one.
+    await new Promise((r) => setTimeout(r))
     try { await s.init(el, m) } catch (err) { console.error(`crowkis scene "${s.id}" failed`, err) }
   })
   // Scenes init concurrently, so triggers register out of page order; sort them top to bottom before measuring,

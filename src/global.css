@@ -42,3 +42,6 @@ body:has(.blog-wrap, .post) .pill[data-tone="light"] { --nav-accent: #161616; }
   background: radial-gradient(140px 70px at var(--mx, 28%) 0%, rgba(255, 255, 255, 0.45), transparent 72%);
   opacity: 0.7; transition: opacity 0.3s;
 }
+
+/* Text for screen readers and crawlers only. */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

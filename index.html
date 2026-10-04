@@ -15,14 +15,17 @@
       gtag('js', new Date());
       gtag('config', 'G-2FYF61BX95');
     </script>
-    <!-- The page stays hidden on the dark ground until the app has drawn itself with its styles
-         (src/main.jsx adds .ready), then fades in whole: no unstyled flash when arriving from another page. -->
+    <!-- The page stays behind a cover in the ground colour until the app has drawn itself with its styles
+         (the script after the hero adds .ready), then the cover fades out: no unstyled flash when arriving from another page.
+         A cover rather than opacity on #root, because browsers cannot time the largest paint of content at opacity 0. -->
     <style>
       html { background: #0c0c0d; }
-      #root { opacity: 0; transition: opacity 0.45s cubic-bezier(0.2, 0.7, 0.1, 1); }
-      html.ready #root { opacity: 1; }
-      @media (prefers-reduced-motion: reduce) { #root { transition: none; } }
+      html::after { content: ''; position: fixed; inset: 0; z-index: 2147483647; background: #0c0c0d; pointer-events: none; transition: opacity 0.45s cubic-bezier(0.2, 0.7, 0.1, 1); }
+      html.ready::after { opacity: 0; }
+      @media (prefers-reduced-motion: reduce) { html::after { transition: none; } }
+      .plain { visibility: hidden; } /* unstyled until React replaces it; see #root */
     </style>
+    <noscript><style>html::after { display: none; } .plain { visibility: visible; }</style></noscript>
     <title>Tarkova | Building new age businesses</title>
     <meta name="description" content="Tarkova is a studio building new age software businesses. Meet Crowkis, the semantic cache for LLMs, and Curva, coming next." />
     <link rel="canonical" href="https://www.tarkova.com/" />
@@ -63,10 +66,58 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
-    <noscript>
-      <p>Tarkova builds new age businesses. See our <a href="/products/">products</a> and read the <a href="/blog/">blog</a>.</p>
-    </noscript>
+    <!-- The hero is plain HTML, so the photo and menu show as soon as the stylesheet arrives, without waiting for
+         the app's script. React (src/App.jsx) adds the Blog peek to the menu and renders the rest of the page into #root.
+         ponytail: the menu links are written by hand; keep them in step with src/site/products.js. -->
+    <main class="scene">
+      <h1 class="sr">Tarkova: building new age businesses</h1>
+      <img class="bg" src="/bg.webp" alt="" fetchpriority="high" />
+      <nav class="glass nav" aria-label="Main">
+        <a href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" /></a>
+        <div class="nav-links">
+          <a href="/about/">About</a>
+          <a href="/crowkis/">Crowkis</a>
+          <a href="/curva/">Curva</a>
+          <div class="nav-blog">
+            <a href="/blog/">Blog<span class="nav-dot" aria-hidden="true"></span></a>
+          </div>
+        </div>
+      </nav>
+    </main>
+    <!-- Lift the cover once the hero photo is ready (at most 0.7 s), so the page fades in whole. -->
+    <script>
+      (function () {
+        var go = function () { document.documentElement.classList.add('ready') }
+        setTimeout(go, 700)
+        document.querySelector('.bg').decode().then(go, go)
+      })()
+    </script>
+    <div id="root">
+      <!-- The rest of the page in plain HTML, for crawlers and visitors without JavaScript; React replaces it on load.
+           ponytail: written by hand, so keep it in step with Galaxy.jsx, Sections.jsx and the footer. -->
+      <div class="plain">
+        <section>
+          <h2>A growing universe of innovation.</h2>
+          <p>Each one starts as a problem worth solving. Crowkis and Curva are the first. More are forming.</p>
+          <ul>
+            <li><a href="/crowkis/"><strong>Crowkis</strong> A semantic cache and memory layer for AI apps.</a></li>
+            <li><a href="/curva/"><strong>Curva</strong> Typed decisions with calibrated probabilities, from any LLM.</a></li>
+          </ul>
+        </section>
+        <section>
+          <h2>What we make.</h2>
+          <ul>
+            <li><h3>AI products</h3><p>Tools that put AI to work in the real world.</p></li>
+            <li><h3>Software solutions</h3><p>Built around the problem, not the trend.</p></li>
+            <li><h3>Craft</h3><p>Every detail considered, from the first line of code to the last pixel.</p></li>
+          </ul>
+        </section>
+        <footer>
+          <a href="/products/">All products</a> <a href="/blog/">Blog</a> <a href="/rss.xml">RSS feed</a> <a href="/about/">About</a>
+          <a href="/privacy/">Privacy policy</a> <a href="/terms/">Terms &amp; conditions</a>
+        </footer>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
