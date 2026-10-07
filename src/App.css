@@ -29,6 +29,45 @@
   -webkit-user-drag: none;
 }
 
+/* The hero's own line, low on the photo where the fade gives it contrast. The photo is a blur, so the words are
+   the thing that comes into focus: once, one after another, as the page's cover lifts (html.ready). Then a slow
+   light keeps crossing "new age". */
+.hero-line {
+  position: absolute; z-index: 1; /* above the fade */
+  left: clamp(20px, 4vw, 64px); right: clamp(20px, 4vw, 64px); bottom: clamp(40px, 9svh, 96px);
+  margin: 0; max-width: 11ch; font-size: clamp(40px, 6.2vw, 96px); font-weight: 400; line-height: 0.98; letter-spacing: -0.035em;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.3);
+}
+.hero-line span { display: inline-block; }
+.hero-line em {
+  font: italic 400 1.08em/1 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; padding-right: 0.06em;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.86) 42%, #fff 50%, rgba(255, 255, 255, 0.86) 58%) 100% 0 / 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+}
+/* Dandelion seeds on the wind: each <i> is one dot whose shadows are the seeds. Every seed has a twin one drift
+   to the left and down, so the loop has no seam. */
+.seeds { position: absolute; inset: 0; pointer-events: none; }
+.seeds i { position: absolute; left: 0; top: 0; width: 4px; height: 4px; border-radius: 50%; }
+.seeds i:first-child {
+  box-shadow: 8vw 30vh 1px rgba(255, 255, 255, 0.85), 23vw 62vh 1px rgba(255, 255, 255, 0.6), 37vw 18vh 1px rgba(255, 255, 255, 0.75), 52vw 71vh 1px rgba(255, 255, 255, 0.55), 66vw 40vh 1px rgba(255, 255, 255, 0.85), 81vw 24vh 1px rgba(255, 255, 255, 0.6), 93vw 58vh 1px rgba(255, 255, 255, 0.75),
+    -92vw 50vh 1px rgba(255, 255, 255, 0.85), -77vw 82vh 1px rgba(255, 255, 255, 0.6), -63vw 38vh 1px rgba(255, 255, 255, 0.75), -48vw 91vh 1px rgba(255, 255, 255, 0.55), -34vw 60vh 1px rgba(255, 255, 255, 0.85), -19vw 44vh 1px rgba(255, 255, 255, 0.6), -7vw 78vh 1px rgba(255, 255, 255, 0.75);
+}
+.seeds i:last-child {
+  width: 3px; height: 3px;
+  box-shadow: 15vw 48vh rgba(255, 255, 255, 0.6), 30vw 80vh rgba(255, 255, 255, 0.45), 45vw 34vh rgba(255, 255, 255, 0.6), 59vw 12vh rgba(255, 255, 255, 0.45), 74vw 66vh rgba(255, 255, 255, 0.6), 88vw 86vh rgba(255, 255, 255, 0.45),
+    -85vw 68vh rgba(255, 255, 255, 0.6), -70vw 100vh rgba(255, 255, 255, 0.45), -55vw 54vh rgba(255, 255, 255, 0.6), -41vw 32vh rgba(255, 255, 255, 0.45), -26vw 86vh rgba(255, 255, 255, 0.6), -12vw 106vh rgba(255, 255, 255, 0.45);
+}
+@keyframes seedDrift { to { translate: 100vw -20vh; } }
+@keyframes heroWord { from { opacity: 0; filter: blur(14px); translate: 0 0.35em; } }
+@keyframes heroSheen { 0%, 55% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .seeds i:first-child { animation: seedDrift 44s linear infinite; }
+  .seeds i:last-child { animation: seedDrift 70s linear infinite; }
+  .hero-line span { animation: heroWord 1.2s cubic-bezier(0.2, 0.7, 0.1, 1) both paused; animation-delay: calc(0.1s + var(--i) * 0.14s); }
+  html.ready .hero-line span { animation-play-state: running; }
+  .hero-line em { animation: heroSheen 6.5s ease-in-out 1.6s infinite; }
+}
+
 /* The site's one sentence, straight after the hero photo, centred over streamlines in the galaxy's dot grid
    (the `flow` scene in src/Why.jsx): a quiet lead-in, then what we promise in the site's serif italic, each
    promise lighting up in turn. */
@@ -48,7 +87,7 @@
 @keyframes ledeWord { 0%, 30%, 100% { color: rgba(255, 255, 255, 0.55); } 8%, 22% { color: #fff; text-shadow: 0 0 28px rgba(205, 210, 255, 0.45); } }
 @media (prefers-reduced-motion: reduce) { .lede em span { animation: none; } }
 
-/* Liquid-glass surface for the menu bar. */
+/* The menu bar's place on the page; its frosted-glass look is in global.css, shared with the other pages. */
 .glass {
   position: fixed;
   left: 50%;
@@ -56,14 +95,6 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  /* Liquid glass, Apple style: mostly clear, heavy blur and saturation, a specular top edge and a soft rim. */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 48%, rgba(255, 255, 255, 0.1) 100%), rgba(28, 28, 32, 0.24);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.7), inset 0 -1px 1px rgba(255, 255, 255, 0.12), inset 0 0 24px rgba(255, 255, 255, 0.08), 0 16px 40px -14px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(28px) saturate(200%) brightness(1.08);
-  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(1.08);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  color: #fff;
 }
 .glass img { display: block; }
 

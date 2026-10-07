@@ -27,7 +27,7 @@
       @media (prefers-reduced-motion: reduce) { html::after { transition: none; } }
       .plain { visibility: hidden; } /* unstyled until React replaces it; see #root */
     </style>
-    <noscript><style>html::after { display: none; } .plain { visibility: visible; }</style></noscript>
+    <noscript><style>html::after { display: none; } .plain { visibility: visible; } .hero-line span { animation: none !important; }</style></noscript>
     <title>Tarkova | Building new age businesses</title>
     <meta name="description" content="Tarkova is a studio building new age software businesses. Meet Crowkis, the semantic cache for LLMs, and Curva, coming next." />
     <link rel="canonical" href="https://www.tarkova.com/" />
@@ -73,6 +73,10 @@
          ponytail: the menu links are written by hand; keep them in step with src/site/products.js. -->
     <main class="scene">
       <img class="bg" src="/bg.webp" alt="" fetchpriority="high" />
+      <!-- So the hero is not an empty photo: dandelion seeds on the wind, and the brand's line coming into focus.
+           --i: each word's turn. All CSS (App.css), no script. -->
+      <div class="seeds" aria-hidden="true"><i></i><i></i></div>
+      <p class="hero-line"><span style="--i:0">Building</span> <span style="--i:1"><em>new age</em></span> <span style="--i:2">businesses.</span></p>
       <nav class="glass nav" aria-label="Main">
         <a href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" /></a>
         <div class="nav-links">

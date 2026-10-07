@@ -15,33 +15,28 @@
 html, * { scrollbar-width: none; }
 ::-webkit-scrollbar { display: none; }
 
-/* Liquid Glass menu bar (both the landing nav and the site pill); behaviour lives in src/glass.js. */
-.pill[data-glass] { position: relative; } /* the landing .nav is already position: fixed */
-:is(.pill, .nav)[data-glass] { isolation: isolate; transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease; }
-/* Adaptive tone: a light lens with dark text over light content, a smoky lens with white text over dark content. */
+/* Menu bar (the landing .nav and the site .pill): plain frosted glass, as on Apple's menu bar. One translucent
+   fill, a blur of whatever is behind it, a hairline rim. No gradients, glints or lens effects. */
+:is(.pill, .nav) {
+  background: rgba(38, 38, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 30px -14px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: background 0.45s ease, color 0.45s ease, border-color 0.45s ease;
+}
+/* Adaptive tone (src/glass.js sets data-tone from what is underneath): light glass with dark text over light
+   content; the smoky default with white text over dark content and imagery. */
 :is(.pill, .nav)[data-tone="light"] {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.28)), rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.7); color: #161616; text-shadow: none;
+  background: rgba(255, 255, 255, 0.62); border-color: rgba(255, 255, 255, 0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 10px 30px -14px rgba(0, 0, 0, 0.22);
+  color: #161616; text-shadow: none;
 }
 :is(.pill, .nav)[data-tone="light"] :is(.pill-links a, .nav-links a) { color: #161616; }
-/* On the blog the nav accent is white; on a light lens it turns ink so the current-page underline stays visible. */
+/* On the blog the nav accent is white; on light glass it turns ink so the current-page underline stays visible. */
 body:has(.blog-wrap, .post) .pill[data-tone="light"] { --nav-accent: #161616; }
 :is(.pill, .nav)[data-tone="light"] :is(.pill-mark img, .nav > a img) { filter: invert(1); }
-:is(.pill, .nav)[data-tone="dark"] {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.08)), rgba(18, 18, 22, 0.3);
-  color: #fff;
-}
-/* Lensing (Chromium): the backdrop bends at the rim instead of only blurring. */
-:is(.pill, .nav).lg-lens {
-  backdrop-filter: url(#lg-lens) blur(5px) saturate(190%) brightness(1.06);
-  -webkit-backdrop-filter: url(#lg-lens) blur(5px) saturate(190%) brightness(1.06);
-}
-/* Specular highlight that follows the pointer, plus a fixed glint along the top rim. */
-:is(.pill, .nav)[data-glass]::after {
-  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(140px 70px at var(--mx, 28%) 0%, rgba(255, 255, 255, 0.45), transparent 72%);
-  opacity: 0.7; transition: opacity 0.3s;
-}
 
 /* Text for screen readers and crawlers only. */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
