@@ -1,0 +1,32 @@
+/* Makes /rss.xml a readable page when someone opens it in a browser. Feed readers ignore this file.
+   Plain CSS on the feed's own tags (no XSLT: Chrome is removing it), so the feed stays a normal RSS 2.0 file. */
+@font-face { font-family: 'Funnel Sans'; src: url('/FunnelSans.ttf') format('truetype'); font-weight: 300 800; font-display: swap; }
+
+rss { display: block; min-height: 100vh; padding: clamp(32px, 7vw, 88px) clamp(20px, 5vw, 64px); background: #ededea; color: #161616; font: 16px/1.5 'Funnel Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+channel { display: block; max-width: 760px; margin: 0 auto; }
+channel > link, channel > language, item > link, item > guid, item > pubDate { display: none; }
+
+channel > title { display: block; font-size: clamp(34px, 5vw, 54px); line-height: 1.05; letter-spacing: -0.03em; }
+channel > description { display: block; margin-top: 12px; font-size: 18px; color: #52555a; }
+/* What this page is, for a visitor who has never seen a feed. */
+channel > description::after {
+  content: "This is the blog's RSS feed. Paste this page's address into a feed reader to get new posts as they are published.";
+  display: block; margin-top: 22px; padding: 14px 18px; border: 1px solid #d6d6d1; border-radius: 16px; font-size: 15px; color: #161616;
+}
+channel > a { display: inline-block; margin-top: 18px; }
+
+item { display: block; margin-top: 28px; padding-top: 28px; border-top: 1px solid #d6d6d1; }
+item > title { display: block; font-size: 22px; font-weight: 500; line-height: 1.25; letter-spacing: -0.01em; }
+item > category { display: block; margin-top: 6px; font-size: 14px; color: #52555a; }
+item > category::first-letter { text-transform: uppercase; }
+item > description { display: block; margin-top: 8px; color: #52555a; }
+item > a { display: inline-block; margin-top: 10px; }
+a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+a:hover { color: #ff4407; }
+
+@media (prefers-color-scheme: dark) {
+  rss { background: #111113; color: #ececea; }
+  channel > description, item > category, item > description { color: #a2a5ac; }
+  channel > description::after { border-color: #2d2d31; color: #ececea; }
+  item { border-color: #2d2d31; }
+}

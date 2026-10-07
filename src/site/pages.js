@@ -717,13 +717,18 @@ Allow: /
 Sitemap: ${site}/sitemap.xml
 `
 
+// Opened in a browser, a bare feed shows as a raw tree of tags and reads as a broken page. public/rss.css lays it
+// out as a readable list, and the `h:a` links (XHTML, which RSS allows as a namespaced extension and feed readers
+// skip) give that page something to click. Their paths are relative so they work on any host.
 function rss(site, posts) {
   const items = posts.filter((p) => p.indexable).slice(0, 50)
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
+<?xml-stylesheet type="text/css" href="/rss.css"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:h="http://www.w3.org/1999/xhtml"><channel>
 <title>Tarkova Blog</title><link>${site}/blog/</link><description>Practical reads on semantic caching, agent memory, LLM cost and LLM classification.</description><language>en</language>
 <atom:link href="${site}/rss.xml" rel="self" type="application/rss+xml"/>
-${items.map((p) => `<item><title>${xml(p.title)}</title><link>${site}${postPath(p)}</link><guid>${site}${postPath(p)}</guid><pubDate>${new Date(p.published_at + 'T00:00:00Z').toUTCString()}</pubDate><category>${xml(p.tag)}</category><description>${xml(p.summary)}</description></item>`).join('\n')}
+<h:a href="/blog/">Go to the blog</h:a>
+${items.map((p) => `<item><title>${xml(p.title)}</title><link>${site}${postPath(p)}</link><guid>${site}${postPath(p)}</guid><pubDate>${new Date(p.published_at + 'T00:00:00Z').toUTCString()}</pubDate><category>${xml(p.tag)}</category><description>${xml(p.summary)}</description><h:a href="${postPath(p)}">Read the post</h:a></item>`).join('\n')}
 </channel></rss>`
 }
 
