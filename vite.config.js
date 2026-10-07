@@ -34,6 +34,13 @@ const tarkovaWordmark = {
   name: 'tarkova-particle-wordmark',
   enforce: 'pre',
   transform(code, id) {
+    // Package bug: the canvas is cleared in coordinates scaled by the pixel ratio, so below 1 (browser zoomed out)
+    // only its top-left corner is cleared and the rest piles up frame on frame. Clear in device pixels instead.
+    if (id.includes('neuform-isolated/sources/epilude-footer.html')) {
+      const CLEAR = 'ctx.clearRect(0, 0, canvas.width, canvas.height);'
+      if (!code.includes(CLEAR)) this.error('ThreeUI particle wordmark clear not found; the package source changed')
+      return code.replace(CLEAR, `ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ${CLEAR} ctx.restore();`)
+    }
     if (!id.includes('neuform-isolated/NeuformIsolatedEffects')) return
     // Read per transform and watch it, so swapping the SVG shows up without a server restart.
     this.addWatchFile(WORDMARK_FILE.pathname)
