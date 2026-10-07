@@ -29,6 +29,25 @@
   -webkit-user-drag: none;
 }
 
+/* The site's one sentence, straight after the hero photo, centred over streamlines in the galaxy's dot grid
+   (the `flow` scene in src/Why.jsx): a quiet lead-in, then what we promise in the site's serif italic, each
+   promise lighting up in turn. */
+/* A full screen of its own, like the hero and the galaxy, with a gap before the galaxy so the two never share a screen. */
+.lede { position: relative; display: grid; place-items: center; min-height: 100svh; margin-bottom: 30svh; padding: clamp(96px, 18svh, 280px) clamp(20px, 4vw, 64px); text-align: center; }
+.lede-art { position: absolute; inset: 0; }
+.lede-art .why-art { height: 100%; -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.3) 30%, #000 70%, transparent); mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.3) 30%, #000 70%, transparent); }
+.lede h1 { position: relative; margin: 0; font-size: clamp(17px, 1.6vw, 24px); font-weight: 400; line-height: 1.3; letter-spacing: -0.01em; color: rgba(255, 255, 255, 0.7); pointer-events: none; }
+.lede em {
+  display: block; margin: 0.14em auto 0; max-width: 16ch;
+  font: italic 400 clamp(44px, 7vw, 112px)/0.98 'Instrument Serif', Georgia, serif; letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.55); text-wrap: balance;
+}
+.lede em span { color: #fff; animation: ledeWord 7.5s ease-in-out infinite; }
+.lede em span:nth-child(2) { animation-delay: 2.5s; }
+.lede em span:nth-child(3) { animation-delay: 5s; }
+@keyframes ledeWord { 0%, 30%, 100% { color: rgba(255, 255, 255, 0.55); } 8%, 22% { color: #fff; text-shadow: 0 0 28px rgba(205, 210, 255, 0.45); } }
+@media (prefers-reduced-motion: reduce) { .lede em span { animation: none; } }
+
 /* Liquid-glass surface for the menu bar. */
 .glass {
   position: fixed;
@@ -180,6 +199,26 @@
 .make li:hover .glyph circle.on { animation-duration: 1.4s; }
 @keyframes dotTwinkle { 50% { opacity: 0.35; } }
 @media (max-width: 900px) { .make ul { grid-template-columns: 1fr; } }
+
+/* Why we exist (src/Why.jsx), just below What we make: each statement beside a moving picture in the galaxy's
+   dot grid. The pictures have no frame and fade into the page, so the section reads as open sky, not as cards. */
+.why { padding: 0 clamp(20px, 4vw, 64px) clamp(80px, 12vw, 160px); } /* What we make, straight above, brings the space between them */
+.why ul { list-style: none; margin: 0; padding: 0; display: grid; gap: clamp(24px, 4vw, 56px); }
+.why li { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: clamp(24px, 4vw, 64px); }
+.why li:nth-child(even) { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); } /* the second picture sits on the left */
+.why li:nth-child(even) .why-art { order: -1; }
+.why li:nth-child(even) > div { justify-self: end; display: grid; justify-items: end; text-align: right; } /* a mirror of the first: its words hug the right edge */
+.why h3 { margin: 0 0 14px; font-size: clamp(20px, 1.8vw, 24px); font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: rgba(255, 255, 255, 0.62); }
+.why p { margin: 0; max-width: 40ch; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.5; color: rgba(255, 255, 255, 0.62); }
+.why .why-lead { margin-bottom: 16px; max-width: 24ch; font-size: clamp(26px, 3vw, 44px); line-height: 1.08; letter-spacing: -0.03em; color: #fff; text-wrap: balance; }
+.why-art { display: block; width: 100%; height: clamp(220px, 26vw, 380px); }
+.why-art.reach { -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent); mask-image: radial-gradient(closest-side, #000 55%, transparent); }
+.why-art.more { -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 94%, transparent); mask-image: linear-gradient(to right, transparent, #000 10%, #000 94%, transparent); }
+@media (max-width: 800px) {
+  .why li, .why li:nth-child(even) { grid-template-columns: 1fr; gap: 20px; }
+  .why .why-art { order: -1; height: 220px; }
+  .why li:nth-child(even) > div { justify-self: start; justify-items: start; text-align: left; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .glyph circle.on { animation: none; }

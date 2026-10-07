@@ -8,6 +8,8 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 - [ ] **Subhraneel's photo.** LinkedIn blocks automated downloads of his profile. Save his portrait as `public/team/subhraneel.jpg` and the About page uses it (in black and white) instead of the "SB" monogram. Mohit's is in place (from his public LinkedIn photo).
 - [ ] **Founder titles.** Cards show each founder's focus from Mohit's post (Product & Engineering / GTM & Growth). Swap in formal titles if you have them (`TEAM` in `src/site/pages.js`).
 - [ ] **Governing law.** The Terms say "laws of India". Confirm, or name the right jurisdiction.
+- [ ] **Home page title and tagline.** The home headline now reads "We build products that make AI more efficient, effective, and affordable." The browser title, search description and social cards still say "Building new age businesses" (`index.html`, and `slogan` in `src/site/pages.js`). Say if they should follow the new line.
+- [ ] **n8n package link.** The post `/blog/n8n-ai-routing/` links to `https://www.npmjs.com/package/n8n-nodes-curva`, and npm has no package by that name (checked 2026-10-07). Publish the package, or change the link in the post (it's database content, so it needs your sign-off).
 - [ ] **Site address.** Canonical URLs, the sitemap and social cards use `https://www.tarkova.com`. Set `SITE_URL` in `.env` if it's different.
 
 ## Crowkis page: open questions
@@ -64,3 +66,6 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 - [x] Favicon, apple-touch icon, social image; image compression (hero 2.6 MB → 456 KB).
 - [x] `.env` ignored by git; database URL never reaches the browser (build output checked).
 - [x] Dev server loads posts from Supabase at startup and refreshes every minute.
+- [x] Home headline (Subhraneel's line) in its own centred section straight after the hero photo: a quiet lead-in, the three promises large in serif italic lighting up in turn, over moving dot-grid streamlines; and a vision and mission section (no heading, at the owner's request) just below "What we make", each statement beside a moving dot-grid picture (`src/Why.jsx`).
+- [x] Footer wordmark no longer smears when the browser is zoomed out (a bug in the ThreeUI package, patched in `vite.config.js`).
+- [x] `/rss.xml` opens as a readable page in a browser (`public/rss.css`, plus "Read the post" links in the feed) instead of a raw tag tree; still a valid RSS 2.0 feed. `public/favicon.ico` added for pages without an icon link.

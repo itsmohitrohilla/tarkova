@@ -7,6 +7,8 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="application/rss+xml" title="Tarkova Blog" href="/rss.xml" />
+    <!-- The headline under the hero is set in this face; fetched early so it is there before anyone scrolls to it. -->
+    <link rel="preload" href="/InstrumentSerif-Italic.woff2" as="font" type="font/woff2" crossorigin />
     <!-- Google tag (gtag.js). Also in shell.html, which every other page is built from. -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-2FYF61BX95"></script>
     <script>
@@ -70,7 +72,6 @@
          the app's script. React (src/App.jsx) adds the Blog peek to the menu and renders the rest of the page into #root.
          ponytail: the menu links are written by hand; keep them in step with src/site/products.js. -->
     <main class="scene">
-      <h1 class="sr">Tarkova: building new age businesses</h1>
       <img class="bg" src="/bg.webp" alt="" fetchpriority="high" />
       <nav class="glass nav" aria-label="Main">
         <a href="/" aria-label="Tarkova home"><img src="/mark.png" alt="" /></a>
@@ -92,9 +93,15 @@
         document.querySelector('.bg').decode().then(go, go)
       })()
     </script>
+    <!-- The site's one sentence, straight after the hero photo (not on it). The words are plain HTML;
+         React (src/App.jsx) draws the moving dot grid behind them into .lede-art. -->
+    <section class="lede">
+      <div class="lede-art" aria-hidden="true"></div>
+      <h1>We build products that make AI more <em><span>efficient,</span> <span>effective,</span> and <span>affordable.</span></em></h1>
+    </section>
     <div id="root">
       <!-- The rest of the page in plain HTML, for crawlers and visitors without JavaScript; React replaces it on load.
-           ponytail: written by hand, so keep it in step with Galaxy.jsx, Sections.jsx and the footer. -->
+           ponytail: written by hand, so keep it in step with Galaxy.jsx, Sections.jsx, Why.jsx and the footer. -->
       <div class="plain">
         <section>
           <h2>A growing universe of innovation.</h2>
@@ -110,6 +117,12 @@
             <li><h3>AI products</h3><p>Tools that put AI to work in the real world.</p></li>
             <li><h3>Software solutions</h3><p>Built around the problem, not the trend.</p></li>
             <li><h3>Craft</h3><p>Every detail considered, from the first line of code to the last pixel.</p></li>
+          </ul>
+        </section>
+        <section>
+          <ul>
+            <li><h3>Vision</h3><p>Great AI shouldn't be a luxury.</p><p>We want every team to build with AI that's affordable, reliable, and worth what it costs.</p></li>
+            <li><h3>Mission</h3><p>Make the AI you already use do more, for less.</p><p>We build simple products that work with any model and fit into the stack you already have.</p></li>
           </ul>
         </section>
         <footer>

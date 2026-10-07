@@ -10,6 +10,7 @@ import { mountMusic } from './music.js'
 import { mountGlass } from './glass.js'
 import Galaxy from './Galaxy.jsx'
 import Sections from './Sections.jsx'
+import Why, { DotScene } from './Why.jsx'
 
 export default function App() {
   const [latest, setLatest] = useState([])
@@ -41,6 +42,9 @@ export default function App() {
         document.querySelector('.nav-blog'),
       )}
 
+      {/* The headline under the hero is plain HTML too; only its moving backdrop comes from here. */}
+      {createPortal(<DotScene scene="flow" />, document.querySelector('.lede-art'))}
+
       <Galaxy />
 
       <section id="about" className="section">
@@ -57,6 +61,7 @@ export default function App() {
         </div>
       </section>
       <Sections />
+      <Why />
 
       <footer className="foot">
         <div dangerouslySetInnerHTML={{ __html: footerHTML(topics) }} />
