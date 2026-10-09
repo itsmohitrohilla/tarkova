@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { TextAnimationCollection, TextPathStudies } from '@designcodeio/threeui'
 import '@designcodeio/threeui/style.css'
@@ -11,6 +11,8 @@ import { mountGlass } from './glass.js'
 import Galaxy from './Galaxy.jsx'
 import Sections from './Sections.jsx'
 import Why, { DotScene } from './Why.jsx'
+import { bookHTML, mountBook } from './site/book.js'
+import './site/book.css'
 
 export default function App() {
   const [latest, setLatest] = useState([])
@@ -27,6 +29,9 @@ export default function App() {
   // Music and its mute button are shared with every site page (src/music.js).
   useEffect(mountMusic, [])
   useEffect(() => mountGlass(document.querySelector('.nav')), [])
+  // Book a demo and the contact form: the same markup and script as on the static pages (src/site/book.js).
+  const book = useRef(null)
+  useEffect(() => mountBook(book.current), [])
 
   return (
     <>
@@ -62,6 +67,7 @@ export default function App() {
       </section>
       <Sections />
       <Why />
+      <div ref={book} dangerouslySetInnerHTML={{ __html: bookHTML() }} />
 
       <footer className="foot">
         <div dangerouslySetInnerHTML={{ __html: footerHTML(topics) }} />

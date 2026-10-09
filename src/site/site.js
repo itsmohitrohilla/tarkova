@@ -1,5 +1,6 @@
 import '../global.css'
 import './site.css'
+import './book.css'
 import { mountMusic } from '../music.js'
 import { mountGlass } from '../glass.js'
 
@@ -48,6 +49,10 @@ if (wordmark && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   if (document.readyState === 'complete') idle(mount)
   else addEventListener('load', () => idle(mount), { once: true })
 }
+
+// Book a demo and the contact form (book.js), on the pages that end with that section.
+const book = document.querySelector('.book')
+if (book) import('./book.js').then((m) => m.mountBook(book))
 
 // The Crowkis page's motion engine, only where its scenes are on the page.
 const ck = document.querySelector('[data-ck]')

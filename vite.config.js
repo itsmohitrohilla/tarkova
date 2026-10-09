@@ -111,6 +111,9 @@ function tarkovaSite(env) {
           .finally(() => (loading = null)))
       refresh() // warm up at startup, so the first visit to /blog/ doesn't wait on the database
 
+      // The contact form's endpoint. In production api/contact.js runs as a Vercel function; dev runs the same handler.
+      server.middlewares.use('/api/contact', async (req, res) => (await import('./api/contact.js')).contact(env.SUPABASE_DB_URL)(req, res))
+
       server.middlewares.use(async (req, res, next) => {
         const path = new URL(req.url, 'http://x').pathname
         if (/^\/(@|src\/|node_modules\/|__)/.test(path) || path === '/' || path === '/shell.html') return next()

@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { coverArt, ACCENT } from './art.js'
 import { products } from './products.js'
 import { footerHTML, MARK } from './footer.js'
+import { bookHTML } from './book.js'
 import { crowkisMain, CK_HEAD } from './crowkis/page.js'
 import { curvaMain, CV_HEAD, CV_META } from './curva/page.js'
 import { vsJevMain, VJ_META, VJ_PATH, VJ_UPDATED } from './curva/vs-jev.js'
@@ -104,7 +105,11 @@ function nav(active) {
 
 const footer = (topics) => `<footer class="foot">${footerHTML(topics)}<div class="foot-wordmark" aria-hidden="true">${WORDMARK}</div></footer>`
 
-const page = (active, topics, main, pre = '') => `${nav(active)}${pre}<main id="main">${main}</main>${footer(topics)}`
+// Pages under these menu keys end with the Book a demo section (book.js), between the content and the footer.
+// The product pages end in their own colour, which blends into it; the blog's paper meets it as a card.
+const BOOK_ON = new Set(['crowkis', 'curva', 'blog'])
+
+const page = (active, topics, main, pre = '') => `${nav(active)}${pre}<main id="main">${main}</main>${BOOK_ON.has(active) ? bookHTML({ band: true, blend: active !== 'blog' }) : ''}${footer(topics)}`
 
 // Heading words rise in one after another; `*word*` renders in the serif italic.
 const riseTitle = (s) =>
@@ -634,6 +639,18 @@ function aboutPage(site, topics) {
   return [path, { head: head({ site, title: `${title} | Tarkova`, description, path, ld, extra: AB_HEAD }), body: page('about', topics, aboutMain({ esc })) }]
 }
 
+/* ---------- contact ---------- */
+
+// The page the footer's "Contact us" opens: the Book a demo section, as the whole page.
+function contactPage(site, topics) {
+  const path = '/contact/'
+  const title = 'Contact Tarkova: book a call or write to us'
+  const description = 'Book a 30 minute call with a Tarkova founder, or send us a message about Crowkis, Curva or your AI stack.'
+  const ld = { '@context': 'https://schema.org', '@graph': [{ '@type': 'ContactPage', name: title, url: site + path, description, mainEntity: { '@id': `${site}/#org` } }, breadcrumbs(site, [['Home', '/'], ['Contact', path]]), org(site)] }
+  const main = bookHTML({ band: true, page: true, level: 1, title: 'Book a call with <em>a founder.</em>', line: '30 minutes, one to one. Bring your stack and your questions.' })
+  return [path, { head: head({ site, title: `${title} | Tarkova`, description, path, ld }), body: page('', topics, main) }]
+}
+
 const UPDATED = 'September 29, 2026'
 
 function legal(site, topics, path, heading, description, sections, updated = UPDATED) {
@@ -651,7 +668,7 @@ const mail = `<a href="mailto:${CONTACT}">${CONTACT}</a>`
 const privacy = (site, topics) =>
   legal(site, topics, '/privacy/', 'Privacy policy', 'How Tarkova handles information when you visit tarkova.com: visit analytics, no ads, no data sales.', [
     ['Who we are', `This policy covers tarkova.com, run by Tarkova ("we", "us"). Our products, such as <a href="${CROWKIS}" rel="noopener">Crowkis</a>, have their own sites and policies, which apply when you use them.`],
-    ['What we collect', 'You can read everything on this site without an account, and we do not ask you for personal information.', 'Like any website, the servers that host this site keep standard request logs: your IP address, browser type, the page you asked for and when. We use these only to keep the site running and secure, and they are deleted on the hosting provider\'s normal schedule.', `If you email us at ${mail}, we keep your message and address so we can reply.`],
+    ['What we collect', 'You can read everything on this site without an account. We only receive personal information from you if you choose to write to us or book a call.', 'Like any website, the servers that host this site keep standard request logs: your IP address, browser type, the page you asked for and when. We use these only to keep the site running and secure, and they are deleted on the hosting provider\'s normal schedule.', `If you email us at ${mail}, we keep your message and address so we can reply.`, 'If you write to us through the contact form, we store the name, email address and message you send, so we can reply. To stop spam we also keep a scrambled (hashed) form of your IP address for one day; it cannot be turned back into the address.', 'The "Pick a time" button opens <a href="https://cal.com/privacy" rel="noopener">Cal.com</a>, a scheduling service. What you enter there is handled under its own privacy policy.'],
     ['Cookies and analytics', 'This site uses Google Analytics to count visits and see which pages are read. Google Analytics sets cookies (their names start with "_ga") and sends Google your IP address, your browser and device details, and the pages you open. <a href="https://policies.google.com/technologies/partner-sites" rel="noopener">Google explains how it uses this information</a>. We do not show ads.', 'You can refuse these cookies in your browser settings, or install <a href="https://tools.google.com/dlpage/gaoptout" rel="noopener">Google\'s opt-out add-on</a>. The site works the same without them. Fonts and images are served from our own domain.'],
     ['Links to other sites', 'Posts link to other websites, and the share buttons open X, LinkedIn, Hacker News or Reddit. Those sites have their own privacy practices, which we do not control.'],
     ['Sharing', 'We do not sell or rent personal information. We share it only with the service providers that host this site and measure its traffic (Google Analytics), or when the law requires it.'],
@@ -659,7 +676,7 @@ const privacy = (site, topics) =>
     ['Children', 'This site is not aimed at children under 13, and we do not knowingly collect their information.'],
     ['Changes', 'When we change this policy we update the date at the top of this page.'],
     ['Contact', `Questions about privacy: ${mail}.`],
-  ], 'October 4, 2026')
+  ], 'October 9, 2026')
 
 const terms = (site, topics) =>
   legal(site, topics, '/terms/', 'Terms & conditions', 'The terms for using tarkova.com and its blog, including how you can quote our articles and reuse code samples.', [
@@ -702,6 +719,7 @@ ${[
     url(VJ_PATH, VJ_UPDATED, '0.8'),
     url('/products/', null, '0.8'),
     url('/about/', null, '0.7'),
+    url('/contact/', null, '0.6'),
     url('/blog/', newest, '0.9'),
     ...topics.map(([t]) => url(topicPath(t), null, '0.6')),
     ...posts.filter((p) => p.indexable).map((p) => url(postPath(p), p.updated_at.toISOString().slice(0, 10), '0.7')),
@@ -771,6 +789,7 @@ export function buildSite(rows, { site }) {
     ...posts.map((p, i) => postPage({ site, p, posts, idx, topics, prev: posts[i + 1], next: posts[i - 1] })),
     productsPage(site, topics),
     aboutPage(site, topics),
+    contactPage(site, topics),
     // Only Crowkis has a url today, and its page shows Crowkis posts.
     ...products.map((p) => productPage(site, topics, p, p.url ? indexable.filter((q) => !isCurva(q)).slice(0, 3) : [])),
     vsJevPage(site, topics),

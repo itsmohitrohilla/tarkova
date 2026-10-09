@@ -44,8 +44,13 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 ## Analytics
 - [ ] Add cookie-free analytics (Plausible, or Cloudflare Web Analytics). That needs no cookie banner. If you pick a cookie-based tool instead, add a consent banner and update `/privacy/`.
 
-## Forms (only when needed)
-- [ ] The `feedback` and `ratings` tables exist, but the site has no forms yet. If you add them: server-side validation, spam protection (honeypot + rate limit), and RLS insert policies.
+## Contact form and Book a demo (added 2026-10-09)
+The section (`src/site/book.js`) is on the home page, `/crowkis/`, `/curva/` (and Curva vs Jev), every blog page, and is the whole of `/contact/`, which the footer's "Contact us" opens. Messages go to the `feedback` table with `source = 'contact'`.
+- [ ] **Check it on the live site after the next deploy.** The form posts to `/api/contact` (`api/contact.js`, a Vercel function), tested locally only. It needs `SUPABASE_DB_URL` available at runtime in Vercel (Production), not just at build. To re-test locally: `node --env-file=.env scripts/contact-check.mjs` with `npm run dev` running.
+- [ ] **Get told when a message arrives.** Nothing emails you yet. Options: a Supabase database webhook on `feedback` to email or Slack, or check the table.
+- [ ] **Turn on Vercel's firewall rate limit for `/api/contact`** (Vercel dashboard, Firewall). The form's own limits (1 a minute and 5 a day per visitor, 60 an hour site-wide, in the `contact_rate` table) stop spam reaching the table, but each attempt still opens a database connection; the firewall stops a flood before it gets that far.
+- [ ] **Read the two new privacy policy sentences** (contact form and Cal.com, under "What we collect" in `src/site/pages.js`) and the contact page headline, "Book a call with a founder."
+- [ ] The `ratings` table still has no form on this site.
 
 ## Done
 - [x] Blog from Supabase: index, 10 topic pages, pagination, 980 post pages, generated banner art, diagrams, charts, code blocks.

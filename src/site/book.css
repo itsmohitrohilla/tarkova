@@ -1,0 +1,111 @@
+/* Book a demo + the contact form (src/site/book.js): the last section before the footer on the landing, the
+   product pages and the blog, and the whole of /contact/. A week of time slots in the galaxy's dot grid fills
+   the section and books itself slot by slot (the `week` scene in src/dots.js). The invitation sits low on the
+   left where the grid fades; the form on the right is the menu bar's frosted glass (global.css), so the slots
+   lighting up behind it show through as a soft glow. Self-contained: it sets its own colours and type. */
+.book {
+  position: relative; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: end; gap: clamp(24px, 4vw, 64px);
+  min-height: min(100svh, 780px); padding: clamp(56px, 8vw, 110px) clamp(20px, 4vw, 64px);
+  color: #fff; font-family: 'Funnel Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+}
+/* The landing is dark already. On the light pages the section brings that ground with it, and the footer
+   slides over its lower edge, as it sits on the landing. */
+.book.band { margin-top: clamp(64px, 9vw, 110px); padding-bottom: calc(clamp(56px, 8vw, 110px) + 32px); border-radius: 32px 32px 0 0; background: #0c0c0d; }
+.book.band + .foot { position: relative; margin-top: -32px; }
+/* Under a page that ends in colour (Crowkis red, Curva blue) there is no card and no gap: that colour melts into
+   the dark ground through an eased fade above the section, as the landing's hero melts into its page. The fade
+   sits in the section's top margin, over whatever the page shows there. */
+.book.blend { --fade: clamp(88px, 14vw, 200px); margin-top: var(--fade); border-radius: 0; }
+.book.blend::before {
+  content: ""; position: absolute; inset: auto 0 100%; height: var(--fade); pointer-events: none;
+  background: linear-gradient(rgba(12, 12, 13, 0), rgba(12, 12, 13, 0.12) 25%, rgba(12, 12, 13, 0.35) 45%, rgba(12, 12, 13, 0.65) 65%, rgba(12, 12, 13, 0.9) 85%, #0c0c0d);
+}
+/* /contact/: the section is the page, so the dark ground runs from the top, behind the menu bar. */
+body:has(.book.page) { background: #0c0c0d; }
+.book.page { margin-top: 0; min-height: calc(100svh - 50px); }
+
+.book-art {
+  position: absolute; inset: 0; display: block; width: 100%; height: 100%;
+  -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 42%, rgba(0, 0, 0, 0.22) 80%, transparent);
+  mask-image: linear-gradient(transparent, #000 14%, #000 42%, rgba(0, 0, 0, 0.22) 80%, transparent);
+}
+.book-copy { position: relative; pointer-events: none; } /* the pointer reaches the slots behind the words */
+.book-title { margin: 0; max-width: 10ch; font-size: clamp(44px, 6.4vw, 104px); font-weight: 400; line-height: 0.98; letter-spacing: -0.035em; text-wrap: balance; }
+.book-title em { font: italic 400 1.08em/1 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; }
+.book-copy p { margin: 20px 0 30px; max-width: 34ch; font-size: clamp(16px, 1.3vw, 19px); line-height: 1.5; color: rgba(255, 255, 255, 0.66); }
+
+/* The two buttons are time slots too: a plate of the grid's dots, with an arrow drawn in dots, light running
+   through it. Hovering swaps a plate's state as a halftone: the dots of "Send" swell until they close into a
+   solid plate (the slot being booked), and the solid "Pick a time" breaks back into dots. Widths and heights
+   are whole dots, so no dot is cut at an edge. */
+@property --dot-r { syntax: '<length>'; inherits: false; initial-value: 1.2px; }
+@property --dot { syntax: '<color>'; inherits: true; initial-value: rgba(255, 255, 255, 0.3); }
+:is(.book-cta, .book-form button) {
+  --dot: rgba(255, 255, 255, 0.3); --dot-r: 1.2px;
+  display: inline-flex; align-items: center; justify-content: space-between; box-sizing: border-box; height: 60px; padding: 0 18px 0 20px;
+  border: 0; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  background: radial-gradient(circle, var(--dot) var(--dot-r), transparent calc(var(--dot-r) + 0.7px)) 0 0 / 10px 10px;
+  color: #fff; font: inherit; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: --dot-r 0.6s cubic-bezier(0.4, 0, 0.6, 1), --dot 0.6s, color 0.3s 0.15s;
+}
+.book-cta { pointer-events: auto; width: 200px; }
+.book-form button { width: 150px; margin-left: auto; }
+.book .book-cta, .book-form button:is(:hover, :focus-visible) { --dot: #fff; --dot-r: 7.4px; color: #0c0c0d; } /* 7.4px dots on a 10px pitch overlap into a solid plate */
+.book .book-cta:is(:hover, :focus-visible) { --dot: rgba(255, 255, 255, 0.3); --dot-r: 1.2px; color: #fff; }
+:is(.book-cta, .book-form button):focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.book-form button:disabled { opacity: 0.6; cursor: progress; }
+/* Shapes drawn in dots (the arrow, and the tick once a message is sent); light runs through their columns. */
+.book-dots { fill: currentColor; }
+.book-dots circle { animation: bookDots 1.4s ease-in-out infinite; }
+.book-arrow { width: 30px; height: 21px; transition: translate 0.3s; }
+:is(.book-cta, .book-form button):is(:hover, :focus-visible) .book-arrow { translate: 4px 0; }
+@keyframes bookDots { 0%, 100% { opacity: 0.4; } 30%, 50% { opacity: 1; } }
+
+.book-form {
+  position: relative; align-self: center; display: grid; align-content: space-between; gap: clamp(14px, 1.6vw, 22px); min-height: 19em; /* 19em: the letter's height, so the card keeps its size once the tick replaces it */
+  padding: clamp(24px, 3vw, 44px); border-radius: 32px;
+  font-size: clamp(21px, 2vw, 29px); line-height: 1.25; letter-spacing: -0.02em; text-shadow: none;
+}
+.book-or { margin: 0; font: inherit; letter-spacing: inherit; color: rgba(255, 255, 255, 0.5); }
+/* The form is a letter to fill in: one sentence, each line of it on a rule of dots at the grid's pitch, the
+   answers in the site's serif italic. The rule under the line being written carries a running light. */
+.book-form label { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.35em; padding-bottom: 12px; cursor: text; transition: --dot 0.3s; }
+.book-form label > span { white-space: nowrap; color: rgba(255, 255, 255, 0.62); }
+.book-form label::before, .book-form label::after { content: ""; position: absolute; inset: auto 0 0; height: 4px; }
+.book-form label::after { background: radial-gradient(circle, var(--dot) 1.1px, transparent 1.6px) 0 0 / 10px 4px repeat-x; }
+.book-form label::before {
+  z-index: 1; opacity: 0; transition: opacity 0.3s;
+  background: linear-gradient(90deg, transparent, #fff, transparent) -55% 0 / 35% 100% no-repeat;
+  -webkit-mask: radial-gradient(circle, #000 1.4px, transparent 1.9px) 0 0 / 10px 4px repeat-x; mask: radial-gradient(circle, #000 1.4px, transparent 1.9px) 0 0 / 10px 4px repeat-x;
+}
+.book-form label:focus-within { --dot: rgba(255, 255, 255, 0.75); }
+.book-form label:focus-within::before { opacity: 1; animation: bookRun 1.8s linear infinite; }
+.book-form label:has(:user-invalid) { --dot: #ff8a63; }
+@keyframes bookRun { to { background-position: 155% 0; } }
+.book-form :is(input, textarea) {
+  flex: 1 1 9ch; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; outline: none; background: none;
+  color: #fff; caret-color: #cdd2ff; font: italic 400 1.12em/1.25 'Instrument Serif', Georgia, serif; letter-spacing: 0;
+}
+.book-form ::placeholder { color: rgba(255, 255, 255, 0.28); }
+.book-form input:-webkit-autofill { -webkit-text-fill-color: #fff; transition: background-color 9999s; } /* keeps the browser's autofill tint off the glass */
+/* The message has room to run on: the textarea rules every line it has, and grows with the writing. */
+.book-form .book-msg { padding-bottom: 0; }
+.book-form .book-msg::after { content: none; }
+.book-form textarea {
+  flex: none; width: 100%; min-height: 3lh; max-height: 6lh; field-sizing: content; resize: none; line-height: 1.6;
+  background: radial-gradient(circle at 5px calc(100% - 2px), var(--dot) 1.1px, transparent 1.6px) 0 0 / 10px 1lh local;
+}
+.book-send { display: flex; align-items: center; gap: 16px; margin-top: 6px; }
+.book-note { margin: 0; font-size: 15px; line-height: 1.4; letter-spacing: 0; color: rgba(255, 255, 255, 0.8); }
+.book-note.error { color: #ff8a63; }
+/* Sent: the letter gives way to a tick in dots, and the note takes the letter's type. */
+.book-tick { display: none; width: clamp(96px, 9vw, 132px); }
+.book-form.sent :is(label, button) { display: none; }
+.book-form.sent .book-tick { display: block; }
+.book-form.sent .book-note { font-size: inherit; letter-spacing: inherit; color: #fff; }
+
+@media (max-width: 800px) {
+  .book { grid-template-columns: 1fr; align-items: start; gap: 40px; }
+  .book-art { -webkit-mask-image: linear-gradient(transparent, rgba(0, 0, 0, 0.45) 12%, rgba(0, 0, 0, 0.45) 88%, transparent); mask-image: linear-gradient(transparent, rgba(0, 0, 0, 0.45) 12%, rgba(0, 0, 0, 0.45) 88%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .book-dots circle, .book-form label:focus-within::before { animation: none; } }

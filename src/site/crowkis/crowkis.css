@@ -28,6 +28,8 @@
   overflow-x: clip;
 }
 .ck-scene { position: relative; }
+/* Book a demo (site/book.css) follows the red finale with no gap: its fade lies over the finale's empty lower edge. */
+body:has(.ck) .book { margin-top: 0; }
 /* The footer tucks over the red finale, so its rounded top corners show red, not page background. */
 body:has(.ck) .foot { margin-top: -32px; position: relative; z-index: 1; }
 
