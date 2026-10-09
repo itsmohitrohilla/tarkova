@@ -1,0 +1,266 @@
+{
+  "slug": "your-ai-agent-has-amnesia",
+  "title": "Long-term memory for AI agents: how it works",
+  "summary": "How long-term memory for AI agents works: scoped facts, recall by relevance and recency, retiring contradictions, time travel, graphs and the limits.",
+  "keywords": [
+    "long-term memory for AI agents",
+    "AI agent memory",
+    "agent memory layer",
+    "CMEMSET",
+    "CMEMGET",
+    "session memory",
+    "knowledge graph memory"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "crowkis.docs/SCOPED_SEARCH_LIMITS.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "README.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Long-term memory for AI agents is a store outside the model's context window where an agent writes the facts it learns and reads them back by meaning in a later session. A working memory layer does four jobs: it scopes facts to one agent and user, ranks recall by relevance and recency, retires facts that have been contradicted, and forgets on request."
+    },
+    {
+      "kind": "plain",
+      "text": "The context window is working memory, and it empties when the session ends. Long-term memory is a small, searchable store of facts that the agent writes in one session and reads back by meaning in the next."
+    },
+    {
+      "kind": "h2",
+      "text": "Why do AI agents forget between sessions?"
+    },
+    {
+      "kind": "p",
+      "text": "A model can only use what is in its context window. Anthropic's documentation describes the window as all the text a model can reference when generating a response, a \"working memory\" that is separate from its training data, and notes that accuracy and recall degrade as the token count grows ([context windows](https://docs.claude.com/en/docs/build-with-claude/context-windows)). Nothing in that window survives the end of a session unless your application saves it."
+    },
+    {
+      "kind": "p",
+      "text": "The usual patch is to replay the whole history into every prompt. That costs tokens on every turn, and it stops working once the history is longer than the window. Research systems solve it by moving memory outside the model. [MemGPT](https://arxiv.org/abs/2310.08560) manages tiers of memory the way an operating system moves data between fast and slow storage. [Generative Agents](https://arxiv.org/abs/2304.03442) keeps a complete record of an agent's experiences and retrieves the relevant ones when it plans. The shared idea: write facts to a store, then retrieve only the few that matter for the current step."
+    },
+    {
+      "kind": "h2",
+      "text": "What does a long-term memory layer have to do?"
+    },
+    {
+      "kind": "p",
+      "text": "Storing embeddings is not enough. A memory layer has to know whose fact it is, which fact is current, and when to let go. These are the jobs, with the Crowkis command that does each one:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Job",
+        "Why it matters",
+        "Command"
+      ],
+      "rows": [
+        [
+          "Scope facts to one agent and user",
+          "One user's facts must never answer another user's question",
+          "`CMEMSET` with `USER`"
+        ],
+        [
+          "Recall by meaning",
+          "\"How should we contact them?\" has to find \"prefers email\"",
+          "`CMEMGET`"
+        ],
+        [
+          "Retire contradicted facts",
+          "\"Lives in Berlin\" should replace \"lives in Paris\", not sit beside it",
+          "built into `CMEMSET`"
+        ],
+        [
+          "Keep history",
+          "Someone will ask what the agent believed in March",
+          "`CMEMHISTORY`, `CMEMASOF`"
+        ],
+        [
+          "Pull facts out of conversation",
+          "Nobody writes facts by hand in production",
+          "`CMEMEXTRACT`"
+        ],
+        [
+          "Hold relationships",
+          "\"Who works at this customer's company?\" is a graph walk",
+          "`CMEMLINK`, `CMEMGRAPH`"
+        ],
+        [
+          "Forget on request",
+          "Users ask to be forgotten",
+          "`CMEMFORGET`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A useful outside checklist comes from [LongMemEval](https://arxiv.org/abs/2410.10813), a benchmark that tests five abilities of a chat assistant's memory: information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention. Any memory layer you evaluate should have an answer for each."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you store and recall a fact?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CMEMSET agent fact [USER u] [EX secs]\nCMEMGET agent query [USER u] [K n]\n\nCMEMSET support \"prefers email over phone\" USER u_42\nCMEMSET support \"lives in Paris\" USER u_42\nCMEMGET support \"how should we contact this customer?\" USER u_42 K 3"
+    },
+    {
+      "kind": "p",
+      "text": "The first argument is the agent and the second is the fact. `USER` scopes the fact to one person, and `EX` gives it an expiry in seconds. The fact is embedded by the bundled model and indexed for semantic recall, so nothing is sent to an outside API (see [local offline embeddings](/blog/cembed-free-local-embeddings/)). Memory is invisible to `CGET`: a fact about one user can never come back as a cached answer for the whole tenant."
+    },
+    {
+      "kind": "p",
+      "text": "`CMEMGET` returns the top `K` facts, ranked by relevance blended with recency. The recency boost is mild. It decays with a half-life set by `CROWKIS_MEMORY_HALFLIFE_SECS`, which defaults to 30 days. Each (agent, user) scope is bounded: past `CROWKIS_MEMORY_MAX_PER_USER`, 500 by default, the oldest facts are forgotten automatically."
+    },
+    {
+      "kind": "h2",
+      "text": "What happens when a fact changes?"
+    },
+    {
+      "kind": "p",
+      "text": "`CMEMSET` consolidates. When a new fact contradicts a stored fact about the same subject, the old one is retired. It is kept for history and never deleted, and `CMEMGET` returns only the currently valid version of each subject. You do not have to find and delete the stale fact yourself."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CMEMSET support \"lives in Berlin\" USER u_42\nCMEMGET support \"where does this customer live?\" USER u_42 K 1\nCMEMHISTORY support \"where does this customer live?\" USER u_42\nCMEMASOF support \"where does this customer live?\" 1767225600000 USER u_42"
+    },
+    {
+      "kind": "p",
+      "text": "`CMEMHISTORY agent query [USER u] [K n]` returns retired versions too. Each match is `[fact, similarity, state, recorded_ms, valid_to_ms]`, newest first, where `state` is `current` or `superseded`. `CMEMASOF agent query unix_ms [USER u] [K n]` answers a narrower question: which facts did memory believe were current at that instant? Recording when a fact was written and when it stopped being valid is the idea a [temporal database](https://en.wikipedia.org/wiki/Temporal_database) uses to keep valid time apart from transaction time. It lets you reconstruct why an agent said what it said last month."
+    },
+    {
+      "kind": "p",
+      "text": "Every `CMEM*` command also takes an optional `TOPIC <t>`. Storing with a topic files the fact in that room. Recalling with a topic returns only that room, and recalling without one sees every room for the user. Contradictions resolve within a room only. A coding agent can keep one room per repository, so a naming convention learned in one project does not retire a different convention in another."
+    },
+    {
+      "kind": "h2",
+      "text": "How do facts get into memory from a conversation?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CMEMEXTRACT agent \"<conversation>\" [USER u] [EX secs]"
+    },
+    {
+      "kind": "p",
+      "text": "`CMEMEXTRACT` takes a chunk of conversation and keeps the durable facts: identity, preference and first-person statements. It drops questions, greetings and filler, stores each kept fact through the same consolidating path as `CMEMSET`, and returns the facts it kept. It is model-free and deterministic. There is no LLM call, and the same transcript always yields the same facts."
+    },
+    {
+      "kind": "p",
+      "text": "The trade-off is reach. Rules catch statements, not implications. If you need facts that a conversation only implies, extract them with your own model and write them with `CMEMSET`."
+    },
+    {
+      "kind": "h2",
+      "text": "Sessions and graphs: the other two kinds of memory"
+    },
+    {
+      "kind": "p",
+      "text": "Facts are one shape of memory. Two others come up in most agents."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSESSION ADD s role text [EX secs]\nCSESSION RECENT s [N n]\nCSESSION SEARCH s query [K n]\nCMEMLINK agent subject relation object [USER u]\nCMEMGRAPH agent entity [USER u] [DEPTH d]"
+    },
+    {
+      "kind": "p",
+      "text": "**Session memory** is the conversation buffer. `CSESSION ADD` appends a turn with its role. `RECENT` reads the last turns for the usual sliding window. `SEARCH` runs a semantic query over the whole buffer, so \"what did they say about budget earlier?\" finds a turn the window has already dropped. A session keeps at most `CROWKIS_SESSION_MAX_TURNS` turns, 500 by default, and the oldest drop first."
+    },
+    {
+      "kind": "p",
+      "text": "**Graph memory** stores relationships as subject, relation, object edges, the same shape as a [semantic triple](https://en.wikipedia.org/wiki/Semantic_triple). `CMEMGRAPH` walks outward from an entity to a given depth and returns the triples it finds. Fan-out per entity is capped by `CROWKIS_GRAPH_MAX_EDGES`, 512 by default, and one traversal reads at most 2000 edges."
+    },
+    {
+      "kind": "h2",
+      "text": "Is one user's memory isolated from another's?"
+    },
+    {
+      "kind": "p",
+      "text": "Yes, by scope. Two different `USER` values never see each other's data, and structural characters are stripped from identifiers so one cannot be forged into another. Memory lives in its own key family, which plain key-value commands cannot reach. The wider design is covered in [tenant isolation](/blog/tenant-isolation-architecture/). Two details decide whether the isolation means anything in your app:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**The application owns the mapping.** Crowkis cannot verify that your `USER` values map to real people. Pass one constant for everyone and you have told it they are one person.",
+        "**An unscoped write is shared.** `CMEMSET` without `USER` lands in one bucket per agent that every caller of that agent in the tenant can read. Because its reach is tenant-wide, the text is redacted for personal data before storage, as the response cache is. A user-scoped fact is stored as written, so the assistant recalls the address the user gave and not a placeholder. See [PII scrubbing and erasure](/blog/cpii-scrub-and-erase/)."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "`CMEMFORGET agent [query] [USER u] [THRESHOLD f]` forgets the facts that match a query, or the whole (agent, user) memory when no query is given."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you call it from Python or an MCP client?"
+    },
+    {
+      "kind": "p",
+      "text": "Any RESP3 client can send the commands above. The Python SDK also wraps them in a `CrowkisMemory` object, documented in the [Python SDK reference](https://www.crowkis.com/docs/sdk-python):"
+    },
+    {
+      "kind": "code",
+      "title": "python",
+      "code": "from crowkis import CrowkisMemory\n\nmem = CrowkisMemory(agent=\"support-bot\", user=\"alice\")\nmem.remember(\"Alice prefers email over phone\")\nmem.recall(\"how should I contact Alice?\")"
+    },
+    {
+      "kind": "p",
+      "text": "The same object has `extract`, `history`, `as_of`, `forget`, `link` and `graph`. If your assistant is Claude Code or another MCP client, the [Crowkis MCP server](/blog/mcp-server-feature/) gives it memory with no code at all."
+    },
+    {
+      "kind": "h2",
+      "text": "When not to use agent memory"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**As a transcript archive.** A scope holds 500 facts by default and trims the oldest. It is built for durable facts, not for every message.",
+        "**For documents.** Manuals and policies belong in a document store. See [self-hosted RAG with CDOC](/blog/cdoc-self-hosted-rag/).",
+        "**When you need exhaustive recall inside one very large shared index.** Scoped search is a bounded walk with a budget of 16,384 node visits. A fact sitting behind more than roughly sixteen thousand nearer out-of-scope vectors can be missed.",
+        "**At a scale nobody has measured.** The largest vector index verified so far is 1.18M vectors, on a development laptop. Recall quality on public datasets is in [the agent memory benchmarks](/blog/agent-memory-benchmarks/)."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Memory saves cost because the agent stops re-sending and re-deriving context it already had. How much it saves depends on how repetitive your sessions are."
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Is long-term memory the same as RAG?"
+    },
+    {
+      "kind": "p",
+      "text": "No. RAG retrieves passages from documents you own. Memory stores facts the agent learned from a user, scoped to that user, and updates them when they change. Both use vector search, and many agents need both."
+    },
+    {
+      "kind": "h3",
+      "text": "How is agent memory different from a semantic cache?"
+    },
+    {
+      "kind": "p",
+      "text": "A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) reuses a finished answer for anyone in the tenant who asks the same thing. Memory holds facts about one user and never appears in cache lookups. In Crowkis the two run in one engine, in separate key families."
+    },
+    {
+      "kind": "h3",
+      "text": "Do I need a separate vector database for agent memory?"
+    },
+    {
+      "kind": "p",
+      "text": "Not for this. Crowkis indexes memory in its own in-process vector index. A dedicated database makes sense when you need large-scale document search, as [semantic cache vs vector database](/blog/semantic-cache-vs-vector-database/) explains."
+    },
+    {
+      "kind": "h3",
+      "text": "Can a user ask the agent to forget them?"
+    },
+    {
+      "kind": "p",
+      "text": "Yes. `CMEMFORGET` with a `USER` and no query removes that user's whole memory for the agent. With a query it removes only the matching facts, and `THRESHOLD` controls how close a match has to be."
+    }
+  ]
+}

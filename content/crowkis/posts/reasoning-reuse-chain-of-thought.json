@@ -1,0 +1,250 @@
+{
+  "slug": "reasoning-reuse-chain-of-thought",
+  "title": "Caching chain-of-thought reasoning: how reuse works",
+  "summary": "Caching chain-of-thought reasoning stores the steps, not the answer. How CTHINK and CREUSE work, what triggers reuse, the capacity and the limits.",
+  "keywords": [
+    "caching chain-of-thought reasoning",
+    "reasoning reuse",
+    "chain of thought cache",
+    "CTHINK",
+    "CREUSE",
+    "reasoning tokens",
+    "LLM reasoning cost"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/REASONING_REUSE_CAPACITY.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/UPGRADING_TO_0.5.2.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "README.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Caching chain-of-thought reasoning means storing the steps a model took to solve a problem, with the specific values abstracted out, and replaying those steps when the same question arrives with different values. Only the final synthesis goes back to the model. In Crowkis, `CTHINK` stores the trace and `CREUSE` fetches the plan for the next question of that shape."
+    },
+    {
+      "kind": "plain",
+      "text": "An answer cache remembers what the model said. Reasoning reuse remembers how it got there, so the same method can be applied to new numbers without the model working it out again."
+    },
+    {
+      "kind": "h2",
+      "text": "Why can't an answer cache reuse reasoning?"
+    },
+    {
+      "kind": "p",
+      "text": "An answer cache returns a stored answer when the same question comes back, exactly or reworded. That fails the moment a value changes. The gross margin on one set of figures and the gross margin on another have different answers, so no cached answer is safe to serve. The method is identical. Only the numbers moved."
+    },
+    {
+      "kind": "p",
+      "text": "The method is also where the tokens go. A chain of thought is a series of intermediate reasoning steps, and prompting a model to produce one improves its results on arithmetic, commonsense and symbolic tasks ([Wei et al.](https://arxiv.org/abs/2201.11903)). Those steps are generated text, and generated text is billed. OpenAI's documentation says reasoning tokens are not visible through the API, still occupy space in the context window, and are billed as output tokens ([reasoning models](https://platform.openai.com/docs/guides/reasoning)). So on a hard question you pay mostly for the derivation, and an [answer cache](/blog/what-is-a-semantic-cache-for-llms/) cannot touch that cost when the inputs differ."
+    },
+    {
+      "kind": "h2",
+      "text": "How does reasoning reuse work?"
+    },
+    {
+      "kind": "p",
+      "text": "Reasoning reuse caches the derivation itself, as a structure with slots where the values were."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "The model solves the problem once and writes out its steps.",
+        "Your app sends the question and the trace to `CTHINK`. Crowkis parses the trace into a step graph, a [directed acyclic graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph) of reasoning steps, and stores it keyed by the question with its values abstracted out. The reply is the signature it was stored under.",
+        "A later question goes to `CREUSE`. Crowkis abstracts the values out of the new question in the same way. If the key matches a stored graph, it returns the steps with the new values substituted, plus a synthesis prompt.",
+        "Your app sends the synthesis prompt to the model. The model writes the final answer from a plan that already exists."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CTHINK query cot-trace [TENANT t] [MODEL m] [MODEL_VERSION v]\nCREUSE query [TENANT t] [MODEL m] [MODEL_VERSION v]"
+    },
+    {
+      "kind": "p",
+      "text": "A margin calculation is the standard example: the same question, run against different revenue and cost figures."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CTHINK \"What is the gross margin on revenue 120000 and cost 78000?\" \"Step 1: gross profit = 120000 - 78000 = 42000. Step 2: margin = 42000 / 120000 = 0.35.\" TENANT acme MODEL gpt-4o\n\nCREUSE \"What is the gross margin on revenue 95000 and cost 61000?\" TENANT acme MODEL gpt-4o"
+    },
+    {
+      "kind": "p",
+      "text": "`CREUSE` returns null on a miss, and then the request goes down your normal path."
+    },
+    {
+      "kind": "h2",
+      "text": "What triggers reuse, and what does not?"
+    },
+    {
+      "kind": "p",
+      "text": "The key is structural, not semantic. It is the question with numbers, dates, ids and entities abstracted out. That gives reuse a narrow, predictable trigger:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Situation",
+        "Result"
+      ],
+      "rows": [
+        [
+          "The same question with different values",
+          "Reuse. `CREUSE` returns the substituted steps and a synthesis prompt"
+        ],
+        [
+          "A rephrased question",
+          "No reuse. The abstracted key is different"
+        ],
+        [
+          "A trace with fewer than two extractable steps",
+          "`CTHINK` has nothing to store"
+        ],
+        [
+          "Another tenant or another model",
+          "No reuse. The store is scoped per tenant and per model"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "This is the opposite of what a semantic cache does, and the two fit together. `CGET` handles a reworded question whose values are unchanged. `CREUSE` handles the same wording with new values. Templated traffic is where it pays: a calculator behind a form, a report generated per account, an agent that runs one analysis over many records."
+    },
+    {
+      "kind": "p",
+      "text": "One piece of history is worth knowing. Before version 0.5.2 the feature could not fire for an ordinary question at all: eight realistic questions out of eight produced nothing, and `CTHINK` stored entries under a signature no read path could compute. Both defects are fixed. Entries written by the earlier release stay unreachable, and the next `CTHINK` writes them again."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you wire it into a request path?"
+    },
+    {
+      "kind": "p",
+      "text": "Put it between the answer cache and the full model call."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`CGET` the question. On a hit, return the cached answer.",
+        "On a miss, `CREUSE` the question. If a plan comes back, send its synthesis prompt to the model and return the result.",
+        "If `CREUSE` returns null, make the full reasoning call. Then `CTHINK` the question with the trace, and `CSET` the question with the answer."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "p",
+      "text": "Two practical points. First, `CTHINK` needs the trace as text. Hosted reasoning models may not return their internal reasoning, as the OpenAI note above says, so use a prompt that makes the model write its steps into the output. The plain \"Let's think step by step\" instruction is enough to get a step-by-step answer from many models ([Kojima et al.](https://arxiv.org/abs/2205.11916)). Second, a reuse still ends with a model call. It is a smaller call, not a skipped one."
+    },
+    {
+      "kind": "h2",
+      "text": "How much does reasoning reuse save?"
+    },
+    {
+      "kind": "p",
+      "text": "It saves cost when your traffic repeats the same kind of problem with different inputs, and the saving grows with how repetitive that traffic is. That is all that can be said today. The capability notes for the current release are blunt: no token saving from reasoning reuse has ever been measured. A figure quoted in older posts came from design rationale, not from a measurement, and it has been withdrawn."
+    },
+    {
+      "kind": "p",
+      "text": "If you want a number, measure your own. Log the output tokens of the full reasoning call and of the synthesis call for the same question shape, and compare them over a week of real traffic. For the wider picture of where agent spend goes, see [agent unit economics](/blog/agent-unit-economics/)."
+    },
+    {
+      "kind": "h2",
+      "text": "How big is the reasoning store?"
+    },
+    {
+      "kind": "p",
+      "text": "The store is a bounded cache, and the bound is small and fixed."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Property",
+        "Value"
+      ],
+      "rows": [
+        [
+          "Capacity",
+          "10,000 derivations, all tenants together"
+        ],
+        [
+          "Cost per entry",
+          "612 bytes"
+        ],
+        [
+          "Resident index at the cap",
+          "6.1 MB"
+        ],
+        [
+          "Scope",
+          "per tenant and per model"
+        ],
+        [
+          "Eviction",
+          "fair share per tenant, then never-reused before reused, then coldest"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The cap is global on purpose. A fixed cap per tenant multiplied by an unbounded number of tenants is a memory leak. Instead, each tenant is guaranteed a share of the one bound. A tenant holding no more than its share is never a candidate for eviction, however much traffic another tenant sends. Candidates come only from tenants above their share. Among those, a derivation that has never been reused goes before one that has, and after that the coldest goes first. A busy tenant cannot push a quiet tenant's derivations out."
+    },
+    {
+      "kind": "p",
+      "text": "Two limits are stated in the docs. Reuse priority holds within a tenant, not across tenants, so a reused entry of an over-share tenant can be evicted while a never-reused entry of an under-share tenant survives. And above 9,872 live tenants the share becomes zero, so eviction falls back to coldest first across everyone. At that tenant count the answer is a larger cap or a sharded deployment. The extra eviction work lands on the `CTHINK` write path, not on cache reads."
+    },
+    {
+      "kind": "h2",
+      "text": "When not to use reasoning reuse"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**One-step questions.** A trace needs at least two extractable steps. A lookup has no derivation to reuse.",
+        "**Reworded traffic.** If users ask the same thing in different words, that is a job for the semantic cache.",
+        "**Problems where the method depends on the values.** The docs describe substituting new values into stored steps. They do not describe a check that those steps still apply. If a different input changes the method, such as a threshold that switches which rule is used, keep that problem out of the store, and check outputs with [model-free evals](/blog/ceval-online-evals/).",
+        "**When you need a proven saving before you build.** There is no measured figure yet.",
+        "**Values that must be stored verbatim.** Reasoning records can be read by the whole tenant, so they are redacted for personal data before storage, as the response cache is."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Is reasoning reuse the same as prompt caching?"
+    },
+    {
+      "kind": "p",
+      "text": "No. OpenAI describes prompt caching as reusing work when requests share the same prompt prefix ([prompt caching](https://platform.openai.com/docs/guides/prompt-caching)). It lowers the price of input you send again. Reasoning reuse avoids generating the derivation again. The difference between a provider discount and a cache is covered in [Crowkis vs OpenAI prompt caching](/blog/crowkis-vs-openai-prompt-caching/)."
+    },
+    {
+      "kind": "h3",
+      "text": "Does CREUSE match a paraphrased question?"
+    },
+    {
+      "kind": "p",
+      "text": "No. It matches the same question with different values. The key is the question with its numbers, dates, ids and entities abstracted out, so a change of wording produces a different key. Send paraphrases to `CGET`."
+    },
+    {
+      "kind": "h3",
+      "text": "Does a reuse skip the model call?"
+    },
+    {
+      "kind": "p",
+      "text": "No. `CREUSE` returns substituted steps and a synthesis prompt, and the model still writes the final answer. What you avoid is paying for the derivation a second time."
+    },
+    {
+      "kind": "h3",
+      "text": "Which editions include CTHINK and CREUSE?"
+    },
+    {
+      "kind": "p",
+      "text": "Both commands are marked free in the [command reference](/blog/the-crowkis-cli-tour/), which means they ship identically in both Docker images."
+    }
+  ]
+}

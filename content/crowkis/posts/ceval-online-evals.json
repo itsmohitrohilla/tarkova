@@ -1,0 +1,310 @@
+{
+  "slug": "ceval-online-evals",
+  "title": "Online LLM evals and prompt A/B tests without an LLM judge",
+  "summary": "Online LLM evals without an LLM judge: nine deterministic CEVAL checks on every output, plus CPROMPT versioning and sticky A/B tests. With limits.",
+  "keywords": [
+    "online LLM evals",
+    "evals without an LLM judge",
+    "prompt A/B testing",
+    "CEVAL",
+    "CPROMPT",
+    "prompt versioning",
+    "deterministic evaluators"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/METRICS_API.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "README.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Online LLM evals without an LLM judge are deterministic checks that score every model output in the request path, with no second model call. Prompt A/B testing then splits traffic between prompt versions so their scores can be compared. In Crowkis, `CEVAL` runs nine model-free evaluators and `CPROMPT` versions prompts and assigns sticky A/B variants."
+    },
+    {
+      "kind": "plain",
+      "text": "Use cheap, repeatable checks on every answer, and keep the expensive judge for a sample. A check you can afford to run on all traffic catches the regression the day a prompt change ships."
+    },
+    {
+      "kind": "h2",
+      "text": "Why not use an LLM as the judge for everything?"
+    },
+    {
+      "kind": "p",
+      "text": "Calling a second model to grade the first is the default way to evaluate LLM output. It works, and it has three costs when you try to run it on every production request: a second bill, a second wait, and a second copy of the user's data sent to a provider."
+    },
+    {
+      "kind": "p",
+      "text": "It also has known weaknesses as a measuring instrument. The paper that introduced MT-Bench examined LLM judges and lists position bias, verbosity bias, self-enhancement bias and limited reasoning ability among their limitations ([Zheng et al.](https://arxiv.org/abs/2306.05685)). And because a judge is itself a sampled model, the same output can get a different score on a second run, which makes a time series noisy."
+    },
+    {
+      "kind": "p",
+      "text": "Anthropic's evaluation guide gives a rule for choosing a grading method: pick the method that is quick, reliable and scalable enough for the job. It puts code-based grading first on speed and reliability, and notes that it lacks nuance for complex judgements. LLM-based grading is flexible, and the guide says to test its reliability before you scale it ([develop tests](https://docs.claude.com/en/docs/test-and-evaluate/develop-tests))."
+    },
+    {
+      "kind": "p",
+      "text": "That suggests a split. Run deterministic checks on all traffic, online. Keep an LLM judge or a human for a sample, where nuance matters."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "",
+        "Deterministic evaluators",
+        "LLM judge"
+      ],
+      "rows": [
+        [
+          "Cost per check",
+          "no model call",
+          "one model call"
+        ],
+        [
+          "Same input, same score",
+          "yes",
+          "not guaranteed"
+        ],
+        [
+          "Data leaves your network",
+          "no",
+          "yes, unless the judge is self-hosted"
+        ],
+        [
+          "Reads nuance, tone, factual accuracy",
+          "no",
+          "yes, with the biases above"
+        ],
+        [
+          "Sensible coverage",
+          "every request",
+          "a sample"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "What do the nine CEVAL evaluators check?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CEVAL <evaluator> <input> <output> [EXPECT t] [THRESHOLD f]\nCEVAL SUITE <input> <output> [EXPECT t]"
+    },
+    {
+      "kind": "p",
+      "text": "`CEVAL` takes an evaluator name, the input the model received and the output it produced. Each run returns `[name, score, pass|fail, detail]`. `CEVAL SUITE` runs the evaluators in one call. All of them are model-free and none makes an outbound call."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Evaluator",
+        "The question it answers"
+      ],
+      "rows": [
+        [
+          "`non_empty`",
+          "Did the model return anything at all?"
+        ],
+        [
+          "`json_valid`",
+          "Is the output valid JSON?"
+        ],
+        [
+          "`toxicity`",
+          "Does the output contain toxic language?"
+        ],
+        [
+          "`pii_leak`",
+          "Does the output contain personal data?"
+        ],
+        [
+          "`injection_safe`",
+          "Is the text free of prompt-injection patterns?"
+        ],
+        [
+          "`answered`",
+          "Did the model answer the question?"
+        ],
+        [
+          "`exact_match`",
+          "Does the output equal the text given in `EXPECT`?"
+        ],
+        [
+          "`contains`",
+          "Does the output contain the text given in `EXPECT`?"
+        ],
+        [
+          "`relevance`",
+          "Is the output related to the input?"
+        ]
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CEVAL relevance \"how do refunds work?\" \"Refunds take 5 to 7 business days.\" THRESHOLD 0.7\nCEVAL contains \"how do refunds work?\" \"Refunds take 5 to 7 business days.\" EXPECT \"business days\"\nCEVAL SUITE \"how do refunds work?\" \"Refunds take 5 to 7 business days.\""
+    },
+    {
+      "kind": "p",
+      "text": "`THRESHOLD` moves the pass bar for an evaluator that produces a score. `EXPECT` supplies the reference text for the evaluators that compare against one. The `detail` field in each reply says what the evaluator found, which is the part to log."
+    },
+    {
+      "kind": "p",
+      "text": "Two neighbouring commands do related work at the edges of a request. `CGUARD <text>` scans input for prompt injection, jailbreaks and code injection. `COUTCHECK <text> [JSON]` scans output for personal data and toxicity, with optional JSON validation. They return a verdict meant to block or allow a single request, where `CEVAL` produces scores meant to be tracked. Both are covered in [LLM guardrails at the cache layer](/blog/cguard-input-guardrails/)."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you track eval results over time?"
+    },
+    {
+      "kind": "p",
+      "text": "Every `CEVAL` run is recorded on the Prometheus endpoint, `/metrics`, in series whose names start with `crowkis_eval_`. The endpoint uses the text exposition format, and it is served by the management server on the port one above the cache port. On a server with an admin key, send the key in the `X-Crowkis-Admin-Key` header."
+    },
+    {
+      "kind": "p",
+      "text": "Because the evaluators are deterministic, the series are clean. The same output always gets the same score, so a change in the pass rate means the outputs changed. Prometheus counters only go up ([metric types](https://prometheus.io/docs/concepts/metric_types/)), so chart the rate of passes against the rate of runs, and alert when the ratio drops. A prompt change that starts producing invalid JSON, or an upstream model update that makes answers drift off topic, shows up as a step in that line."
+    },
+    {
+      "kind": "h2",
+      "text": "How does prompt versioning work with CPROMPT?"
+    },
+    {
+      "kind": "p",
+      "text": "A prompt is production logic. It deserves the same history and rollback as code. `CPROMPT` stores named templates and creates a new version on every write."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CPROMPT SET <name> <template>\nCPROMPT GET <name> [version]\nCPROMPT LIST\nCPROMPT VERSIONS <name>\nCPROMPT ROLLBACK <name> <version>\nCPROMPT RENDER <name> [version] [VARS k=v ...]\nCPROMPT DEL <name>\nCPROMPT ABSET <name> [<v> <w> ...]\nCPROMPT AB <name> [SUBJECT id]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Subcommand",
+        "Use it to"
+      ],
+      "rows": [
+        [
+          "`SET`",
+          "Save a template. Each write creates a new version"
+        ],
+        [
+          "`GET`, `LIST`, `VERSIONS`",
+          "Read one template, list the names, or list the history of one name"
+        ],
+        [
+          "`RENDER`",
+          "Fill `{{k}}` placeholders from `VARS` and get the finished prompt"
+        ],
+        [
+          "`ROLLBACK`",
+          "Return to an earlier version"
+        ],
+        [
+          "`ABSET`",
+          "Set a weighted split across versions. With no pairs it clears the split"
+        ],
+        [
+          "`AB`",
+          "Pick a version for a request. Returns `[version, template]`"
+        ],
+        [
+          "`DEL`",
+          "Remove a named template"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Templates are stored durably in the Crowkis storage engine, so they survive a restart. You can roll back or start a test without a code deploy."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you A/B test two prompts?"
+    },
+    {
+      "kind": "p",
+      "text": "An A/B test is a randomized experiment with two variants ([Wikipedia](https://en.wikipedia.org/wiki/A/B_testing)). For prompts, the variants are two versions of one template, and the outcome you compare is an eval score."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Save both versions. Two `SET` calls on one name give you two versions, and `VERSIONS` lists their numbers.",
+        "Define the split with `ABSET`. The pairs are a version and a weight.",
+        "On each request, call `AB` with a `SUBJECT`, usually the user id. The reply is the version and its template.",
+        "Render the template, call your model, and run `CEVAL SUITE` on the output.",
+        "Record the version next to the eval result in your own logs.",
+        "When one version is clearly ahead, clear the split with `ABSET` and no pairs, or `ROLLBACK`."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CPROMPT SET support \"You are concise. Answer: {{q}}\"\nCPROMPT SET support \"You are warm and concise. Answer: {{q}}\"\nCPROMPT ABSET support 1 50 2 50\nCPROMPT AB support SUBJECT user_42\nCPROMPT RENDER support 2 VARS q=\"where is my order?\""
+    },
+    {
+      "kind": "p",
+      "text": "The assignment is sticky per subject. The same subject always gets the same version, so a user does not flip between two prompt styles from one message to the next, and their results are not spread across both arms."
+    },
+    {
+      "kind": "p",
+      "text": "Step 5 matters. The `CEVAL` syntax has no argument for a prompt version, so nothing ties an eval run to the variant that produced the output. Keep that link in your application logs or your own metric labels. The statistics are yours too: Crowkis assigns variants and scores outputs, and it does not tell you when a difference is significant."
+    },
+    {
+      "kind": "h2",
+      "text": "When are model-free evals not enough?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Factual accuracy.** No evaluator in the list checks whether an answer is true. `relevance` tells you the answer is about the question, not that it is right.",
+        "**Tone and helpfulness.** These need a reader. Use an LLM judge or a person on a sample.",
+        "**Personal data in unusual forms.** Crowkis detects personal data with cue-driven patterns. Its capability notes say that detection misses a bare name with no surrounding cue and misses non-ASCII scripts entirely. Read a `pii_leak` pass as \"nothing matched\", not \"nothing leaked\". More in [PII in an LLM cache](/blog/cpii-scrub-and-erase/).",
+        "**Subtle toxicity.** A check that uses no model cannot read intent or sarcasm.",
+        "**Small experiments.** Sticky assignment and a score are not a verdict. With little traffic, an A/B difference is noise."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The pattern that works is layered. Deterministic checks run on everything and guard the floor. A sampled judge measures quality. A [confidence score on each cache hit](/blog/a-cache-hit-is-not-a-correct-answer/) covers the answers that never reached the model at all."
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Can evals run on every production request?"
+    },
+    {
+      "kind": "p",
+      "text": "That is what they are built for. The evaluators use no model and make no network call, so a check does not add a provider round trip or a token charge. Measure the latency on your own hardware before you put the full suite in a hot path."
+    },
+    {
+      "kind": "h3",
+      "text": "Does CEVAL send my data to another service?"
+    },
+    {
+      "kind": "p",
+      "text": "No. The command reference describes the evaluators as model-free and zero-egress. The input and output you pass stay inside the Crowkis process."
+    },
+    {
+      "kind": "h3",
+      "text": "Do prompt versions and A/B splits survive a restart?"
+    },
+    {
+      "kind": "p",
+      "text": "Named templates are versioned on every write and stored durably, so they survive a restart. You can roll back to any earlier version by number."
+    },
+    {
+      "kind": "h3",
+      "text": "Where do the commands fit with the rest of Crowkis?"
+    },
+    {
+      "kind": "p",
+      "text": "`CEVAL` and `CPROMPT` run in the same server as the cache, so there is no extra service to deploy. Every command and its syntax is in the [Crowkis command reference](/blog/the-crowkis-cli-tour/)."
+    }
+  ]
+}

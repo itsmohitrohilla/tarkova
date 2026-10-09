@@ -1,0 +1,242 @@
+{
+  "slug": "cdoc-self-hosted-rag",
+  "title": "Self-hosted RAG with a semantic cache: a CDOC guide",
+  "summary": "Self-hosted RAG with a semantic cache: store and search documents with CDOC, cache the finished answer, purge it when a source changes. With limits.",
+  "keywords": [
+    "self-hosted RAG",
+    "RAG with a semantic cache",
+    "CDOC",
+    "document search",
+    "rerank",
+    "metadata filter",
+    "cache RAG answers"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/SCOPED_SEARCH_LIMITS.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/CUSTOM_EMBEDDER.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/UPGRADING_TO_0.5.2.md",
+    "README.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Self-hosted RAG with a semantic cache puts two things on your own machine: a document store that retrieves passages by meaning, and a cache that returns the finished answer when a question repeats. In Crowkis, `CDOC` is the document store, and `CSET` and `CGET` are the cache. Embedding, search and reranking all run locally, with no outside API."
+    },
+    {
+      "kind": "plain",
+      "text": "Retrieval finds the right passages. The cache remembers the answer the model wrote from them, so a repeated question skips both the retrieval and the model call."
+    },
+    {
+      "kind": "h2",
+      "text": "What does a RAG pipeline pay for on every question?"
+    },
+    {
+      "kind": "p",
+      "text": "Retrieval-augmented generation pairs a language model with an external store of documents. The original paper describes it as combining the model's parametric memory with a non-parametric memory that is retrieved at query time ([Lewis et al.](https://arxiv.org/abs/2005.11401)). In practice the model first refers to a set of documents you specify and then answers ([Wikipedia](https://en.wikipedia.org/wiki/Retrieval-augmented_generation))."
+    },
+    {
+      "kind": "p",
+      "text": "Every question runs the same steps: embed the question, search the index, perhaps rerank, build a prompt that carries the retrieved passages, and ask the model to write an answer. The first steps are cheap. The last one is not, because the context rides along on every call. When a second user asks the same thing in different words, the whole pipeline runs again and you pay for the long prompt again."
+    },
+    {
+      "kind": "p",
+      "text": "That gives you two places to act. Host the retrieval yourself, so documents never leave your machine. And cache the synthesis, so a repeated question costs nothing."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you add documents with CDOC?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CDOC ADD <id> <text> [TENANT t] [EX s] [CHUNK n] [OVERLAP m] [META k=v ...]\nCDOC SEARCH <query> [TENANT t] [K n] [FILTER k=v ...] [RERANK]"
+    },
+    {
+      "kind": "p",
+      "text": "`CDOC ADD` takes an id and the text. The options do the work a separate ingestion pipeline usually does:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`CHUNK n OVERLAP m` splits the document into overlapping chunks of roughly `n` words. Each chunk is indexed as `<id>#<i>`, and the reply is the chunk count.",
+        "`META k=v` attaches metadata fields to the document, as many pairs as you need.",
+        "`TENANT t` scopes the document to a tenant. `EX s` gives it an expiry in seconds."
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CDOC ADD policy-2026 \"<long policy text>\" TENANT acme CHUNK 200 OVERLAP 40 META team=legal year=2026"
+    },
+    {
+      "kind": "p",
+      "text": "The text is embedded by the bundled model inside the Crowkis process. The default build makes no outbound calls, so \"the documents\" can be contracts or tickets you would not send to a hosted API. The embedder itself is described in [local offline embeddings](/blog/cembed-free-local-embeddings/)."
+    },
+    {
+      "kind": "h2",
+      "text": "How do search, filters and reranking work?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CDOC SEARCH \"how long is the refund window?\" TENANT acme K 3 FILTER team=legal RERANK"
+    },
+    {
+      "kind": "p",
+      "text": "`CDOC SEARCH` returns `[id, text, score]` for the top `K` matches. Three things shape the result:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**The index.** Search runs on an HNSW graph, the approximate nearest neighbour structure introduced by [Malkov and Yashunin](https://arxiv.org/abs/1603.09320). Our [HNSW explainer](/blog/hnsw-explained-needle-in-a-million-haystacks/) covers how it trades recall for speed.",
+        "**`FILTER k=v`.** Only documents whose metadata matches all the pairs are returned. This is field-level filtering, on top of the tenant scope.",
+        "**`RERANK`.** Candidates are scored again by a local cross-encoder, the model set by `CROWKIS_CROSS_ENCODER_MODEL`. The default one is bundled and is named crowjudge."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Reranking is a second, slower, more careful read. An embedding model encodes the question and each passage separately, which is what makes index search possible. A cross-encoder reads the question and one passage together. The Sentence-BERT paper explains the cost: feeding every pair through the network is too expensive to run over a whole collection, which is why embeddings do the first pass ([Reimers and Gurevych](https://arxiv.org/abs/1908.10084)). Running the cross-encoder only on the shortlist gives you its precision on question-to-passage matching without that cost."
+    },
+    {
+      "kind": "h2",
+      "text": "Why does the filter run inside the index?"
+    },
+    {
+      "kind": "p",
+      "text": "A document store that shares an index with a large cache has a specific failure. If the search finds the globally nearest vectors first and applies the tenant or metadata filter afterwards, a small document set can vanish. Every one of the nearest results belongs to something else, the filter removes them all, and the search returns nothing."
+    },
+    {
+      "kind": "p",
+      "text": "This was a real defect in Crowkis before version 0.5.2. On a test fixture, 0 of 200 queries reached their answer, with eight thousand and with one hundred thousand competing vectors in the index, while the correct passage sat at 0.94 similarity. The fix pushes the scope filter down into the graph traversal. The same fixture now returns 200 of 200."
+    },
+    {
+      "kind": "p",
+      "text": "The fix has a stated ceiling. A scoped search is a bounded walk with a budget of 16,384 node visits. A passage sitting behind more than roughly sixteen thousand nearer out-of-scope vectors can still be missed. The budget is a constant, not a setting, because without it a sparse scope makes the search walk the whole graph, and the cost of a query then grows with the index instead of with your documents. Scoped search is not exact nearest neighbour within the scope, and you should not plan as if it were."
+    },
+    {
+      "kind": "h2",
+      "text": "Where does the semantic cache fit?"
+    },
+    {
+      "kind": "p",
+      "text": "In front of everything. Check the cache before retrieval runs:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`CGET` the question. On a hit, return the answer. No retrieval, no prompt, no model call.",
+        "On a miss, run `CDOC SEARCH`, build the prompt and call the model.",
+        "`CSET` the question and the answer. Every write passes the anti-poisoning pipeline before it is accepted.",
+        "`CSOURCE LINK` the cached answer to the document it was built from.",
+        "When the document changes, `CSOURCE PURGE` removes every answer linked to it."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CGET \"how long is the refund window?\" TENANT acme\nCDOC SEARCH \"how long is the refund window?\" TENANT acme K 3 RERANK\nCSET \"how long is the refund window?\" \"Refunds are accepted within 30 days.\" EX 86400 TENANT acme\nCSOURCE LINK policy-2026 \"how long is the refund window?\" TENANT acme\nCSOURCE PURGE policy-2026 TENANT acme"
+    },
+    {
+      "kind": "p",
+      "text": "Step 4 answers the usual objection, \"my documents change\". A time to live set with `EX` covers slow drift. `CSOURCE PURGE` covers the edit you know about. One warning: the management API has a webhook endpoint for invalidation that records the request and purges nothing, so do not rely on it. Use `CSOURCE PURGE`. The full picture is in [cache invalidation and freshness](/blog/freshness-hamlet-vs-stock-price/)."
+    },
+    {
+      "kind": "p",
+      "text": "The two layers store different things:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "",
+        "CDOC",
+        "Semantic cache"
+      ],
+      "rows": [
+        [
+          "Stores",
+          "Document chunks with metadata",
+          "A question and the answer the model wrote"
+        ],
+        [
+          "Looked up by",
+          "Meaning of the query, within tenant and filter",
+          "Meaning and structure of the question, within tenant"
+        ],
+        [
+          "A hit gives you",
+          "Passages to put in a prompt",
+          "The final answer"
+        ],
+        [
+          "Removed by",
+          "Expiry set with `EX`",
+          "Expiry, or `CSOURCE PURGE` when the source changes"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Caching the synthesis saves cost because a repeated question never reaches the provider. The saving grows with how repetitive your questions are, and a RAG call is a large one to avoid. More on that in [how to cut LLM API costs](/blog/cut-llm-api-costs-semantic-caching/)."
+    },
+    {
+      "kind": "h2",
+      "text": "When should you not use CDOC?"
+    },
+    {
+      "kind": "p",
+      "text": "CDOC is described in the command reference as a mini vector store. Take that at face value."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Large corpora.** The largest index ever verified is 1.18M vectors, and nothing above that has worked. Documents and cache entries share that index. For a big corpus, run a dedicated database and keep Crowkis as the cache in front of it. See [semantic cache vs vector database](/blog/semantic-cache-vs-vector-database/).",
+        "**Documents that must keep personal data verbatim.** The document store can be read by the whole tenant, so redaction always runs before storage. It is pattern based, and it replaces what it detects with placeholders. A contact list will not come back the way it went in.",
+        "**Structure-aware chunking.** `CHUNK` splits by word count with overlap. It does not know about headings, tables or code. If your documents need that, chunk them yourself and add each piece with its own id.",
+        "**Deleting single documents.** The documented surface is `ADD` and `SEARCH`. There is no documented delete, so give documents an expiry with `EX` if they can go out of date.",
+        "**Scopes buried in a huge shared index.** The visit budget above applies. A fixed, known partition is better served by its own index.",
+        "**Throughput you have not measured.** Each search embeds the query on the CPU. Embedding, not graph search, is the dominant cost of a cold semantic read in the published measurements, so test with your own load."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Do I need a separate vector database for RAG?"
+    },
+    {
+      "kind": "p",
+      "text": "Not if your document set is small enough to sit beside the cache. `CDOC` covers adding, chunking, metadata filters and reranking in the same process. Past the verified scale, or when you need exact search inside a scope, use a dedicated vector database."
+    },
+    {
+      "kind": "h3",
+      "text": "Does CDOC call an embedding API?"
+    },
+    {
+      "kind": "p",
+      "text": "No. Documents and queries are embedded by the model bundled with Crowkis, and reranking uses a local cross-encoder. You can replace either with your own ONNX model through `CROWKIS_EMBED_MODEL` and `CROWKIS_CROSS_ENCODER_MODEL`."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I stop the cache serving an answer after a document changes?"
+    },
+    {
+      "kind": "p",
+      "text": "Link each cached answer to its source with `CSOURCE LINK` when you write it. When the document changes, run `CSOURCE PURGE` with the same source id. Links are persistent and scoped to the tenant."
+    },
+    {
+      "kind": "h3",
+      "text": "Is CDOC part of the free edition?"
+    },
+    {
+      "kind": "p",
+      "text": "Yes. `CDOC` is marked free in the [command reference](/blog/the-crowkis-cli-tour/), so it ships in both Docker images."
+    }
+  ]
+}

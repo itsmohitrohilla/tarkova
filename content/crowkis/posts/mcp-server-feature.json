@@ -1,0 +1,276 @@
+{
+  "slug": "mcp-server-feature",
+  "title": "MCP server for caching and memory in Claude Code",
+  "summary": "An MCP server for caching and memory: connect Claude Code or any coding agent to Crowkis, scope it to a tenant, share it with a team, know the limits.",
+  "keywords": [
+    "MCP server for caching and memory",
+    "Crowkis MCP",
+    "Claude Code MCP server",
+    "coding agent memory",
+    "crowkis mcp",
+    "MCP cache",
+    "CROWKIS_TENANT"
+  ],
+  "sources": [
+    "crowkis.docs/UPGRADING_TO_0.5.2.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "README.md",
+    "tarkova:src/site/products.js"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "An MCP server for caching and memory gives an AI assistant two abilities it can call as tools: look up an answer that has already been computed, and remember facts between sessions. Crowkis ships one as the `crowkis mcp` subcommand. Claude Code, or any other MCP client, launches it as a local process scoped to the tenant you configure."
+    },
+    {
+      "kind": "plain",
+      "text": "Usually your code wraps the model with a cache. With MCP the assistant holds the cache and the memory as tools and decides when to use them. That is how you add both to an agent whose code you do not control."
+    },
+    {
+      "kind": "h2",
+      "text": "What is MCP, and why put a cache behind it?"
+    },
+    {
+      "kind": "p",
+      "text": "MCP, the Model Context Protocol, is an open-source standard for connecting AI applications to external systems ([introduction](https://modelcontextprotocol.io/introduction)). A server exposes tools. The specification calls tools model-controlled: the language model can discover and invoke them automatically, based on its understanding of the context and the user's prompt ([tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools))."
+    },
+    {
+      "kind": "p",
+      "text": "Messages are encoded as JSON-RPC. For a server that runs on your machine the transport is stdio: the client launches the server as a subprocess, writes requests to its standard input and reads responses from its standard output ([transports](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports))."
+    },
+    {
+      "kind": "p",
+      "text": "A cache belongs behind that interface because assistants repeat work. Everyone on a team asks the same questions about the same repository. Each session starts cold and pays again for an explanation a colleague's session produced yesterday. In your own application you would wrap the model call with a cache. An assistant such as Claude Code makes its model calls in code you do not own, so there is no place to add that wrapper. MCP gives the assistant the cache as a tool instead."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you connect Claude Code to Crowkis?"
+    },
+    {
+      "kind": "p",
+      "text": "One command registers the server:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "claude mcp add --env CROWKIS_TENANT=my-team crowkis -- crowkis mcp"
+    },
+    {
+      "kind": "p",
+      "text": "The shape is `claude mcp add [options] <name> -- <command> [args...]`. Everything after the double dash is the command that runs the server, and `--env` sets a variable in that server's environment ([Claude Code MCP documentation](https://docs.claude.com/en/docs/claude-code/mcp)). Other MCP clients take the same information as a JSON block:"
+    },
+    {
+      "kind": "code",
+      "title": "json",
+      "code": "{\"mcpServers\": {\"crowkis\": {\"command\": \"crowkis\", \"args\": [\"mcp\"],\n  \"env\": {\"CROWKIS_TENANT\": \"your-tenant\"}}}}"
+    },
+    {
+      "kind": "p",
+      "text": "Check the result with `claude mcp list`, or with `/mcp` inside a session. The `/mcp` panel shows each connected server with its tool count. Because the client starts the server as a subprocess, the `crowkis` binary has to be runnable on the machine where the client runs. `mcp` is a subcommand of the same binary that runs `crowkis server`, so there is no separate package to install."
+    },
+    {
+      "kind": "h2",
+      "text": "Why does the server require a tenant?"
+    },
+    {
+      "kind": "p",
+      "text": "Since version 0.5.2, `crowkis mcp` exits with a clear message if no tenant is configured. The exit code is 1 and the message names the variable."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Variable",
+        "Required",
+        "What it does"
+      ],
+      "rows": [
+        [
+          "`CROWKIS_TENANT`",
+          "yes",
+          "Sets the tenant every read and write of this server process belongs to"
+        ],
+        [
+          "`CROWKIS_USER`",
+          "no",
+          "Sub-scopes agent memory to one user inside that tenant"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The reasoning is worth copying into any tool server you write yourself. Tools are model-controlled, so every tool argument is a value the model chooses. A tenant passed as an argument would let the agent pick its own boundary, and that is not an authorisation decision. A variable in the process environment is chosen by the person who wrote the configuration."
+    },
+    {
+      "kind": "p",
+      "text": "Before this change the server sent no tenant at all, so every agent shared one bucket. If you run a single-tenant deployment, set any one name, for example `CROWKIS_TENANT=default`. How tenants are kept apart inside the engine is covered in [tenant isolation](/blog/tenant-isolation-architecture/)."
+    },
+    {
+      "kind": "h2",
+      "text": "What can the agent do once it is connected?"
+    },
+    {
+      "kind": "p",
+      "text": "Two things, both backed by the same engine your services would use."
+    },
+    {
+      "kind": "p",
+      "text": "**Cache.** The agent can ask whether a question has a stored answer, and store one after it has computed it. Lookups match by meaning and structure, and Crowkis applies confidence, freshness and safety checks before it reuses anything, as [what a semantic cache is](/blog/what-is-a-semantic-cache-for-llms/) explains. Writes get no shortcut for being made by an assistant. Every cache write passes the five-stage anti-poisoning pipeline, and a pair whose answer does not fit its question is rejected. An agent that tries to store a confused answer is refused in the same way a careless script would be. See [cache poisoning](/blog/cache-poisoning-is-the-whole-problem/)."
+    },
+    {
+      "kind": "p",
+      "text": "**Memory.** The agent can keep facts that outlive the session: the conventions of a codebase, a user's preferences, a decision made last week. Memory is recalled by relevance blended with recency, and a new fact that contradicts an old one retires it. The model behind that is in [long-term memory for AI agents](/blog/your-ai-agent-has-amnesia/)."
+    },
+    {
+      "kind": "p",
+      "text": "The exact tool names are whatever the server advertises. Clients discover them through the protocol's tool listing request, and in Claude Code you read them in the `/mcp` panel."
+    },
+    {
+      "kind": "p",
+      "text": "One practical step makes the difference between a registered server and a used one. Because the model decides when to call a tool, tell it when. A line in your project instructions works: before answering a question about this codebase, check the Crowkis cache, and after answering a new one, store the answer."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you share one cache across a team?"
+    },
+    {
+      "kind": "p",
+      "text": "Give everyone the same tenant. One developer's answered question then becomes a cache hit for the next person who asks it, in whatever words. That saves cost, and the saving grows with how often a team repeats itself."
+    },
+    {
+      "kind": "p",
+      "text": "Claude Code has three places to store a server definition, and its documentation lists them:"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Scope",
+        "Loads in",
+        "Shared",
+        "Stored in"
+      ],
+      "rows": [
+        [
+          "Local, the default",
+          "the current project only",
+          "no",
+          "`~/.claude.json`"
+        ],
+        [
+          "Project",
+          "the current project only",
+          "yes, through version control",
+          "`.mcp.json` in the project root"
+        ],
+        [
+          "User",
+          "all your projects",
+          "no",
+          "`~/.claude.json`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "For a team, add the server with `--scope project` and commit `.mcp.json`. Keep the tenant in that file. Do not hard-code one person's `CROWKIS_USER` in it. Claude Code expands `${VAR}` and `${VAR:-default}` inside the `env` block of `.mcp.json`, so each developer's own environment can supply the user while the tenant stays shared."
+    },
+    {
+      "kind": "p",
+      "text": "Two things to plan for:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Tenants per project.** A tenant per repository keeps one project's answers out of another's. The Community edition allows up to three tenants, so decide early whether you split by project or by team.",
+        "**Stale answers.** Code changes, and an explanation of last month's code is wrong today. Write entries with an expiry, and clear a topic from any RESP3 client when it changes. `CINVALIDATE \"<instruction>\" TENANT t` previews what it would purge until you add `COMMIT`, and `CFLUSH TENANT t` clears one tenant. See [cache invalidation and freshness](/blog/freshness-hamlet-vs-stock-price/)."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "MCP, SDK or gateway: which integration fits?"
+    },
+    {
+      "kind": "p",
+      "text": "Crowkis has more than one front door. The choice depends on who should decide that the cache gets checked."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Integration",
+        "Who decides to use the cache",
+        "Fits"
+      ],
+      "rows": [
+        [
+          "MCP server, `crowkis mcp`",
+          "the model, as a tool call",
+          "Claude Code and other assistants whose code you do not control"
+        ],
+        [
+          "SDK or RESP3 commands",
+          "your code, on every request",
+          "applications you write, where a cache-first flow must be deterministic"
+        ],
+        [
+          "AI gateway",
+          "the proxy, on every request",
+          "existing OpenAI-compatible clients, with no code change"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The gateway is described in [the OpenAI-compatible AI gateway](/blog/ai-gateway-openai-compatible/), and the commands in the [Crowkis command reference](/blog/the-crowkis-cli-tour/)."
+    },
+    {
+      "kind": "h2",
+      "text": "When should you not use the MCP server?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**When every request must hit the cache.** Tool use is the model's choice. Some questions will be answered without a lookup. If you need a guarantee, put the cache in the request path with the gateway or the SDK.",
+        "**When the tenant must change per request.** One server process has one tenant, fixed in its environment. That is the point of the design, and it also means a single process cannot serve several customers.",
+        "**When you have not decided who may write.** A shared cache is shared content. An answer stored by one agent is read by every teammate's agent. Tenant scoping and the write pipeline are the controls, and the MCP specification adds a third: there should always be a human in the loop with the ability to deny a tool invocation. Claude Code's documentation also tells you to verify that you trust each server before you connect it.",
+        "**When you need a remote endpoint.** The documented setup is a command-launched local process. No hosted HTTP endpoint for MCP is described in the docs."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Does the Crowkis MCP server work with clients other than Claude Code?"
+    },
+    {
+      "kind": "p",
+      "text": "It should work with any client that can launch a local server from a command, arguments and an environment block, which is what the JSON configuration above describes. MCP is an open standard, and its specification says clients should support stdio whenever possible."
+    },
+    {
+      "kind": "h3",
+      "text": "Why does crowkis mcp exit as soon as it starts?"
+    },
+    {
+      "kind": "p",
+      "text": "No tenant is configured. Since 0.5.2 the server exits with code 1 and names the variable. Set `CROWKIS_TENANT` in the server's environment, through `--env` or the `env` block."
+    },
+    {
+      "kind": "h3",
+      "text": "Is agent memory shared between everyone on the tenant?"
+    },
+    {
+      "kind": "p",
+      "text": "Only if you leave it unscoped. Set `CROWKIS_USER` and memory is sub-scoped to that user. Memory written with no user lands in a bucket the whole tenant can read, which is why Crowkis redacts personal data from it before storage."
+    },
+    {
+      "kind": "h3",
+      "text": "Do I need a second service for MCP?"
+    },
+    {
+      "kind": "p",
+      "text": "No extra package. `mcp` is a subcommand of the `crowkis` binary, alongside `server` and `doctor`. Product details and the Docker image are on the [Crowkis page](/crowkis/)."
+    }
+  ]
+}

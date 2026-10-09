@@ -1,0 +1,550 @@
+{
+  "slug": "the-crowkis-cli-tour",
+  "title": "Crowkis command reference: every command by purpose",
+  "summary": "The Crowkis command reference, grouped by purpose: cache, freshness, trust, memory, reasoning, documents, prompts, cost and operations, with syntax.",
+  "keywords": [
+    "Crowkis command reference",
+    "Crowkis commands",
+    "CSET",
+    "CGET",
+    "CINVALIDATE",
+    "CMEMSET",
+    "CDOC",
+    "semantic cache commands"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/DOCKER_USER_GUIDE.md",
+    "crowkis.docs/UPGRADING_TO_0.5.2.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "README.md",
+    "tarkova:src/site/products.js"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "The Crowkis command reference covers two families on one RESP3 wire: the standard key-value commands your existing clients already send, and the Crowkis-native `C*` commands that add the semantic cache, agent memory, document search, guardrails and cost controls. This page groups every native command by what it is for, with its syntax and when to use it."
+    },
+    {
+      "kind": "plain",
+      "text": "If a client can send `GET` and `SET` over RESP3, it can send every command on this page. There is no separate client to install, and the syntax below is the whole interface."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you connect and run a command?"
+    },
+    {
+      "kind": "p",
+      "text": "Start the server, then connect with any RESP3 client."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "crowkis server --port 6383 --data ./crowkis.data"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Port",
+        "Purpose"
+      ],
+      "rows": [
+        [
+          "6383",
+          "cache protocol, where every command on this page is sent"
+        ],
+        [
+          "6384",
+          "dashboard and management HTTP, loopback only by default"
+        ],
+        [
+          "6385",
+          "gRPC"
+        ],
+        [
+          "6386",
+          "health probes, `/livez` and `/readyz`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The last three ports are derived from the cache port as +1, +2 and +3, so `--port N` moves all four together. These are the ports since version 0.5.2. Earlier images listen on 6379, which is what the public [quickstart](https://www.crowkis.com/docs/quickstart) still shows, along with the bundled REPL, `crowkis cli`. The official image is on [Docker Hub](https://hub.docker.com/r/crowkis/crowkis), and [the five-minute deploy](/blog/five-minute-deploy/) walks through a first run."
+    },
+    {
+      "kind": "p",
+      "text": "Three things to know before the first command:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Auth.** Set `CROWKIS_AUTH_TOKEN` before you expose the cache port. With no token, a connection from a non-loopback address is refused with `-DENIED` on every command except `QUIT`.",
+        "**Options are keywords.** `TENANT`, `MODEL`, `MODEL_VERSION`, `EX`, `THRESHOLD`, `WITHCONFIDENCE`, `WITHROUTE`, `IMAGE`, `INTENT`, `MATCH`, `COUNT`, `RPM` and `TPM` are argument keywords, not commands. They follow the positional arguments.",
+        "**A miss is null.** `CGET`, `CSTALE`, `CREUSE` and `CTOOLGET` return null when there is nothing to serve. Treat null as \"call the model\"."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The binary has a few subcommands besides `server`: `crowkis doctor` checks an install, `crowkis init` writes a config file with only the keys the server accepts, and `crowkis mcp` runs the [MCP server](/blog/mcp-server-feature/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Cache: store and look up answers"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSET query response [EX secs] [TENANT t] [MODEL m] [MODEL_VERSION v] [IMAGE b64]\nCGET query [THRESHOLD f] [TENANT t] [MODEL m] [MODEL_VERSION v] [WITHCONFIDENCE] [WITHROUTE] [IMAGE b64]\nCSIM query1 query2\nCSTALE query [TENANT t]\nCIMGGET query IMAGE b64\nCSCAN cursor [MATCH p] [COUNT n] [INTENT class]\nCVECCOUNT"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CSET`",
+          "You have a fresh model answer to store. Every write passes the five-stage anti-poisoning pipeline, and incoherent pairs are rejected"
+        ],
+        [
+          "`CGET`",
+          "Before every model call. It hits on an exact, vector, structural or dual match"
+        ],
+        [
+          "`CGET ... WITHCONFIDENCE`",
+          "You want the trust signals behind a hit, to apply your own rule"
+        ],
+        [
+          "`CGET ... WITHROUTE`",
+          "You want a routing hint from the confidence score: cache, cheap or expensive"
+        ],
+        [
+          "`CSIM`",
+          "You are calibrating a threshold and need the similarity of two queries"
+        ],
+        [
+          "`CSTALE`",
+          "An expired answer plus a background refresh beats a cold miss. It returns the answer with a `stale` flag and the remaining TTL"
+        ],
+        [
+          "`CIMGGET`",
+          "The question includes an image"
+        ],
+        [
+          "`CSCAN`",
+          "You need to walk entries by cursor, optionally filtered by intent class"
+        ],
+        [
+          "`CVECCOUNT`",
+          "You want the live count of entries in the vector index"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "`CSTALE` follows the idea HTTP caches call stale-while-revalidate, defined in [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861.html). Large cached responses can also be streamed in chunks through `CROWKIS.STREAM`. How matching works is in [what a semantic cache is](/blog/what-is-a-semantic-cache-for-llms/), and the scoring in [a cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Freshness: remove what is no longer true"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSOURCE LINK|PURGE|LIST source_id [query] [TENANT t]\nCINVALIDATE instruction [TENANT t] [THRESHOLD f] [LIMIT n] [COMMIT]\nCNOTICE ADD text [EX seconds] [PREVIEW] [TENANT t]\nCNOTICE LIST [TENANT t]\nCNOTICE CLEAR id [TENANT t]\nCDECISION query [TENANT t]\nCFLUSH [TENANT t]\nCDEDUP\nCWHYEVICT query [TENANT t]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CSOURCE LINK`",
+          "You cache an answer built from a document and want to remember which one"
+        ],
+        [
+          "`CSOURCE PURGE`",
+          "That document changed. Every linked answer is removed"
+        ],
+        [
+          "`CINVALIDATE`",
+          "You can describe what is outdated in plain English. It previews by default and purges only with `COMMIT`"
+        ],
+        [
+          "`CNOTICE ADD`",
+          "Something changed right now, such as \"we close at 3pm today\". It checks up to 32 nearby cached answers"
+        ],
+        [
+          "`CNOTICE LIST`, `CLEAR`",
+          "You need to see or end the active notices. A tenant can hold 8, of 512 bytes each"
+        ],
+        [
+          "`CDECISION`",
+          "The decision engine is on and you want its verdict on one exact question. Read-only"
+        ],
+        [
+          "`CFLUSH`",
+          "You want to clear the whole semantic cache, or one tenant with `TENANT`"
+        ],
+        [
+          "`CDEDUP`",
+          "You want to fold near-duplicate entries on demand. It reports clusters and memory reclaimed"
+        ],
+        [
+          "`CWHYEVICT`",
+          "You want an entry's retention score, pin status and component weights"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Two honest notes. `CNOTICE ADD` with `PREVIEW` reports matches without removing anything, and `EX` on a notice needs the opt-in decision engine. And there is no eviction scheduler over cache entries: they leave by TTL expiry or explicit delete, so `CWHYEVICT` explains a score, not a pending removal. See [cache invalidation and freshness](/blog/freshness-hamlet-vs-stock-price/) and [cache eviction for LLM answers](/blog/smart-semantic-eviction/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Trust: pins, flags, guardrails and personal data"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CPIN query answer [BY who] [TENANT t]\nCPINGET query [TENANT t] [THRESHOLD f]\nCPINLIST [TENANT t]\nCUNPIN query [TENANT t]\nCFLAG query bad_answer [REASON r] [TENANT t]\nCCHECKBAD query [TENANT t] [THRESHOLD f]\nCGUARD <text>\nCOUTCHECK <text> [JSON]\nCPII REPORT [TENANT t]\nCPII ERASE id (TENANT t|ALL) [COMMIT]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CPIN`",
+          "One approved wording must be served verbatim for any phrasing, with a record of who approved it"
+        ],
+        [
+          "`CPINGET`",
+          "Before generation, to check for a pinned answer. It returns the answer and who pinned it"
+        ],
+        [
+          "`CPINLIST`, `CUNPIN`",
+          "You audit the pinned answers, or remove one"
+        ],
+        [
+          "`CFLAG`",
+          "An answer turned out wrong. It goes into a negative cache that `CGET` never reads"
+        ],
+        [
+          "`CCHECKBAD`",
+          "Before serving, to see whether a question matches a flagged answer. It returns the query, the bad answer and the reason"
+        ],
+        [
+          "`CGUARD`",
+          "You scan input for prompt injection, jailbreaks and code injection. The reply is a verdict, a category and the match"
+        ],
+        [
+          "`COUTCHECK`",
+          "You scan output for leaked personal data and toxicity, with JSON validation if you add `JSON`"
+        ],
+        [
+          "`CPII REPORT`",
+          "You need the scrub report for a tenant"
+        ],
+        [
+          "`CPII ERASE`",
+          "Someone asks to be erased. It previews unless you add `COMMIT`, and it covers pinned answers"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Background: [cache poisoning](/blog/cache-poisoning-is-the-whole-problem/), [guardrails at the cache layer](/blog/cguard-input-guardrails/) and [PII scrubbing and erasure](/blog/cpii-scrub-and-erase/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Agent memory and sessions"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CMEMSET agent fact [USER u] [EX secs]\nCMEMGET agent query [USER u] [K n]\nCMEMEXTRACT agent \"<conversation>\" [USER u] [EX secs]\nCMEMHISTORY agent query [USER u] [K n]\nCMEMASOF agent query unix_ms [USER u] [K n]\nCMEMFORGET agent [query] [USER u] [THRESHOLD f]\nCMEMLINK agent subject relation object [USER u]\nCMEMGRAPH agent entity [USER u] [DEPTH d]\nCSESSION ADD s role text [EX secs]\nCSESSION RECENT s [N n]\nCSESSION SEARCH s query [K n]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CMEMSET`",
+          "The agent learns a durable fact about a user. A contradicting fact retires the old one"
+        ],
+        [
+          "`CMEMGET`",
+          "The agent needs the top facts for a question, ranked by relevance blended with recency"
+        ],
+        [
+          "`CMEMEXTRACT`",
+          "You have a chunk of conversation and want the durable facts pulled out without a model call"
+        ],
+        [
+          "`CMEMHISTORY`",
+          "You need retired versions too, each marked current or superseded"
+        ],
+        [
+          "`CMEMASOF`",
+          "You need what memory believed at a given instant, in Unix milliseconds"
+        ],
+        [
+          "`CMEMFORGET`",
+          "A user's facts must go: those matching a query, or all of them"
+        ],
+        [
+          "`CMEMLINK`, `CMEMGRAPH`",
+          "You store relationships as edges and walk them to a depth"
+        ],
+        [
+          "`CSESSION`",
+          "You keep a conversation buffer: `ADD` a turn, read the `RECENT` ones, or `SEARCH` all of them by meaning"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Every `CMEM*` command also takes an optional `TOPIC <t>`, which files a fact in a room and limits recall to it. The full model is in [long-term memory for AI agents](/blog/your-ai-agent-has-amnesia/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Reasoning and tool results"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CTHINK query cot-trace [TENANT t] [MODEL m] [MODEL_VERSION v]\nCREUSE query [TENANT t] [MODEL m] [MODEL_VERSION v]\nCTOOLSET tool args result [EX secs] [TENANT t]\nCTOOLGET tool args [TENANT t]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CTHINK`",
+          "The model wrote out a derivation with at least two steps and the same question will return with other values"
+        ],
+        [
+          "`CREUSE`",
+          "The same question arrives with different values. It does not fire on a rephrasing"
+        ],
+        [
+          "`CTOOLSET`",
+          "A tool call is deterministic and repeated. The key is the tool plus its exact arguments"
+        ],
+        [
+          "`CTOOLGET`",
+          "Before running a tool, to check for a stored result with those exact arguments"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Details: [caching chain-of-thought reasoning](/blog/reasoning-reuse-chain-of-thought/) and [agent unit economics](/blog/agent-unit-economics/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Documents and embeddings"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CDOC ADD <id> <text> [TENANT t] [EX s] [CHUNK n] [OVERLAP m] [META k=v ...]\nCDOC SEARCH <query> [TENANT t] [K n] [FILTER k=v ...] [RERANK]\nCEMBED text"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CDOC ADD`",
+          "You add a document for retrieval. `CHUNK` and `OVERLAP` split it, and `META` tags it"
+        ],
+        [
+          "`CDOC SEARCH`",
+          "You retrieve passages by meaning. `FILTER` narrows by metadata and `RERANK` re-scores with the local cross-encoder"
+        ],
+        [
+          "`CEMBED`",
+          "You want the raw vector for a text from the bundled model, with no outside API"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Guides: [self-hosted RAG with CDOC](/blog/cdoc-self-hosted-rag/) and [local offline embeddings](/blog/cembed-free-local-embeddings/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Prompts and evals"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CPROMPT SET <name> <template>\nCPROMPT GET <name> [version]\nCPROMPT LIST\nCPROMPT VERSIONS <name>\nCPROMPT ROLLBACK <name> <version>\nCPROMPT RENDER <name> [version] [VARS k=v ...]\nCPROMPT DEL <name>\nCPROMPT ABSET <name> [<v> <w> ...]\nCPROMPT AB <name> [SUBJECT id]\nCEVAL <evaluator> <input> <output> [EXPECT t] [THRESHOLD f]\nCEVAL SUITE <input> <output> [EXPECT t]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CPROMPT SET`, `GET`, `VERSIONS`",
+          "You manage prompts as named templates that gain a version on every write"
+        ],
+        [
+          "`CPROMPT RENDER`",
+          "You fill `{{k}}` placeholders and get the finished prompt"
+        ],
+        [
+          "`CPROMPT ROLLBACK`",
+          "A new version performs worse and you want the earlier one back"
+        ],
+        [
+          "`CPROMPT ABSET`, `AB`",
+          "You split traffic across versions by weight. Assignment is sticky per subject"
+        ],
+        [
+          "`CEVAL`",
+          "You score one output with one model-free evaluator"
+        ],
+        [
+          "`CEVAL SUITE`",
+          "You run the evaluators together and track the results on `/metrics`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The evaluators are `non_empty`, `json_valid`, `toxicity`, `pii_leak`, `injection_safe`, `answered`, `exact_match`, `contains` and `relevance`. See [online LLM evals without an LLM judge](/blog/ceval-online-evals/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Cost and limits"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CBUDGET GET|SET|RESET|ALERTS <tenant> [DAILY usd] [MONTHLY usd] [COST per-1k] [ALERT pct] [CIRCUIT pct]\nCKEYLIMIT SET|GET|DEL tenant [RPM n] [TPM n]"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CBUDGET`",
+          "You set or read a tenant's daily and monthly budget. The AI gateway enforces it, with a hard 402 block on upstream calls past the circuit breaker"
+        ],
+        [
+          "`CKEYLIMIT`",
+          "You cap a tenant's requests and tokens per minute on the `CGET` and `CSET` fast path. Enterprise only"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The gateway that enforces budgets is described in [the OpenAI-compatible AI gateway](/blog/ai-gateway-openai-compatible/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Operations"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CINFO [section]\nCSAVE dest\nCBGSAVE dest\nCRELOAD"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Command",
+        "Use it when"
+      ],
+      "rows": [
+        [
+          "`CINFO`",
+          "You want server state. Sections: server, cache, savings, security, db, license"
+        ],
+        [
+          "`CSAVE`",
+          "You need a `.crowkbak` snapshot that is on disk before the reply returns"
+        ],
+        [
+          "`CBGSAVE`",
+          "You want the snapshot in the background. It replies `+BGSAVE-STARTED` at once"
+        ],
+        [
+          "`CRELOAD`",
+          "You replaced the license file and want it loaded with no dropped connections"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Which standard commands work?"
+    },
+    {
+      "kind": "p",
+      "text": "The drop-in surface covers what an application normally sends: strings (`GET`, `SET` with its expiry and condition options, `MGET`, `MSET`, `APPEND`), counters (`INCR`, `DECR`, `INCRBY`), hashes, lists, sets, sorted sets, streams, pub/sub, key and TTL commands (`DEL`, `EXISTS`, `SCAN`, `EXPIRE`, `TTL`, `PERSIST`), and the connection and server commands (`HELLO`, `AUTH`, `PING`, `INFO`, `CONFIG`). `HELLO` negotiates RESP2 or RESP3. Pub/sub fans out inside one instance, with no cross-node bus. The public [commands documentation](https://www.crowkis.com/docs/commands) lists the standard commands by group."
+    },
+    {
+      "kind": "p",
+      "text": "One number to keep straight: a plain `GET` and a semantic `CGET` are not the same speed. `CGET` embeds the query first, and that embedding is the dominant cost of a cold semantic read."
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Do I need a special client to send Crowkis commands?"
+    },
+    {
+      "kind": "p",
+      "text": "No. Any client that speaks RESP3 can send both families, and your existing clients connect unmodified. The Python and Node SDKs wrap the same commands in methods if you prefer that."
+    },
+    {
+      "kind": "h3",
+      "text": "Which Crowkis commands are paid?"
+    },
+    {
+      "kind": "p",
+      "text": "One. `CKEYLIMIT` is marked Enterprise. Every other command on this page is marked free and ships identically in both Docker images. A paid command is compiled out of the free binary and answers with an upgrade pointer, never a silent no-op."
+    },
+    {
+      "kind": "h3",
+      "text": "Which commands delete data, and do they preview first?"
+    },
+    {
+      "kind": "p",
+      "text": "`CINVALIDATE` and `CPII ERASE` preview by default and act only with `COMMIT`. `CNOTICE ADD` has a `PREVIEW` option. `CFLUSH`, `CSOURCE PURGE`, `CUNPIN` and `CMEMFORGET` act as soon as you send them, so scope them with `TENANT` or `USER`."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I scope a command to one tenant?"
+    },
+    {
+      "kind": "p",
+      "text": "Add `TENANT t` to the command. Entries carry the tenant they were written under and lookups stay inside it. Tenant names keep their case, and a name containing `:` or `~` is rejected at the wire. The Community edition allows up to three tenants. The product overview is on the [Crowkis page](/crowkis/)."
+    }
+  ]
+}

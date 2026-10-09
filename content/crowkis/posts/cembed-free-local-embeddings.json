@@ -1,0 +1,284 @@
+{
+  "slug": "cembed-free-local-embeddings",
+  "title": "Local offline embeddings for a semantic cache (CEMBED)",
+  "summary": "Local offline embeddings for a semantic cache: how Crowkis embeds in process, what CEMBED returns, how to swap the model, and what is not measured.",
+  "keywords": [
+    "local offline embeddings",
+    "CEMBED",
+    "semantic cache embeddings",
+    "ONNX embedding model",
+    "self-hosted embeddings",
+    "custom embedder",
+    "sentence embeddings"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CUSTOM_EMBEDDER.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "README.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Local offline embeddings for a semantic cache means the model that turns a question into a vector runs inside the cache process, so no prompt leaves your network and no embedding API is billed. Crowkis bundles an ONNX embedding model with 384 dimensions, uses it for every semantic lookup, and exposes it directly as the `CEMBED` command."
+    },
+    {
+      "kind": "plain",
+      "text": "A semantic cache has to understand a question before it can look it up. If that understanding is a call to someone else's API, every lookup costs money and sends the prompt away. A bundled model does the same job on your own machine."
+    },
+    {
+      "kind": "h2",
+      "text": "Why does a semantic cache need an embedding model?"
+    },
+    {
+      "kind": "p",
+      "text": "A semantic cache matches questions by meaning, and meaning has to be turned into something a computer can compare. That something is an embedding: a vector of numbers where the distance between two vectors measures how related the texts are. OpenAI's guide puts it the same way, small distances suggest high relatedness, and gives 1536 as the default vector length of its small embedding model ([embeddings guide](https://platform.openai.com/docs/guides/embeddings))."
+    },
+    {
+      "kind": "p",
+      "text": "The cache embeds every incoming question, then searches its index for stored questions whose vectors are close. Closeness is usually measured by [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity). The background on how that works is in [what a semantic cache is](/blog/what-is-a-semantic-cache-for-llms/)."
+    },
+    {
+      "kind": "p",
+      "text": "The question is where the embedding runs. If the cache calls a hosted embedding API, three things happen on every single lookup, including the ones that end in a cache hit:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "A network round trip is added before the cache can answer.",
+        "The provider meters the text you sent.",
+        "The user's prompt leaves your infrastructure."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "You would be adding an embedding bill, and an outside dependency, in order to avoid a model bill. A local model removes all three."
+    },
+    {
+      "kind": "h2",
+      "text": "How does Crowkis embed locally?"
+    },
+    {
+      "kind": "p",
+      "text": "Crowkis ships two models inside the image. The embedder is named crowsight and the reranker is named crowjudge. Both are bundled and run offline."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Property",
+        "Default"
+      ],
+      "rows": [
+        [
+          "Format",
+          "ONNX sentence-embedding model"
+        ],
+        [
+          "Output",
+          "384 dimensions"
+        ],
+        [
+          "Pooling",
+          "mean pooling"
+        ],
+        [
+          "Tokenizer",
+          "BERT-style vocab, bundled"
+        ],
+        [
+          "Hardware",
+          "automatic. Set `CROWKIS_GPU` to `off` to force CPU"
+        ],
+        [
+          "Network",
+          "none. The default build makes no outbound calls"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "[ONNX](https://en.wikipedia.org/wiki/Open_Neural_Network_Exchange) is an open format for representing machine learning models, which is what lets a model trained in one framework be loaded by a different runtime. Sentence-embedding models of this kind go back to the [Sentence-BERT paper](https://arxiv.org/abs/1908.10084): a network trained so that whole sentences map to vectors you can compare directly."
+    },
+    {
+      "kind": "p",
+      "text": "The embedder lives on the server. Every client, whether an SDK or a plain RESP3 connection, gets the vectors of whatever model the server runs. Nothing changes on the client side. At startup the server logs which embedder it loaded."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you use CEMBED?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CEMBED text\n\nCEMBED \"explain vector caches\"\nCSIM \"how do refunds work?\" \"what is the refund process?\""
+    },
+    {
+      "kind": "p",
+      "text": "`CEMBED` returns the vector for any text, computed by the bundled model. `CSIM query1 query2` returns the similarity score between two queries through the same live embedder. From Python the equivalent is `cache.embed(text)`, listed in the [Python SDK reference](https://www.crowkis.com/docs/sdk-python)."
+    },
+    {
+      "kind": "p",
+      "text": "There are a few reasons to call the embedder yourself:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Calibrating a threshold.** Run `CSIM` over pairs from your own traffic that should and should not match, and see where the scores fall before you trust a cutoff. Why one cutoff is rarely right is covered in [a cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/).",
+        "**Building beside the cache.** Clustering support tickets, grouping search queries, or your own duplicate detection can use the same vector space the cache uses. One model, one dependency.",
+        "**Checking a model swap.** After you replace the embedder, `CEMBED` shows you the new vector width right away."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Document search with `CDOC` and agent memory with `CMEMSET` use the same embedder internally, so you do not call `CEMBED` first for those. See [self-hosted RAG with CDOC](/blog/cdoc-self-hosted-rag/)."
+    },
+    {
+      "kind": "h2",
+      "text": "What does the embedding micro-cache do?"
+    },
+    {
+      "kind": "p",
+      "text": "Embedding is the expensive part of a semantic read. The published measurements make the gap plain. Over the wire on a development laptop, a plain key read with `GET` runs at 103,000 ops/sec at 512 connections. A cold semantic read with `CGET`, with no warm embedding cache, runs at about 250 per second. The capability notes say where the difference goes: the cost is embedding the query, not searching the index."
+    },
+    {
+      "kind": "p",
+      "text": "So Crowkis memoizes query embeddings. Repeated text is served from an embedding micro-cache, and that applies to `CEMBED` as well as to cache lookups. Production traffic repeats itself, which is the reason a cache works at all, so a large share of embeddings never have to be computed twice. `CROWKIS_EMBED_CACHE_SIZE` sets how many query embeddings are kept."
+    },
+    {
+      "kind": "p",
+      "text": "Two cautions when you read those numbers. They come from one laptop, not a server, and they are a floor to re-measure on your own hardware. And the plain `GET` figure must never be quoted as the speed of a semantic lookup. A fuller breakdown is in [where the milliseconds go](/blog/latency-profile-where-the-milliseconds-go/)."
+    },
+    {
+      "kind": "h2",
+      "text": "How good is a small local model?"
+    },
+    {
+      "kind": "p",
+      "text": "The usual worry is that a small local model matches worse than a large hosted one. On the task a cache cares about, telling a real rephrasing from an unrelated question, the measured result for the bundled embedder is 100% recall at or under 1% false positive, on a test of rephrased pairs against unrelated questions. On that same test it ties the commercial API embedders it was compared with and beats the other open models. The method is written up in [the crowsight comparison](/blog/we-benchmarked-crowsight-against-openai-and-nvidia/)."
+    },
+    {
+      "kind": "p",
+      "text": "That is one test set. It says the embedder separates rephrasings from strangers. It does not say an answer is safe to reuse, which is why Crowkis runs further checks after the vector match. It also says nothing about your domain. Legal, medical or non-English traffic may need a different model, and that is what the next section is for."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you bring your own embedder?"
+    },
+    {
+      "kind": "p",
+      "text": "You do not have to. If you want to, it is configuration, with no fork of the code."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Variable",
+        "What it changes",
+        "Default"
+      ],
+      "rows": [
+        [
+          "`CROWKIS_EMBED_MODEL`",
+          "path to the embedder ONNX file",
+          "bundled crowsight"
+        ],
+        [
+          "`CROWKIS_EMBED_DIM`",
+          "embedding dimension",
+          "384"
+        ],
+        [
+          "`CROWKIS_EMBED_VOCAB`",
+          "tokenizer `vocab.txt`",
+          "bundled"
+        ],
+        [
+          "`CROWKIS_CROSS_ENCODER_MODEL`",
+          "path to the reranker ONNX file",
+          "bundled crowjudge"
+        ],
+        [
+          "`CROWKIS_EMBED_CACHE_SIZE`",
+          "number of query embeddings memoized",
+          "built in"
+        ],
+        [
+          "`CROWKIS_GPU`",
+          "`off` forces CPU",
+          "auto"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The model must be an ONNX sentence-embedding model with mean pooling and a BERT-style vocab. Any sentence-transformers export of a MiniLM or GTE model fits that description. GTE is a family of general text embedding models trained with multi-stage contrastive learning ([Li et al.](https://arxiv.org/abs/2308.03281)). Keep `CROWKIS_EMBED_DIM` in sync with the model's output width."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "CROWKIS_EMBED_MODEL=/path/my-model.onnx crowkis server --data ./.crow"
+    },
+    {
+      "kind": "code",
+      "title": "yaml",
+      "code": "services:\n  crowkis:\n    image: crowkis/crowkis:latest\n    command: server --data /data/.crow\n    ports: [\"6383:6383\"]\n    volumes:\n      - ./.crow:/data/.crow\n      - ./my-model.onnx:/models/my-model.onnx:ro\n    environment:\n      CROWKIS_EMBED_MODEL: /models/my-model.onnx\n      CROWKIS_EMBED_DIM: \"384\""
+    },
+    {
+      "kind": "p",
+      "text": "On startup the server confirms the choice with a log line such as `crowkis: embedder=onnx model=/models/my-model.onnx (operator-provided)`."
+    },
+    {
+      "kind": "p",
+      "text": "Plan for one thing when you swap. Vectors from two different models are not comparable, so entries embedded by the old model cannot be matched by the new one. Expect the cache to warm up again from empty."
+    },
+    {
+      "kind": "h2",
+      "text": "When should you not rely on local embeddings?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**When you need a dimension nobody has measured.** Vector index figures were taken at dimension 100, and dimension 1536, the shape most commercial embedding models produce, has never been benchmarked. The largest index verified is 1.18M vectors. A swap to a much wider model puts you outside every published number.",
+        "**When CPU is scarce.** A cold lookup spends its time in the embedder. If the cache shares a small machine with your application, measure before you commit.",
+        "**When your text is far from general English.** The bundled model is a general one. A domain-tuned or language-specific ONNX model is a supported swap, and for some workloads it is the right default.",
+        "**When you already store vectors from another model.** `CEMBED` output is not interchangeable with vectors from a different embedder. Do not mix them in one index."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Does CEMBED need an API key or an internet connection?"
+    },
+    {
+      "kind": "p",
+      "text": "No. The model is bundled in the image and runs in the Crowkis process. The default build makes no outbound calls, and `CEMBED` is marked free in the [command reference](/blog/the-crowkis-cli-tour/)."
+    },
+    {
+      "kind": "h3",
+      "text": "What is the embedding dimension?"
+    },
+    {
+      "kind": "p",
+      "text": "384 by default. If you load your own model, set `CROWKIS_EMBED_DIM` to that model's output width, or the vectors will not line up with the index."
+    },
+    {
+      "kind": "h3",
+      "text": "Can I use a hosted embedding API with Crowkis instead?"
+    },
+    {
+      "kind": "p",
+      "text": "The documented path is a local ONNX file set through `CROWKIS_EMBED_MODEL`. The docs do not describe calling a hosted embedding API from the cache, and doing so would bring back the round trip, the charge and the data leaving your network."
+    },
+    {
+      "kind": "h3",
+      "text": "Do I need to change my client when I change the model?"
+    },
+    {
+      "kind": "p",
+      "text": "No. The embedder is server-side, so every SDK and every RESP3 client uses the new model as soon as the server restarts with it."
+    }
+  ]
+}

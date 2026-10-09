@@ -1,0 +1,297 @@
+{
+  "slug": "ai-gateway-openai-compatible",
+  "title": "OpenAI-compatible AI gateway: cache, budgets, rate limits",
+  "summary": "An OpenAI-compatible AI gateway with a semantic cache in front: how Crowkis handles a request, enforces budgets and rate limits, and where it stops.",
+  "keywords": [
+    "OpenAI-compatible AI gateway",
+    "AI gateway with caching",
+    "LLM budgets",
+    "LLM rate limits",
+    "CBUDGET",
+    "CKEYLIMIT",
+    "semantic cache proxy",
+    "circuit breaker"
+  ],
+  "sources": [
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/METRICS_API.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "README.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "An OpenAI-compatible AI gateway is an HTTP proxy that accepts the same `POST /v1/chat/completions` request your client already sends, then adds caching, budgets and rate limits before it forwards to the provider. The Crowkis gateway puts a semantic cache in front of the upstream: a request that matches an earlier one in meaning is answered from cache, with no provider call."
+    },
+    {
+      "kind": "plain",
+      "text": "Change one base URL. Repeated questions stop reaching the provider, each tenant gets a spending wall, and your application code stays as it is."
+    },
+    {
+      "kind": "h2",
+      "text": "What does the gateway do with a request?"
+    },
+    {
+      "kind": "p",
+      "text": "The gateway is an opt-in HTTP endpoint on the Crowkis server. Your client sends its usual chat completion request to Crowkis instead of to the provider, and four things can happen:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Hit.** A semantically matching prior request is served from cache. There is no upstream call and no token cost, and the response carries the header `x-crowkis-cache: hit`.",
+        "**Miss.** The request is forwarded to the upstream, the response is cached, and it is returned to the client.",
+        "**Streaming.** A request with `stream:true` is proxied transparently. It is not cached yet.",
+        "**Blocked.** If the tenant is past its budget circuit breaker, the upstream call is refused with a 402."
+      ],
+      "ordered": true
+    },
+    {
+      "kind": "diagram",
+      "chart": "flowchart LR\n  A[Client] --> B[Crowkis gateway]\n  B -->|semantic match| C[\"Cached answer, header x-crowkis-cache: hit\"]\n  B -->|miss| D{\"Tenant within budget?\"}\n  D -->|yes| E[Upstream provider]\n  E --> F[Cache the answer and return it]\n  D -->|past circuit breaker| G[\"402, no upstream call\"]",
+      "title": "How the gateway handles one request",
+      "caption": "A hit never reaches the provider. The budget wall applies to upstream calls."
+    },
+    {
+      "kind": "p",
+      "text": "The cache in front is the same engine the Crowkis commands use, so a match is by meaning and structure, not by identical bytes. Why that needs more than a similarity score is covered in [a cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/)."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you turn the gateway on?"
+    },
+    {
+      "kind": "p",
+      "text": "It is off by default. A default Crowkis build makes no outbound calls, and that stays true until you set three variables:"
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "CROWKIS_GATEWAY=1\nCROWKIS_GATEWAY_KEY=<your key>\nCROWKIS_GATEWAY_UPSTREAM=https://api.openai.com"
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Variable",
+        "What it does"
+      ],
+      "rows": [
+        [
+          "`CROWKIS_GATEWAY`",
+          "`1` turns the gateway on"
+        ],
+        [
+          "`CROWKIS_GATEWAY_KEY`",
+          "the gateway key. Required"
+        ],
+        [
+          "`CROWKIS_GATEWAY_UPSTREAM`",
+          "the provider to forward to. Defaults to `https://api.openai.com`"
+        ],
+        [
+          "`CROWKIS_GATEWAY_CACHE_TTL`",
+          "how long gateway answers stay cached"
+        ],
+        [
+          "`CROWKIS_GATEWAY_RPM`, `CROWKIS_GATEWAY_TPM`",
+          "rate limits per virtual key"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Then point your client's base URL at Crowkis. Nothing else in the application changes: no SDK swap and no cache calls in your code. The upstream can be any provider that speaks the OpenAI chat completions format. Running the server itself is covered in [the five-minute deploy](/blog/five-minute-deploy/)."
+    },
+    {
+      "kind": "h2",
+      "text": "What does the cache save, and what does it not cache?"
+    },
+    {
+      "kind": "p",
+      "text": "A hit is a request that never reaches the provider, so you do not pay for it. That saves cost, and the saving grows with how repetitive your traffic is. A support bot that hears the same questions all day gains more than a tool whose every prompt is new. The mechanics are in [how to cut LLM API costs](/blog/cut-llm-api-costs-semantic-caching/)."
+    },
+    {
+      "kind": "p",
+      "text": "Three limits on that statement:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Streaming responses are not cached.** They pass through untouched. If most of your traffic streams, the gateway cache will do little for you today.",
+        "**Dollar figures are estimates.** The dashboard and the metrics API report `tokens_saved` and `dollars_saved_total`. Cache entries do not yet store the provider's real token counts, so a hit is priced by an estimator, at one flat internal rate for every model. Do not reconcile a provider invoice against it, and do not read it per model.",
+        "**A match must be safe, not just close.** A semantic cache can serve the wrong answer if it reuses on similarity alone. Crowkis runs structural, confidence and freshness checks before it reuses."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Semantic matching is the difference from an exact cache. Cloudflare's AI Gateway documentation, for comparison, says its caching applies only to identical requests and that semantic search for caching is planned ([Cloudflare AI Gateway caching](https://developers.cloudflare.com/ai-gateway/features/caching/)). An identical-request cache misses the moment a user rewords the question."
+    },
+    {
+      "kind": "h2",
+      "text": "How do budgets and the circuit breaker work?"
+    },
+    {
+      "kind": "p",
+      "text": "A cache lowers the spend you meant to make. A budget caps the spend you did not, such as an agent stuck in a loop at night. `CBUDGET` sets a budget per tenant, and the gateway enforces it."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CBUDGET GET|SET|RESET|ALERTS <tenant> [DAILY usd] [MONTHLY usd] [COST per-1k] [ALERT pct] [CIRCUIT pct]\n\nCBUDGET SET acme DAILY 50 MONTHLY 1000 COST 0.01 ALERT 80 CIRCUIT 100\nCBUDGET GET acme\nCBUDGET ALERTS acme"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`DAILY` and `MONTHLY` are the limits in US dollars.",
+        "`COST` is the price per thousand tokens used to turn tokens into dollars.",
+        "`ALERT` is a share of the budget. Past it, the gateway switches to cost-aware routing.",
+        "`CIRCUIT` is the circuit breaker. Past it, upstream calls get a hard 402 block."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The name comes from the [circuit breaker pattern](https://en.wikipedia.org/wiki/Circuit_breaker_design_pattern): stop calling a dependency once a condition trips, instead of letting the failure, here the bill, keep growing. Two details help in practice. The block is on upstream calls, which is where the money goes. And 402 is unusual. [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) lists 402 Payment Required as reserved for future use, so client libraries may not treat it specially. Handle it explicitly and do not retry it."
+    },
+    {
+      "kind": "p",
+      "text": "The cache and the budget work together on a runaway loop. A looping agent mostly repeats near-identical questions, so the cache absorbs many of them at no cost, and the wall stops what is left. Per-tenant budget state is in the `budgets` field of the metrics snapshot. For where agent spend comes from, see [agent unit economics](/blog/agent-unit-economics/)."
+    },
+    {
+      "kind": "h2",
+      "text": "How do rate limits work?"
+    },
+    {
+      "kind": "p",
+      "text": "There are two layers, and they sit in different places."
+    },
+    {
+      "kind": "table",
+      "head": [
+        "Control",
+        "How you set it",
+        "Scope",
+        "Where it is enforced"
+      ],
+      "rows": [
+        [
+          "Gateway rate limits",
+          "`CROWKIS_GATEWAY_RPM`, `CROWKIS_GATEWAY_TPM`",
+          "per virtual key",
+          "at the gateway"
+        ],
+        [
+          "Tenant rate limits",
+          "`CKEYLIMIT SET tenant RPM n TPM n`",
+          "per tenant",
+          "on the `CGET` and `CSET` fast path"
+        ],
+        [
+          "Budget and circuit breaker",
+          "`CBUDGET SET`",
+          "per tenant",
+          "at the gateway, on upstream calls"
+        ]
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CKEYLIMIT SET|GET|DEL tenant [RPM n] [TPM n]"
+    },
+    {
+      "kind": "p",
+      "text": "RPM is requests per minute and TPM is tokens per minute, the same two units OpenAI uses for its own limits ([rate limits guide](https://platform.openai.com/docs/guides/rate-limits)). A limit in front of the provider is useful for a different reason than the provider's own limit: it is per tenant. One customer's runaway integration hits its own ceiling and the others keep working."
+    },
+    {
+      "kind": "p",
+      "text": "`CKEYLIMIT` is the one paid command in the reference. It is Enterprise only and is compiled out of the free binary, where it answers with a pointer to the upgrade and never fails silently. `CBUDGET` is free."
+    },
+    {
+      "kind": "h2",
+      "text": "What about retries, routing and fallback?"
+    },
+    {
+      "kind": "p",
+      "text": "The gateway also does the work a raw provider call leaves to you:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Retries.** Automatic retry with exponential backoff and jitter, honouring the `Retry-After` header. This matches OpenAI's own advice for a 429: wait at least as long as `Retry-After` says, and otherwise back off exponentially with a random delay ([rate limits guide](https://platform.openai.com/docs/guides/rate-limits)). The 429 status itself is defined in [RFC 6585](https://www.rfc-editor.org/rfc/rfc6585.html).",
+        "**Routing.** Multi-provider routing with weighted load balancing.",
+        "**Fallback.** Failover across providers, decided by error class."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Read these with the status in mind. The feature list marks the gateway as an MVP that is still in progress, and the command reference still names multi-provider routing, fallback and cost routing as next steps. Test the behaviour on the version you run before you depend on it for availability."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you see what the gateway is doing?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Per response:** the `x-crowkis-cache: hit` header tells the caller the answer came from cache.",
+        "**Snapshot:** `GET /api/metrics` returns one JSON object. Its `global` section has `total_requests`, `total_hits`, `total_misses`, `hit_rate_pct`, `tokens_saved` and `dollars_saved_total`. There is one row per tenant, and a `budgets` section.",
+        "**Live:** `GET /api/metrics/stream?every=2` pushes that JSON as server-sent events. A node serves at most 64 streams at once and answers 429 beyond that.",
+        "**Prometheus:** `GET /metrics` is a scrape target, and gateway metrics also appear on the dashboard."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "All of these are served by the management server, on the port one above the cache port. Send your admin key in the `X-Crowkis-Admin-Key` header. A key that belongs to one tenant sees only that tenant's rows."
+    },
+    {
+      "kind": "h2",
+      "text": "When should you not use the gateway?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**You need the cache decision in your code.** The gateway decides for you. If you want to read the confidence behind a hit and apply your own rule, call `CGET` with `WITHCONFIDENCE` yourself. The commands are in the [Crowkis command reference](/blog/the-crowkis-cli-tour/).",
+        "**Your traffic is mostly streaming.** It is proxied, not cached.",
+        "**You need endpoints other than chat completions.** `POST /v1/chat/completions` is the documented route.",
+        "**You need proven tail latency under heavy writes.** A semantic lookup embeds the request first. The published cold figure is about 250 semantic reads per second on a development laptop, and a sustained write and search soak test missed its own stall budget. Measure on your hardware.",
+        "**You want the assistant itself to decide.** For Claude Code and other MCP clients, the [MCP server](/blog/mcp-server-feature/) exposes the cache and memory as tools instead."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Do I have to change my application code?"
+    },
+    {
+      "kind": "p",
+      "text": "No. The gateway accepts the OpenAI chat completions request as it is. You change the base URL your client points at, and the request shape, the response shape and your SDK stay the same."
+    },
+    {
+      "kind": "h3",
+      "text": "Does the gateway send data anywhere by default?"
+    },
+    {
+      "kind": "p",
+      "text": "No. It is off by default, and Crowkis makes no outbound calls until you set `CROWKIS_GATEWAY=1`, a gateway key and an upstream. Once it is on, misses are forwarded to the upstream you configured, and to nothing else."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I know whether a response came from cache?"
+    },
+    {
+      "kind": "p",
+      "text": "Check for the `x-crowkis-cache: hit` response header. For totals, read `total_hits` and `hit_rate_pct` from `/api/metrics`, or scrape `/metrics` with Prometheus."
+    },
+    {
+      "kind": "h3",
+      "text": "What happens when a tenant runs out of budget?"
+    },
+    {
+      "kind": "p",
+      "text": "Past the alert share, the gateway switches to cost-aware routing. Past the circuit breaker share, upstream calls for that tenant are blocked with a 402. `CBUDGET GET` shows the current state, and `CBUDGET SET` and `CBUDGET RESET` are how you change it."
+    }
+  ]
+}
