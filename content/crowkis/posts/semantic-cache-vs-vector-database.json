@@ -1,0 +1,300 @@
+{
+ "slug": "semantic-cache-vs-vector-database",
+ "title": "Semantic cache vs vector database: which do you need?",
+ "summary": "A vector database retrieves similar items at scale. A semantic cache decides if a stored LLM answer is safe to reuse. When to use each, or both.",
+ "keywords": [
+  "semantic cache vs vector database",
+  "vector database",
+  "semantic cache",
+  "pgvector semantic cache",
+  "Pinecone vs semantic cache",
+  "LLM caching",
+  "RAG cache"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/CROWKIS_VECTOR_BENCHMARKING.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "A semantic cache and a vector database both search embeddings, and they do different jobs. A vector database stores your data and returns the items most similar to a query. A semantic cache stores LLM answers and decides whether one is safe to return instead of calling the model. A stack that needs one often ends up running both."
+  },
+  {
+   "kind": "h2",
+   "text": "What is a vector database for?"
+  },
+  {
+   "kind": "p",
+   "text": "A vector database keeps embeddings as primary data and answers one question well: which stored items are nearest to this query? It always returns something, ranked by similarity, and the application decides what to do with the list. The products differ in how they are run and what they add around that search. Each description below comes from the product's own documentation."
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Product",
+    "What its documentation says it is",
+    "A good fit when"
+   ],
+   "rows": [
+    [
+     "[Pinecone](https://docs.pinecone.io/guides/get-started/overview)",
+     "A managed database that brings full-text and semantic search together and powers retrieval for AI agents and applications. Namespaces keep each tenant's data separate within one index, and it can generate the vectors from your text on the server.",
+     "You want retrieval as a managed service and do not want to run it"
+    ],
+    [
+     "[pgvector](https://github.com/pgvector/pgvector)",
+     "Open-source vector similarity search for Postgres, with exact and approximate nearest neighbour search and HNSW and IVFFlat indexes. Vectors sit beside your rows, with transactions, point-in-time recovery and JOINs.",
+     "Your data is already in Postgres and you want to query vectors in SQL"
+    ],
+    [
+     "[Qdrant](https://qdrant.tech/documentation/overview/)",
+     "A database with a client-server architecture, HTTP and gRPC interfaces, and payload indexes that enable filtering during search.",
+     "You need similarity search combined with metadata filters"
+    ],
+    [
+     "[Weaviate](https://weaviate.io/developers/weaviate)",
+     "An open-source vector database designed to store and index both data objects and their vector embeddings, with search by semantic similarity and by keywords.",
+     "You want objects and vectors in one store, with hybrid search"
+    ],
+    [
+     "[Milvus](https://github.com/milvus-io/milvus)",
+     "A high-performance vector database built for scale, with a fully distributed, Kubernetes-native architecture, a standalone mode for one machine, and HNSW, IVF, FLAT, SCANN and DiskANN indexes.",
+     "Your corpus is large enough to need a distributed system"
+    ],
+    [
+     "[Chroma](https://docs.trychroma.com/docs/overview/introduction)",
+     "Open-source data infrastructure for AI, under Apache 2.0, with dense, sparse and hybrid search, full-text search and metadata filtering. It runs locally, self-hosted or as a managed cloud service.",
+     "You want an open-source store you can run locally first and move to a managed service later"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "All six are retrieval systems. Their documentation talks about indexes, filters, hybrid search, tenancy and scale, because those are the problems of finding the right items in a large collection."
+  },
+  {
+   "kind": "h2",
+   "text": "What is a semantic cache for?"
+  },
+  {
+   "kind": "p",
+   "text": "A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) sits in front of a language model. It stores pairs of question and answer. When a question arrives, it looks for a stored question with the same meaning, and if it finds one that is safe to reuse, it returns that answer and the model is never called. If it does not, it returns nothing and the call goes ahead."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CSET \"How do refunds work?\" \"Refunds are issued to the original payment method within 5 business days.\" EX 86400 TENANT shop MODEL gpt-4o\nCGET \"What is the refund process?\" TENANT shop WITHCONFIDENCE",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "Those are the two core Crowkis commands. `CSET` stores an answer with a lifetime in seconds. `CGET` returns the answer on a hit, with its trust signals when you add `WITHCONFIDENCE`, and null on a miss. The vector search is one step in the middle. The rest is what makes it a cache:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**A second match on structure.** The lookup uses the embedding and a structural intent template, so two questions must agree in shape as well as in topic.",
+    "**A bar that depends on the question.** Thresholds are kept per intent class, and `CGET` takes a `THRESHOLD` for one call.",
+    "**A confidence score per hit.** It combines similarity, freshness, trust, validation and domain accuracy.",
+    "**Checks on every write.** `CSET` passes a five-stage anti-poisoning pipeline, and a pair whose answer does not fit its question is rejected.",
+    "**Scope.** Every entry carries its tenant, and can be tied to a model and model version.",
+    "**Freshness.** Entries expire by `EX`, and `CSOURCE PURGE` removes every answer linked to a source that changed."
+   ]
+  },
+  {
+   "kind": "h2",
+   "text": "Semantic cache vs vector database: the differences that matter"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "",
+    "Vector database",
+    "Semantic cache"
+   ],
+   "rows": [
+    [
+     "Stores",
+     "Your documents, objects and their embeddings, as primary data",
+     "LLM answers, keyed by the question"
+    ],
+    [
+     "A query returns",
+     "The top k similar items, every time",
+     "One answer, or null"
+    ],
+    [
+     "Judged by",
+     "Recall, filtering and scale",
+     "Never serving a wrong answer, then hit rate"
+    ],
+    [
+     "Scale target",
+     "From thousands to very large collections, with distributed options",
+     "The working set of a cache"
+    ],
+    [
+     "Freshness",
+     "You update and delete records",
+     "TTL per entry, and purge by source"
+    ],
+    [
+     "Writes",
+     "Stored as sent",
+     "Validated before they can be served"
+    ],
+    [
+     "If it is lost",
+     "Your data is gone",
+     "You pay the model again and the cache refills"
+    ],
+    [
+     "Interface",
+     "Each product's own API, or SQL",
+     "RESP3, so existing clients work, plus gRPC and HTTP"
+    ]
+   ]
+  },
+  {
+   "kind": "plain",
+   "text": "A vector database answers \"what is similar to this?\" A semantic cache answers \"have I already answered this, and may I reuse it?\" The second question contains the first, and most of the work is in the part that is left."
+  },
+  {
+   "kind": "p",
+   "text": "The row that causes trouble is the second. A similarity search always has a nearest neighbour. \"How do I cancel my subscription?\" will find \"How do I pause my subscription?\" as a close match, and the two need different answers. A retrieval system is right to return it, because a ranked list of related items is its job. A cache that serves it has given a customer the wrong instruction. [A cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/) goes into how that decision is made."
+  },
+  {
+   "kind": "h2",
+   "text": "Can you build a semantic cache on a vector database?"
+  },
+  {
+   "kind": "p",
+   "text": "Yes, and for some teams it is the right call. The first version is short: embed the question, search for the nearest stored question, and serve its answer if the similarity is above a threshold. If you already run one of the databases above, your traffic is modest and a wrong answer is cheap, that may be all you need."
+  },
+  {
+   "kind": "p",
+   "text": "What you take on is everything in the list above. You choose the threshold, and find that one number is wrong for some kinds of question. You add expiry, then a way to purge answers when a source document changes. You add a tenant filter and make sure no query can skip it. You decide what happens when a bad answer is stored. You build the counters that tell you whether it is working. None of this is hard to start. It is a product to maintain."
+  },
+  {
+   "kind": "p",
+   "text": "Two details from the databases' own documentation matter here. pgvector notes that with approximate indexes, filtering is applied after the index is scanned, so a tenant filter can leave you with fewer rows than you asked for unless you enable iterative scans. Qdrant asks you to create payload indexes before loading data, because its filter-aware graph edges are built from them. A cache built on either should be tested with the filters it will run in production."
+  },
+  {
+   "kind": "h2",
+   "text": "Can a semantic cache replace a vector database?"
+  },
+  {
+   "kind": "p",
+   "text": "For small jobs, sometimes. Crowkis includes a document store: `CDOC ADD` stores text with optional chunking and metadata, and `CDOC SEARCH` returns the nearest chunks, with `FILTER` on metadata and an optional `RERANK`. For a small document set next to the cache, that saves running a second system. [Self-hosted RAG with CDOC](/blog/cdoc-self-hosted-rag/) shows it."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CDOC ADD handbook-returns \"Returns are accepted within 30 days with a receipt...\" TENANT shop CHUNK 200 OVERLAP 20 META team=support\nCDOC SEARCH \"how long do I have to return an item\" TENANT shop K 3 FILTER team=support",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "It is not a general vector database, and its docs say where it stops. The largest scale verified is 1.18M vectors at dimension 100. A run at 5M was attempted and failed at 12% recall. Dimension 1536, which many commercial embedding models produce, has never been benchmarked. Scoped search has a ceiling: an answer sitting behind more than roughly 16,000 nearer out-of-scope vectors can be missed. Crowkis's own benchmarking notes say that dedicated vector databases are ahead on general-purpose retrieval scale, filtering, distributed operation and indexing controls. [HNSW explained](/blog/hnsw-explained-needle-in-a-million-haystacks/) has the measured recall and latency."
+  },
+  {
+   "kind": "h2",
+   "text": "When is a vector database the right choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "Your collection is the product: search, recommendations, or retrieval over a large document set.",
+    "You need more than about a million vectors, or wide embeddings at scale.",
+    "You need rich filtering, hybrid or full-text search, or SQL joins against your own tables.",
+    "You want a managed service, or a system that spreads across machines.",
+    "Your questions do not repeat. If every request is new, there is nothing for a cache to reuse."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "In all of these, a semantic cache does not compete. It has nothing to say about how to find the right passages in ten million documents."
+  },
+  {
+   "kind": "h2",
+   "text": "When is a semantic cache the right choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "The same questions reach your model again and again, in different words.",
+    "You want the repeated ones to skip the model call, with its price and its wait.",
+    "You need a reason for every reuse: a confidence score, a tenant, a lifetime.",
+    "Several services or languages should share one cache over a protocol they already speak.",
+    "You would otherwise write and maintain the reuse rules yourself."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "How much it helps depends on how repetitive the traffic is. [How much semantic caching can cut LLM costs](/blog/cut-llm-api-costs-semantic-caching/) explains how to measure that first."
+  },
+  {
+   "kind": "h2",
+   "text": "How do the two work together?"
+  },
+  {
+   "kind": "p",
+   "text": "In a retrieval-augmented application they sit at different points of the same request."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "The question arrives. Send `CGET` to the cache.",
+    "On a hit, return the stored answer. No retrieval and no model call happen.",
+    "On a miss, embed the question and retrieve passages from the vector database.",
+    "Call the model with the question and the passages.",
+    "Store the answer with `CSET` and an `EX` that suits how fast the documents change.",
+    "Link the answer to the documents it used with `CSOURCE LINK`, so that `CSOURCE PURGE` can remove it when one of them is edited."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "The vector database finds context for new questions. The cache makes sure a question that was already answered is not retrieved and generated a second time. [Freshness for LLM answers](/blog/freshness-hamlet-vs-stock-price/) covers the last two steps."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "Is a semantic cache just a vector database with a TTL?"
+  },
+  {
+   "kind": "p",
+   "text": "No. The vector search finds a candidate, and the cache then has to decide whether that candidate is the same question, in the right scope, still fresh and trustworthy. A vector database returns its nearest match whatever it is. A cache has to be able to return nothing."
+  },
+  {
+   "kind": "h3",
+   "text": "Does Crowkis use a vector database internally?"
+  },
+  {
+   "kind": "p",
+   "text": "No. It has its own HNSW index inside the same process as its storage engine, so a lookup does not cross the network between the search and the checks."
+  },
+  {
+   "kind": "h3",
+   "text": "Can I use pgvector as a semantic cache?"
+  },
+  {
+   "kind": "p",
+   "text": "You can build one on it. pgvector gives you the similarity query in SQL, next to your tables. The reuse rules, the expiry, the tenant scoping and the write checks are yours to write and test."
+  },
+  {
+   "kind": "h3",
+   "text": "Which one is faster?"
+  },
+  {
+   "kind": "p",
+   "text": "They are measured on different things. Crowkis measured its vector search at 526 µs at 1.18M vectors on a development laptop, and the whole cold semantic read at about 250 ops/sec, because embedding the query dominates. What a cache hit saves is the model call that did not happen. More comparisons are under [vs the field](/blog/topic/vs-the-field/), and the product page is [Crowkis](/crowkis/)."
+  }
+ ]
+}

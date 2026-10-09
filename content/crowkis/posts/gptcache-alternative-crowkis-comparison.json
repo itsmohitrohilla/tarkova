@@ -1,0 +1,271 @@
+{
+ "slug": "gptcache-alternative-crowkis-comparison",
+ "title": "GPTCache alternative: how Crowkis and GPTCache compare",
+ "summary": "GPTCache is an open-source Python library for semantic caching. Crowkis is a closed-source cache server. What each does, and when to pick which.",
+ "keywords": [
+  "GPTCache alternative",
+  "GPTCache vs Crowkis",
+  "semantic cache library",
+  "LangChain cache",
+  "LLM cache server",
+  "semantic caching"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/CUSTOM_EMBEDDER.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "A GPTCache alternative is worth looking for when you want a semantic cache that runs as a service instead of a Python library you assemble. GPTCache is an open-source library built from parts you choose: an embedding function, a vector store, a cache store and a similarity evaluator. Crowkis is a closed-source cache server that speaks RESP3 and checks every write and every hit."
+  },
+  {
+   "kind": "h2",
+   "text": "What is GPTCache?"
+  },
+  {
+   "kind": "p",
+   "text": "The [GPTCache documentation](https://gptcache.readthedocs.io/en/latest/) calls it a library for creating a semantic cache for LLM queries: a project for storing LLM responses and returning them when a similar query arrives. It converts queries into embeddings and uses a vector store to find similar ones. The design is modular. The docs say it offers various implementations for each module, and that you can write your own. The modules are:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**LLM adapter.** Unifies the APIs and request protocols of different models.",
+    "**Embedding generator.** Extracts embeddings from requests for the similarity search.",
+    "**Cache storage.** Where the responses from the LLM are stored.",
+    "**Vector store.** Finds the K most similar requests from the embedding of the input.",
+    "**Cache manager.** Controls the cache storage and the vector store, including eviction.",
+    "**Similarity evaluator.** Decides, from the data in both stores, whether a request matches the cache."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "It is MIT licensed and installed with `pip install gptcache`. The docs say it is integrated with LangChain and llama_index, and that a server Docker image has been released so that any language can use it. They are also frank about its edges. Eviction is LRU or FIFO, decided on the number of entries alone, which the docs warn can misjudge resources. They state that a semantic cache can produce false positives on hits and false negatives on misses, and offer three metrics to track that: hit ratio, latency and recall."
+  },
+  {
+   "kind": "p",
+   "text": "One line in the [GPTCache README](https://github.com/zilliztech/GPTCache) matters if you are choosing today. It says that because model APIs keep changing shape, the project no longer adds support for new APIs or models, and it encourages using the library's own get and set API instead of the model adapters."
+  },
+  {
+   "kind": "h2",
+   "text": "What is Crowkis?"
+  },
+  {
+   "kind": "p",
+   "text": "Crowkis is a cache server for LLM applications, written in Rust. You run one binary or one Docker image, and your application talks to it over RESP3 with the client library it already uses, or over gRPC or HTTP. Storing and reading an answer are two commands:"
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CSET \"How do refunds work?\" \"Refunds go back to the original payment method.\" EX 86400 TENANT shop MODEL gpt-4o\nCGET \"What is the refund process?\" TENANT shop WITHCONFIDENCE",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "The parts that GPTCache leaves you to choose are built in. The embedding model is bundled and runs locally. The vector index is its own [HNSW implementation](/blog/hnsw-explained-needle-in-a-million-haystacks/), and the storage is its own durable engine. Around the lookup it adds a structural match on the shape of the question, thresholds per intent, a confidence score returned with each hit, a five-stage check on every write, and a tenant on every entry. [What is a semantic cache](/blog/what-is-a-semantic-cache-for-llms/) explains the lookup."
+  },
+  {
+   "kind": "p",
+   "text": "The engine is closed source. It comes in a free Community edition and a licensed Enterprise edition, selected at run time by a license file. The Python and Node SDKs are open source under Apache 2.0. The project describes itself as being in a beta-hardening phase."
+  },
+  {
+   "kind": "h2",
+   "text": "GPTCache and Crowkis side by side"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "",
+    "GPTCache",
+    "Crowkis"
+   ],
+   "rows": [
+    [
+     "Form",
+     "A Python library, plus a server image",
+     "A server: one binary or Docker image"
+    ],
+    [
+     "Source and license",
+     "Open source, MIT",
+     "Closed-source engine; Community is free, Enterprise is licensed; SDKs are Apache 2.0"
+    ],
+    [
+     "Embedding model",
+     "You choose an implementation",
+     "Bundled and local; you can swap in an ONNX model with `CROWKIS_EMBED_MODEL`"
+    ],
+    [
+     "Vector search",
+     "You choose a vector store",
+     "Built-in HNSW index"
+    ],
+    [
+     "Storage",
+     "You choose a cache storage",
+     "Built-in engine with a write-ahead log"
+    ],
+    [
+     "Hit decision",
+     "The similarity evaluator you configure",
+     "Meaning plus structure, thresholds per intent, a confidence score per hit"
+    ],
+    [
+     "Checks on writes",
+     "Not among the documented modules",
+     "Five-stage pipeline on every `CSET`"
+    ],
+    [
+     "Leaving the cache",
+     "LRU or FIFO, by entry count",
+     "TTL expiry or explicit delete; no eviction scheduler over cache entries"
+    ],
+    [
+     "Clients",
+     "Python, or any language through the server image",
+     "Existing RESP3 clients, Python and Node SDKs, gRPC, HTTP"
+    ],
+    [
+     "Project status",
+     "No new API or model support is being added",
+     "In beta hardening"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Neither column is better in every row. GPTCache gives you the source and a choice at every layer. Crowkis gives you a finished service and fewer choices. Two Crowkis rows are weaker than they may look. It has a retention score, and no scheduler that evicts cache entries by it, so entries leave by TTL or by an explicit delete. And it is beta software from a single vendor whose engine you cannot read."
+  },
+  {
+   "kind": "h2",
+   "text": "When is GPTCache the right choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**You want to read and change the code.** It is MIT licensed, and every module can be replaced with your own.",
+    "**Your application is Python and you want the cache in process.** There is no extra service to deploy or monitor.",
+    "**You already run the pieces.** If you have a vector store and a database you trust, GPTCache can sit on top of them.",
+    "**You are researching semantic caching.** A modular library is the easier thing to experiment with: swap the embedding model or the evaluator and measure hit ratio and recall.",
+    "**You need to control exactly how similarity is judged.** The evaluator is yours to write."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Check the project's current activity before you commit, given the note in its README about model support."
+  },
+  {
+   "kind": "h2",
+   "text": "When is Crowkis the right choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Several services or languages should share one cache.** Anything with a RESP3 client can use it without a new SDK.",
+    "**You do not want to assemble and operate three components.** The embedder, the index and the store are one process with one data directory.",
+    "**Wrong reuse is expensive for you.** You get a confidence score per hit and can set a `THRESHOLD` per call; see [a cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/).",
+    "**More than one customer shares the cache.** Entries are isolated by tenant; [multi-tenant isolation](/blog/tenant-isolation-architecture/) covers how.",
+    "**You need to keep bad answers out.** Writes that do not fit their question are refused, as described in [cache poisoning](/blog/cache-poisoning-is-the-whole-problem/).",
+    "**You want operations built in.** A dashboard, a metrics endpoint for Prometheus and health probes ship in the image; [deploying a self-hosted semantic cache](/blog/five-minute-deploy/) walks through them."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "It is the wrong choice if you need open source, if you need more scale than it has verified, or if your traffic does not repeat. The largest index size it has verified is 1.18M vectors at dimension 100, and a cold semantic read measured about 250 ops/sec on a development laptop."
+  },
+  {
+   "kind": "h2",
+   "text": "What about framework caches and scripts you write yourself?"
+  },
+  {
+   "kind": "p",
+   "text": "Many teams start with what their framework offers. LangChain's cache interface, in [langchain_core/caches.py](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/caches.py), is described there as an optional caching layer for language models. A cache implementation is expected to build its key from two strings, the prompt and a string describing the model settings. The built-in `InMemoryCache` stores things in memory, with an optional maximum size after which the oldest items are removed. So the built-in option is a cache keyed on the exact prompt, which lives in one process and is empty after a restart. That is fine for development and for a single worker."
+  },
+  {
+   "kind": "p",
+   "text": "The interface is the useful part, because other caches plug into it. GPTCache documents its LangChain integration, and the [Crowkis framework docs](https://www.crowkis.com/docs/frameworks) show the same one-line setup:"
+  },
+  {
+   "kind": "code",
+   "title": "python",
+   "code": "from langchain_core.globals import set_llm_cache\nfrom crowkis.integrations.langchain import CrowkisCache\n\nset_llm_cache(CrowkisCache(tenant=\"support\", ttl=3600))"
+  },
+  {
+   "kind": "p",
+   "text": "The other common start is a script that normalises the prompt, hashes it and skips the call when the hash repeats. It is a few lines, it is correct, and it catches every exact repeat. It cannot see that \"refund timeline?\" and \"how long do refunds take?\" are one question. The step after that is usually a vector store and a threshold, which is the design compared in [semantic cache vs vector database](/blog/semantic-cache-vs-vector-database/)."
+  },
+  {
+   "kind": "h2",
+   "text": "What should you compare in any semantic cache?"
+  },
+  {
+   "kind": "p",
+   "text": "Every semantic cache matches an obvious paraphrase. The differences show on harder cases, and you can test them in an afternoon with your own data."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Lookalikes.** Collect pairs of questions that are close in wording and need different answers, such as cancel and pause. Store one, ask the other, and count how often the cache serves the wrong answer.",
+    "**Scope.** Store an answer for one customer and ask for it as another. It must miss.",
+    "**Freshness.** Change a source document and see how you remove the answers built on it.",
+    "**Bad writes.** Store an answer that has nothing to do with its question and see whether it is accepted.",
+    "**Restart.** Restart the cache and check what is still there.",
+    "**Evidence.** Ask what the cache can tell you about a hit after the fact: a score, a reason, a counter."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "In Crowkis the first test looks like this. `CSIM` shows how close the embedder thinks two phrasings are, and `CGET` with `WITHCONFIDENCE` shows what the cache would do about it."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CSIM \"How do I cancel my subscription?\" \"How do I pause my subscription?\"\nCSET \"How do I cancel my subscription?\" \"Go to Billing and choose Cancel plan.\" EX 3600 TENANT test\nCGET \"How do I pause my subscription?\" TENANT test WITHCONFIDENCE",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "Run the same pairs through each candidate. The result on your own lookalikes is worth more than any feature table, including the one above. Before any of this, check that caching is worth doing at all: [how much semantic caching can cut LLM costs](/blog/cut-llm-api-costs-semantic-caching/) shows how to measure the share of your traffic that repeats."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "Is GPTCache still maintained?"
+  },
+  {
+   "kind": "p",
+   "text": "Its README says the project no longer adds support for new APIs or models, and points users to its generic get and set API. Look at the repository's recent commits and releases to judge current activity for yourself."
+  },
+  {
+   "kind": "h3",
+   "text": "Is Crowkis open source?"
+  },
+  {
+   "kind": "p",
+   "text": "No. The engine is closed source, with a free Community edition and a licensed Enterprise edition. The client SDKs for Python and Node are open source under Apache 2.0."
+  },
+  {
+   "kind": "h3",
+   "text": "Can I move from GPTCache to Crowkis without losing my cache?"
+  },
+  {
+   "kind": "p",
+   "text": "There is no documented import tool. A cache does not need one: point your application at the new cache, let misses fill it, and it warms up as traffic repeats. Keep the old cache until the new hit rate settles."
+  },
+  {
+   "kind": "h3",
+   "text": "Does Crowkis work with LangChain?"
+  },
+  {
+   "kind": "p",
+   "text": "Yes. The Crowkis docs show a `CrowkisCache` class that is passed to LangChain's `set_llm_cache`, so model calls made through LangChain are cached by meaning. Other comparisons are under [vs the field](/blog/topic/vs-the-field/), including [prompt caching vs semantic caching](/blog/crowkis-vs-openai-prompt-caching/)."
+  }
+ ]
+}

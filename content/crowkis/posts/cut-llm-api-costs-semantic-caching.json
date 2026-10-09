@@ -1,0 +1,268 @@
+{
+ "slug": "cut-llm-api-costs-semantic-caching",
+ "title": "How much can semantic caching cut LLM costs?",
+ "summary": "Semantic caching removes the LLM calls that repeat. How the saving works, what limits it, and how to measure your own repeat share before you buy.",
+ "keywords": [
+  "semantic caching cost",
+  "cut LLM API costs",
+  "LLM cache hit rate",
+  "repeat share",
+  "reduce OpenAI bill",
+  "semantic cache",
+  "LLM cost optimization"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/DEVELOPER_GUIDE.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/METRICS_API.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "Semantic caching cuts LLM costs by exactly the calls it answers from cache: a hit never reaches the provider, so you do not pay for it. How much that comes to depends on two things you can measure yourself: the share of your traffic that repeats or is reworded, and how many of those repeats the cache can catch safely."
+  },
+  {
+   "kind": "h2",
+   "text": "Where does the saving come from?"
+  },
+  {
+   "kind": "p",
+   "text": "LLM providers bill by the token, for the prompt you send and for the answer the model writes. The [OpenAI pricing page](https://platform.openai.com/docs/pricing) quotes prices per 1M tokens, with one rate for input and another for output. A cached answer uses neither. The request stops at the cache, the model never runs, and that call is missing from the invoice. Nothing else about the saving is clever."
+  },
+  {
+   "kind": "p",
+   "text": "An ordinary cache only helps when the prompt text is byte for byte the same, and people rarely type the same thing twice. A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) turns each question into an embedding, a vector that sits close to other questions with the same meaning, and compares vectors by [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity). A reworded question lands next to the original, so it can reuse the original's answer."
+  },
+  {
+   "kind": "p",
+   "text": "In Crowkis the two commands are `CSET` to store an answer and `CGET` to look one up. This pair comes straight from the developer guide: the second line asks the same thing in different words."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CSET \"How do I reduce LLM spend?\" \"Use caching, batching, routing, and model selection.\" EX 3600 TENANT demo MODEL gpt-4o\nCGET \"How can I lower LLM cost?\" TENANT demo"
+  },
+  {
+   "kind": "p",
+   "text": "`CGET` returns the stored answer on a hit and null on a miss. On a miss your code calls the model as it always did, then stores the result with `CSET`. `EX` sets how long the answer may be reused, in seconds. `TENANT` and `MODEL` keep one customer's answers, or one model's, from being served to another."
+  },
+  {
+   "kind": "h2",
+   "text": "The formula: repeat share times safe catch rate"
+  },
+  {
+   "kind": "p",
+   "text": "The share of calls a cache removes is the product of two numbers:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Repeat share.** Of all the requests you send, the fraction that ask something already asked, either word for word or reworded.",
+    "**Safe catch rate.** Of those repeats, the fraction the cache recognises and is right to serve."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Everything else follows from that product. A support assistant where most people ask about the same few policies has a large repeat share, so the cache removes a large part of the traffic. A tool that summarises a different document on every call has almost none, and no cache will change its bill. Adding users to a repetitive product raises the repeat share, because more people ask the same things. Adding features that produce new kinds of question lowers it."
+  },
+  {
+   "kind": "plain",
+   "text": "A semantic cache does not make a model call cheaper. It makes some calls not happen. You save the calls that repeat and that the cache can prove are the same question, and nothing more."
+  },
+  {
+   "kind": "p",
+   "text": "The catch rate is below one on purpose. \"How do I cancel my subscription?\" and \"How do I pause my subscription?\" are close in meaning and need different answers. A cache that serves one for the other has not saved a call. It has created a support ticket. So a serious cache refuses some lookalikes, and each refusal is a call you still pay for. [A cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/) covers how that decision is made."
+  },
+  {
+   "kind": "h2",
+   "text": "Which workloads repeat, and which do not?"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Workload",
+    "Repetition",
+    "Why"
+   ],
+   "rows": [
+    [
+     "Customer support and FAQ assistants",
+     "High",
+     "Many people ask about the same policies in their own words"
+    ],
+    [
+     "Internal documentation assistants",
+     "High to medium",
+     "A team shares the same systems and asks about the same ones"
+    ],
+    [
+     "Agent fleets",
+     "Medium to high",
+     "Agents repeat lookups and tool calls; see [the cost of multi-agent systems](/blog/agent-unit-economics/)"
+    ],
+    [
+     "Questions about live data",
+     "Repeats, but answers expire",
+     "The question recurs while the right answer changes, so it needs a short `EX`"
+    ],
+    [
+     "Personal conversations",
+     "Low",
+     "The answer depends on one user's data and must not be shared"
+    ],
+    [
+     "Code generation and document summaries",
+     "Low",
+     "Each input is new, so there is little to reuse"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "That people reword the same question is well documented. The [Quora question pairs dataset](https://huggingface.co/datasets/sentence-transformers/quora-duplicates) is a public collection of question pairs from a single site, each labelled as a duplicate or as different. Your own traffic has its own mix, and that mix is the only number that matters for your bill."
+  },
+  {
+   "kind": "h2",
+   "text": "How do you measure your repeat share before buying anything?"
+  },
+  {
+   "kind": "p",
+   "text": "You can get a first estimate from your logs in an afternoon, with no cache installed."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "Export a sample of real prompts in arrival order. Use at least a week, so daily and weekly patterns show. If every prompt carries the same system text, keep only the part the user wrote.",
+    "Count exact repeats. Lowercase each question, trim the whitespace, hash it, and count the requests whose hash was already seen. This is the floor: any exact-match cache gets these.",
+    "Count reworded repeats. Embed each question with an open model such as [all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). For each request, check whether an earlier request sits above a similarity threshold. The fraction that does is your candidate repeat share.",
+    "Label a sample of the matched pairs by hand. For each pair, ask whether the earlier answer would have been correct for the later question. The fraction of yes is your safe catch rate at that threshold. Raise the threshold until the wrong pairs disappear from the sample.",
+    "Multiply the two. If long prompts and short prompts repeat at different rates, weight each request by its tokens instead of counting requests."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "The second way is to run the cache in shadow. Crowkis Community is free to run, so put it beside your app and change nothing your users see: for every request, send a `CGET` and record whether it would have hit, call the model anyway, and store the model's answer with `CSET`. After a few days the server's own counters tell you the hit rate on your traffic."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CSIM \"How do refunds work?\" \"What is the refund process?\"\nCGET \"What is the refund process?\" TENANT shadow WITHCONFIDENCE",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "`CSIM` returns the similarity score between two phrasings through the live embedder, which is a quick way to see how close your own lookalike pairs sit. `WITHCONFIDENCE` adds the trust signals behind a hit, so you can review the hits the cache was least sure of. The totals are on the management port, one above the cache port:"
+  },
+  {
+   "kind": "code",
+   "title": "bash",
+   "code": "curl -H \"x-crowkis-admin-key: $CROWKIS_ADMIN_KEY\" http://127.0.0.1:6384/api/metrics",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "The `global` object in that JSON holds `total_requests`, `total_hits`, `total_misses` and `hit_rate_pct`, and `tenants` has one row per tenant. Shadow mode measures both halves of the formula at once, on real traffic, before any user is served from cache."
+  },
+  {
+   "kind": "h2",
+   "text": "What limits the safe catch rate?"
+  },
+  {
+   "kind": "p",
+   "text": "Each check below turns some possible hits into misses. That is the price of not serving a wrong answer."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Meaning plus structure.** Crowkis looks up by embedding and by a structural intent template, so two questions must agree in shape as well as in topic.",
+    "**Thresholds per intent.** The bar for reuse differs by the kind of question, and `CGET` accepts a `THRESHOLD` when you want to set it yourself.",
+    "**Confidence on every hit.** The score combines similarity, freshness, trust, validation and domain accuracy, and it is returned with the hit.",
+    "**Write checks.** Every `CSET` passes a five-stage anti-poisoning pipeline, and an answer that does not fit its question is rejected. [Cache poisoning](/blog/cache-poisoning-is-the-whole-problem/) explains why that matters more than hit rate.",
+    "**Scope.** An entry belongs to a tenant, and can be tied to a model and model version. Other scopes never see it.",
+    "**Freshness.** An entry past its `EX` is no longer served. [Freshness for LLM answers](/blog/freshness-hamlet-vs-stock-price/) covers how to choose it."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "A cache tuned only for hit rate will show a better number and a worse product. When you compare caches, compare what they refuse."
+  },
+  {
+   "kind": "h2",
+   "text": "How should you read the savings figure a cache reports?"
+  },
+  {
+   "kind": "p",
+   "text": "Treat any dollar figure on a dashboard as an estimate until you have checked it against the invoice. Crowkis is explicit about this in its own measured-capability notes. A hit is real: the request never reaches the provider. The dollar value attached to that hit is partly estimated, because entries do not yet store the provider's real token counts at write time, and every model is priced at one flat internal rate. That means a hit on an expensive model and a hit on a cheap one report the same amount."
+  },
+  {
+   "kind": "p",
+   "text": "So read the numbers in this order. First, hits as requests avoided, which is a plain count. Second, exact-duplicate hits priced at your own rate, which is the part you can defend line by line. Third, the reworded hits, as an estimate. Then compare two invoices for similar traffic volume, one before the cache and one after. The invoice is the ground truth. The metrics snapshot also carries `tokens_saved` and `dollars_saved_total`, and `CINFO` has a savings section, for tracking the trend over time."
+  },
+  {
+   "kind": "p",
+   "text": "The same notes list what has not been measured: the saving on any customer's own traffic. That is why this page gives a method and no figure."
+  },
+  {
+   "kind": "h2",
+   "text": "When does semantic caching save little?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Traffic that does not repeat.** If your measured repeat share is small, stop there. The cache has running costs of its own and nothing to repay them with.",
+    "**Answers that must be generated fresh.** Personal, creative or stateful answers should not be reused, however similar the question looks.",
+    "**Streaming through the gateway.** The OpenAI-compatible gateway proxies `stream:true` requests without caching them yet.",
+    "**A cold cache.** The first time each question is asked it is a miss. The saving starts with the second asker.",
+    "**Very high lookup rates.** A cold semantic read has to embed the query first. Crowkis measured about 250 reads per second for cold `CGET` on a development laptop, so size the cache for your request rate."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Other levers work on different parts of the bill, and they combine with a cache. Provider prompt caching lowers the price of a repeated prompt prefix while the call still happens; [prompt caching vs semantic caching](/blog/crowkis-vs-openai-prompt-caching/) compares the two. A smaller model lowers the price of every call, including the new questions where quality matters most. A cache leaves the new questions on the model you chose and removes the repeated ones. If you also want a hard ceiling on spend, the [AI gateway](/blog/ai-gateway-openai-compatible/) enforces budgets per tenant."
+  },
+  {
+   "kind": "p",
+   "text": "A hit also skips the wait for the model to generate, so the repeated questions get faster as well as free. [Where the milliseconds go](/blog/latency-profile-where-the-milliseconds-go/) has the measured profile."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "How much will semantic caching save on my LLM bill?"
+  },
+  {
+   "kind": "p",
+   "text": "It saves the share of your calls that repeat and that the cache can safely serve. There is no universal figure, because the repeat share runs from near zero for document summarisation to very high for support traffic. Measure yours with the log method or the shadow method above before you plan around a number."
+  },
+  {
+   "kind": "h3",
+   "text": "Is a higher cache hit rate always better?"
+  },
+  {
+   "kind": "p",
+   "text": "No. A hit rate raised by loosening the similarity threshold includes wrong answers, and each wrong answer costs more than the call it avoided. Judge a cache by the hit rate at a threshold where your hand-labelled sample shows no wrong matches."
+  },
+  {
+   "kind": "h3",
+   "text": "Does semantic caching replace provider prompt caching?"
+  },
+  {
+   "kind": "p",
+   "text": "No, they work on different things. Provider prompt caching is described in the [OpenAI prompt caching guide](https://platform.openai.com/docs/guides/prompt-caching) as reuse of a matching prompt prefix, and the model still generates the output. A semantic cache skips the whole call when the question repeats. Use both."
+  },
+  {
+   "kind": "h3",
+   "text": "How soon does a semantic cache start saving?"
+  },
+  {
+   "kind": "p",
+   "text": "From the first repeated question. The cache fills as misses are stored, so the hit rate climbs over the first days and settles at your repeat share times the catch rate. Crowkis writes entries to disk, so a restart does not empty it. See [Crowkis](/crowkis/) for how to run it, or [get in touch](/contact/) to talk through your traffic."
+  }
+ ]
+}

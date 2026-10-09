@@ -1,0 +1,265 @@
+{
+ "slug": "agent-unit-economics",
+ "title": "Multi-agent system costs: cutting repeated LLM calls",
+ "summary": "Agents multiply model calls per task. Where the repeats come from, and how a shared cache, a tool-result cache and budgets remove or cap them.",
+ "keywords": [
+  "multi-agent system cost",
+  "agent unit economics",
+  "repeated LLM calls",
+  "tool result caching",
+  "agent token cost",
+  "LLM budget limits",
+  "shared semantic cache"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/UPGRADING_TO_0.5.2.md",
+  "crowkis.docs/METRICS_API.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "The cost of a multi-agent system is the number of model calls per task times the tokens in each call, and both grow as agents plan, call tools and hand work to each other. Much of that traffic repeats: the same lookups, the same tool calls, the same questions from different agents. A shared cache removes the repeats, and budgets cap what is left."
+  },
+  {
+   "kind": "h2",
+   "text": "Why do multi-agent systems cost more than chat?"
+  },
+  {
+   "kind": "p",
+   "text": "A chat product makes one model call per user message. An agent runs a loop. The [ReAct paper](https://arxiv.org/abs/2210.03629) describes the pattern most agents still follow: the model writes a step of reasoning, takes an action such as a tool call, reads the result, and reasons again. Every turn of that loop is a billed call."
+  },
+  {
+   "kind": "p",
+   "text": "Tool use adds calls and tokens of its own. The [OpenAI function calling guide](https://platform.openai.com/docs/guides/function-calling) describes it as a multi-step conversation: you send a request with the tools, receive a tool call, run your code, send a second request with the tool output, and receive a final response or more tool calls. It also notes that function definitions are billed as input tokens. Anthropic's [tool use documentation](https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview) lists the same extra tokens: the `tools` parameter, the `tool_use` blocks and the `tool_result` blocks."
+  },
+  {
+   "kind": "p",
+   "text": "A multi-agent system multiplies this again. Frameworks such as [AutoGen](https://arxiv.org/abs/2308.08155) build applications from several agents that exchange messages to finish a task, so each agent runs its own loop and also pays to read what the others wrote. The tokens go to:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "planning and re-planning the task",
+    "choosing a tool, then reading its result on the next call",
+    "re-sending the conversation so far on every step",
+    "hand-offs, where one agent's output becomes another agent's input",
+    "retries after an error or a failed check",
+    "the final answer"
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "There is no fixed multiplier. Count it from your own traces: calls per finished task, and input and output tokens per call. Those two numbers are your unit cost, and they are the ones the rest of this page works on."
+  },
+  {
+   "kind": "h2",
+   "text": "Where do the repeated calls come from?"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Repeat",
+    "Example",
+    "What removes it"
+   ],
+   "rows": [
+    [
+     "The same question from several agents",
+     "Five agents each ask what the refund policy says",
+     "A shared semantic cache: `CSET` and `CGET`"
+    ],
+    [
+     "The same tool call with the same arguments",
+     "The same SQL query or weather lookup, run by each agent",
+     "The tool-result cache: `CTOOLSET` and `CTOOLGET`"
+    ],
+    [
+     "The same reasoning with new values",
+     "A margin calculation on different revenue figures",
+     "Reasoning reuse: `CTHINK` and `CREUSE`"
+    ],
+    [
+     "Context re-sent on every step",
+     "The full transcript in every prompt",
+     "Session and memory recall: `CSESSION` and `CMEMGET`"
+    ],
+    [
+     "A loop that never ends",
+     "An agent retrying the same failing step",
+     "Budgets and rate limits: `CBUDGET` and `CKEYLIMIT`"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "The first four are waste you can remove without changing what the agents produce. The fifth is a failure you can only cap."
+  },
+  {
+   "kind": "h2",
+   "text": "How does a shared semantic cache work across agents?"
+  },
+  {
+   "kind": "p",
+   "text": "Put one cache between every agent and the model. The first agent to ask a question pays for the answer and stores it. Any agent that asks the same thing later, in the same words or different ones, gets the stored answer and makes no model call. [What is a semantic cache](/blog/what-is-a-semantic-cache-for-llms/) explains the matching."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CGET \"What does the refund policy say about digital goods?\" TENANT fleet WITHCONFIDENCE\nCSET \"What does the refund policy say about digital goods?\" \"Digital goods can be refunded within 14 days if unused.\" EX 3600 TENANT fleet MODEL gpt-4o",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "`CGET` returns null on a miss, so the agent calls the model and then runs `CSET`. Agents that share a `TENANT` share answers. Agents in different tenants never see each other's entries, because the tenant is checked on every entry. Community edition allows up to 3 tenants."
+  },
+  {
+   "kind": "p",
+   "text": "Sharing has a risk that single-user chat does not: agents write back what they conclude. One agent's bad answer could become every agent's answer. Crowkis checks each `CSET` in a five-stage write pipeline, with hard gates at tenant isolation, a coherence floor of 0.45 and a content-policy floor of 0.5. A pair whose answer does not fit its question is refused. That is a coherence check and not a truth check, so pair it with `CFLAG`, which records a known-bad answer, and `CCHECKBAD`, which lets an agent ask whether a question matches one. [Cache poisoning](/blog/cache-poisoning-is-the-whole-problem/) goes through the pipeline."
+  },
+  {
+   "kind": "p",
+   "text": "Agents that speak the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) can reach the cache as a set of tools through `crowkis mcp`. Since 0.5.2 the MCP server exits unless a tenant is configured in its environment:"
+  },
+  {
+   "kind": "code",
+   "title": "json",
+   "code": "{\"mcpServers\": {\"crowkis\": {\"command\": \"crowkis\", \"args\": [\"mcp\"],\n  \"env\": {\"CROWKIS_TENANT\": \"your-tenant\"}}}}"
+  },
+  {
+   "kind": "p",
+   "text": "The tenant cannot come from a tool argument, because then the agent would choose its own scope. [The MCP server guide](/blog/mcp-server-feature/) has the full setup."
+  },
+  {
+   "kind": "h2",
+   "text": "How does tool-result caching work?"
+  },
+  {
+   "kind": "p",
+   "text": "Many tool calls are deterministic: the same arguments give the same result. When five agents look up the same record, four of those calls are waste, and some of them hit an API you pay for. The tool cache stores a result under the tool name plus its exact arguments."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CTOOLGET weather '{\"city\":\"Berlin\"}' TENANT fleet\nCTOOLSET weather '{\"city\":\"Berlin\"}' '{\"temp_c\":14,\"sky\":\"cloudy\"}' EX 600 TENANT fleet",
+   "original": true
+  },
+  {
+   "kind": "list",
+   "items": [
+    "Before running a tool, the agent sends `CTOOLGET tool args`.",
+    "A hit returns the stored result and the tool does not run.",
+    "On a miss, which returns null, the agent runs the tool.",
+    "It stores the result with `CTOOLSET tool args result`, adding `EX` for results that go stale.",
+    "The next agent with the same arguments gets the hit."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "The match is exact, so there is no risk of Berlin's weather being served for Munich. It also means the arguments must be written the same way every time. Serialise them with sorted keys and fixed spacing, or two equal calls will miss each other. Do not cache tools with side effects, such as sending an email, and give anything time-dependent a short `EX`. Both commands are in the free edition."
+  },
+  {
+   "kind": "h2",
+   "text": "Can repeated reasoning be reused?"
+  },
+  {
+   "kind": "p",
+   "text": "Partly. `CTHINK` stores a chain-of-thought trace as a set of steps, keyed by the question with its numbers, dates, ids and entities taken out. `CREUSE` fetches that plan when the same question comes back with different values, and returns the steps with the new values filled in plus a prompt for the final synthesis."
+  },
+  {
+   "kind": "p",
+   "text": "The limits are narrow and worth knowing. It fires on the same question with different values, and it does not fire on a reworded question. The stored trace needs at least two steps that can be extracted. The store holds 10,000 derivations, shared fairly between tenants. No token saving from it has been measured, so treat it as an experiment on your own traffic. [Reasoning reuse](/blog/reasoning-reuse-chain-of-thought/) has the details."
+  },
+  {
+   "kind": "h2",
+   "text": "How do you stop re-sending the whole context?"
+  },
+  {
+   "kind": "p",
+   "text": "Input tokens grow with every step because the agent sends the whole history each time. Two stores let it send less. `CSESSION ADD` appends a turn to a session, `CSESSION RECENT` returns the last turns and `CSESSION SEARCH` returns the turns closest in meaning to a query. A session keeps at most 500 turns by default, set by `CROWKIS_SESSION_MAX_TURNS`. `CMEMSET` stores a fact for an agent and an optional user, and `CMEMGET` returns the top facts ranked by relevance and recency."
+  },
+  {
+   "kind": "p",
+   "text": "The agent then builds its prompt from the few turns and facts that matter instead of the full transcript. How many tokens that removes depends on your prompts, so measure input tokens per call before and after. [Long-term memory for agents](/blog/your-ai-agent-has-amnesia/) covers the memory commands. For the stable part of a prompt that you must still send, provider [prompt caching](/blog/crowkis-vs-openai-prompt-caching/) lowers its price."
+  },
+  {
+   "kind": "h2",
+   "text": "How do you cap what one agent can spend?"
+  },
+  {
+   "kind": "p",
+   "text": "Caching lowers the average. A runaway loop is a problem of the worst case, and it needs a limit. `CBUDGET` sets a daily and monthly budget in dollars for a tenant, with an alert level and a circuit-breaker level given as a share of the budget."
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CBUDGET SET research-agents DAILY 25 MONTHLY 400 ALERT 80 CIRCUIT 100\nCBUDGET GET research-agents",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "The budget is enforced by the [AI gateway](/blog/ai-gateway-openai-compatible/), the OpenAI-compatible `POST /v1/chat/completions` endpoint that puts the cache in front of your provider. Past the alert level the gateway routes with cost in mind. Past the circuit-breaker level it answers upstream calls with a hard 402 and stops spending. The gateway is off until you set `CROWKIS_GATEWAY=1`, `CROWKIS_GATEWAY_KEY` and `CROWKIS_GATEWAY_UPSTREAM`. A cached reply carries the header `x-crowkis-cache: hit`. Requests with `stream:true` are passed through without caching."
+  },
+  {
+   "kind": "p",
+   "text": "Because budgets are per tenant, give each agent role or team its own tenant when you want separate ceilings. Rate limits come in two forms: `CROWKIS_GATEWAY_RPM` and `CROWKIS_GATEWAY_TPM` limit each virtual key on the gateway, and `CKEYLIMIT` sets requests and tokens per minute per tenant on the `CGET` and `CSET` path. `CKEYLIMIT` is an Enterprise command."
+  },
+  {
+   "kind": "h2",
+   "text": "When does this not help?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Tasks that are new every time.** An agent refactoring a codebase it has never seen repeats little. Measure the repeat share first; [how much semantic caching can cut](/blog/cut-llm-api-costs-semantic-caching/) gives the method.",
+    "**Tools that are not deterministic.** Live prices, search results that change, and anything with side effects should not be served from a cache, or only for a few seconds.",
+    "**Very high call rates on one node.** Measured on a development laptop, a cold semantic read runs at about 250 ops/sec because each query must be embedded, and a durable write runs at 230 ops/sec with the default fsync per write. A large fleet should test at its own rate; [the throughput ceiling](/blog/the-throughput-ceiling-we-wont-hide/) explains the numbers.",
+    "**Agents that must not share.** If each agent works on one customer's private data, a shared cache is the wrong design. Scope by tenant or do not cache those answers."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "To see whether it is working, read `global.hit_rate_pct` and the per-tenant rows from `GET /api/metrics` on the management port, and compare model calls per finished task before and after."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "How many LLM calls does an agent make per task?"
+  },
+  {
+   "kind": "p",
+   "text": "It depends on the loop. Each reasoning step is a call, each tool result needs another call to read it, and each agent in a multi-agent system runs its own loop. Count the calls per finished task in your own traces instead of relying on a general figure."
+  },
+  {
+   "kind": "h3",
+   "text": "Can agents built by different teams share one cache?"
+  },
+  {
+   "kind": "p",
+   "text": "Yes, if they use the same tenant. Entries are isolated per tenant, so teams that should not share get separate tenants. Community edition supports up to 3 tenants, and Enterprise removes the limit."
+  },
+  {
+   "kind": "h3",
+   "text": "Is it safe to let agents write to a shared cache?"
+  },
+  {
+   "kind": "p",
+   "text": "It is safer with write checks than without. Crowkis refuses a write whose answer does not fit its question, and `CFLAG` lets you mark an answer as bad so agents can check for it. Neither proves an answer is true, so keep a short `EX` on anything an agent concluded on its own."
+  },
+  {
+   "kind": "h3",
+   "text": "Does tool-result caching need the Enterprise edition?"
+  },
+  {
+   "kind": "p",
+   "text": "No. `CTOOLSET` and `CTOOLGET` ship in the free edition, as do `CBUDGET`, `CTHINK` and the memory commands. Per-tenant rate limits with `CKEYLIMIT` are the Enterprise part. See [Crowkis](/crowkis/) for the editions."
+  }
+ ]
+}

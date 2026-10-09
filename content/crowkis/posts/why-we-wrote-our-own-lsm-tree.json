@@ -1,0 +1,255 @@
+{
+ "slug": "why-we-wrote-our-own-lsm-tree",
+ "title": "An LSM tree storage engine in Rust, built for a cache",
+ "summary": "How CrowkisDB, a pure Rust LSM tree, stores an LLM cache: write-ahead log, MemTable, SSTables, Bloom filters, compaction, and the trade-offs.",
+ "keywords": [
+  "LSM tree Rust",
+  "LSM tree storage engine",
+  "write-ahead log",
+  "group commit",
+  "Bloom filter",
+  "RocksDB alternative Rust",
+  "cache storage engine"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/DEVELOPER_GUIDE.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/SERVER_LIFECYCLE.md",
+  "crowkis.docs/DOCKER_LOCAL_BUILD_TEST.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "An LSM tree storage engine in Rust is what sits under Crowkis. CrowkisDB writes every change to a write-ahead log, keeps recent data in an in-memory table, flushes it to sorted files on disk and merges those files in the background. It was written from scratch, with no RocksDB and no foreign-function calls, so the cache and its vector index run in one process."
+  },
+  {
+   "kind": "h2",
+   "text": "What is an LSM tree?"
+  },
+  {
+   "kind": "p",
+   "text": "A [log-structured merge-tree](https://en.wikipedia.org/wiki/Log-structured_merge-tree) is a way to store key-value data that favours writes. It was described in 1996 by Patrick O'Neil and co-authors. Incoming writes are buffered in an in-memory component. When that buffer fills, it is written to disk in one sequential pass as an immutable sorted file. Nothing on disk is updated in place."
+  },
+  {
+   "kind": "p",
+   "text": "Reads pay for that. A lookup checks the in-memory component first and then the files on disk, newest first, because the newest file holds the latest value or deletion for a key. Two mechanisms keep reads affordable. Each file usually carries a Bloom filter that says when a key is definitely absent, so the file can be skipped. And a background process, compaction, merges files so there are fewer to check."
+  },
+  {
+   "kind": "p",
+   "text": "The durability comes from a [write-ahead log](https://en.wikipedia.org/wiki/Write-ahead_logging): a change is recorded in the log, and the log reaches stable storage, before the change is applied anywhere else. After a crash the engine reads the log back and rebuilds what was in memory."
+  },
+  {
+   "kind": "diagram",
+   "chart": "flowchart LR\n  W[\"write\"] --> Q[\"single-writer actor\"]\n  Q --> L[\"write-ahead log\"]\n  L --> M[\"MemTable (memory)\"]\n  M -->|\"flush\"| S[\"SSTables (disk)\"]\n  S -->|\"compaction\"| S2[\"merged SSTables\"]\n  R[\"read\"] --> M\n  R --> B{\"Bloom filter\"}\n  B -->|\"may contain key\"| S",
+   "title": "Write and read paths in an LSM tree storage engine",
+   "caption": "A write goes to the log first, then to memory, and reaches a sorted file later. A read checks memory, then only the files whose Bloom filter cannot rule the key out."
+  },
+  {
+   "kind": "h2",
+   "text": "What is inside CrowkisDB?"
+  },
+  {
+   "kind": "p",
+   "text": "CrowkisDB is the engine under every Crowkis command. Its parts are the standard ones:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "a **write-ahead log** (WAL) for durability",
+    "a **MemTable**, the in-memory table that holds recent writes",
+    "**SSTables**, the immutable sorted files a MemTable is flushed into",
+    "a **Bloom filter** per table, to skip files on reads",
+    "**compaction**, to merge tables in the background",
+    "a **manifest** that records which files make up the database",
+    "a bounded **block cache** for hot reads from disk",
+    "**snapshots** and archive rotation, for backups"
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "It is pure Rust with zero FFI: no RocksDB, no LMDB, no sled. TTL expiry is part of the engine, and the [HNSW vector index](/blog/hnsw-explained-needle-in-a-million-haystacks/) that powers semantic lookup is kept by the same engine and persists with it."
+  },
+  {
+   "kind": "h2",
+   "text": "How does a write reach disk?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "A command such as `SET` or `CSET` arrives over RESP3 and is parsed by the server.",
+    "The handler passes it to a single-writer actor on a dedicated OS thread, through a bounded queue. When the queue is 90% full the server answers `BUSY` instead of queueing without limit.",
+    "The actor appends the change to the write-ahead log. By default it syncs the log to disk for every write before it acknowledges.",
+    "The change is applied to the MemTable, where reads can see it.",
+    "As in any LSM tree, a full MemTable is flushed to a new SSTable, and the manifest records the new file.",
+    "Compaction merges SSTables in the background."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "One writer means every operation is atomic without locks between writers. Lists, hashes, sets, sorted sets and streams are stored as one blob per key, so an `LPUSH` or `HSET` is a single write through the same actor. The cost is that write throughput has one lane. That ceiling is known and tracked, and [the throughput ceiling](/blog/the-throughput-ceiling-we-wont-hide/) covers it."
+  },
+  {
+   "kind": "h2",
+   "text": "Durability or throughput: what does the WAL setting change?"
+  },
+  {
+   "kind": "p",
+   "text": "Syncing the log on every write is the slow, safe choice. Group commit is the fast one: writes are acknowledged from memory and the log is synced on a timer, so many writes share one sync. Crowkis exposes the choice as one variable, `CROWKIS_WAL_SYNC_INTERVAL_MS`, and measured both settings over the wire with a real server process."
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Setting",
+    "Measured SET throughput",
+    "What you risk"
+   ],
+   "rows": [
+    [
+     "Default: sync on every write",
+     "230 ops/sec",
+     "Nothing that was acknowledged"
+    ],
+    [
+     "`CROWKIS_WAL_SYNC_INTERVAL_MS=200`",
+     "70,868 ops/sec",
+     "Up to 200 ms of acknowledged writes on a power cut"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Both figures are from a development laptop, an Apple Silicon machine with 16 GB of RAM and 8 cores, with other builds running. Treat them as a floor and re-measure on your own hardware. The loss window at the grouped setting is 200 ms by construction, and it has not been tested under a real power cut."
+  },
+  {
+   "kind": "p",
+   "text": "For a cache the question is what a lost write costs. A lost cache entry is an answer you pay the model for again, which is cheap if it is one entry and less so if it is a burst. The default is the durable one, so the fast setting is something you opt into knowingly."
+  },
+  {
+   "kind": "h2",
+   "text": "How do reads stay cheap?"
+  },
+  {
+   "kind": "p",
+   "text": "A read checks the MemTable, then the SSTables. The Bloom filters do most of the work for keys that are not there. A [Bloom filter](https://en.wikipedia.org/wiki/Bloom_filter) is a small probabilistic structure that answers \"possibly in set\" or \"definitely not in set\": false positives are possible, false negatives are not. Wikipedia puts the size at fewer than 10 bits per element for a 1% false positive probability. A \"definitely not\" skips the file without touching the disk."
+  },
+  {
+   "kind": "p",
+   "text": "That matters more in a cache than in most stores, because a miss is normal traffic. Every new question is a miss on its way to the model, and it should not pay for a tour of the disk first."
+  },
+  {
+   "kind": "p",
+   "text": "For keys that are on disk, the block cache holds recently read blocks in memory. It is bounded by `CROWKIS_BLOCK_CACHE_BYTES`, and the process as a whole by `CROWKIS_MEMORY_LIMIT`. Under a container the engine reads the cgroup memory limit instead of total host memory, so that it refuses writes gracefully before the kernel kills it. A plain `GET` measured 103,000 ops/sec at 512 connections on the same laptop. That is a key read, and it says nothing about the semantic path, which is bound by embedding the query."
+  },
+  {
+   "kind": "h2",
+   "text": "What happens on restart?"
+  },
+  {
+   "kind": "p",
+   "text": "Opening the database replays the write-ahead log and loads the vector index. That can take a while with a large index, which is why the server binds its health-probe port before the database opens: `/readyz` answers 503 until the index is loaded, and `/livez` answers 200 so an orchestrator does not kill a process that is only warming up. [Deploying a self-hosted semantic cache](/blog/five-minute-deploy/) has the probe configuration."
+  },
+  {
+   "kind": "p",
+   "text": "On SIGTERM or SIGINT the server stops accepting connections and flushes the log before it exits, bounded by `CROWKIS_DRAIN_TIMEOUT_MS`, which defaults to 10000. There is one known gap. The background snapshot and compaction workers are not yet joined on shutdown, so a SIGTERM that lands while a snapshot is being published can force a full index rebuild on the next boot."
+  },
+  {
+   "kind": "p",
+   "text": "You can test the restart path yourself. Store an entry, restart the container, and read it back:"
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CSET \"what is the capital of France\" \"Paris\" TENANT smoke MODEL gpt-4o\n# docker restart <container>, wait for /readyz to answer 200\nCGET \"what is the capital of France\" TENANT smoke MODEL gpt-4o",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "The Crowkis build notes call this \"the check that catches WAL bugs\" and include it in the test of a locally built image. For backups, `CSAVE dest` writes a `.crowkbak` snapshot and replies only after it is synced to disk, and `CBGSAVE dest` does the same in the background."
+  },
+  {
+   "kind": "h2",
+   "text": "Why not use RocksDB?"
+  },
+  {
+   "kind": "p",
+   "text": "For most projects, RocksDB is the right answer. Its [own overview](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) describes a key-value storage library, forked from LevelDB, built from the same three constructs of memtable, sstfile and logfile. It has highly flexible configuration and three compaction styles: level, universal and FIFO. If your data fits a generic key-value engine, use one."
+  },
+  {
+   "kind": "p",
+   "text": "Owning the engine gives Crowkis three properties a borrowed one would not."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**One binary, one language.** RocksDB is a C++ library, so a Rust server reaches it through FFI. CrowkisDB has none, and the product ships as a single binary.",
+    "**The index and the store are one engine.** A semantic read is a vector search followed by checks on the candidates: tenant, model, TTL, confidence. With the HNSW index, the TTL logic and the key-value store in one engine, that sequence stays inside one process, and the index persists and recovers together with the data.",
+    "**A known workload.** A general engine exposes many settings because it serves every workload. A cache has a narrower one: entries that expire by TTL, and misses that must be cheap. The documented storage settings are few: the WAL sync interval, the block cache size, the memory limit and the connection limit."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Rust suits the request path. [Rust](https://www.rust-lang.org/) has no runtime and no garbage collector, so there are no collector pauses in the middle of a request, and memory safety is checked at compile time."
+  },
+  {
+   "kind": "h2",
+   "text": "What did it cost, and what are the limits today?"
+  },
+  {
+   "kind": "p",
+   "text": "Writing a storage engine means re-solving problems others solved long ago, and some are still open. These are the honest limits from the measured-capability notes:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**The soak test failed.** Under sustained concurrent writes and searches, the worst single request took 1,204 ms against a budget of 1,000 ms, at a corpus of 25,420 entries. The cause has not been isolated. No claim about tail latency under sustained write load stands until it passes.",
+    "**Writes have one lane.** The single-writer actor caps write throughput. Concurrent reads are the next infrastructure step.",
+    "**Every figure is from one laptop.** Nothing has been reproduced on server-class hardware or over hours of mixed load.",
+    "**The shutdown gap** described above can turn a badly timed stop into an index rebuild."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "No garbage collector does not mean no stalls. The soak result shows that a background operation can still be felt by a request. If you are choosing an engine for your own product, the lesson is narrow: write your own only when the workload cannot be expressed in a generic one, and budget for the long tail of durability work. [How Crowkis earned production](/blog/how-crowkis-earned-production/) and [the correctness harness](/blog/84-of-84-correctness-under-fire/) show how that work is tested."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "Is CrowkisDB a fork of RocksDB or LevelDB?"
+  },
+  {
+   "kind": "p",
+   "text": "No. It is written from scratch in Rust with zero FFI, and it does not embed RocksDB, LMDB or sled. It uses the same LSM design those engines made standard: a write-ahead log, a MemTable, SSTables, Bloom filters and compaction."
+  },
+  {
+   "kind": "h3",
+   "text": "Does a cache need a durable storage engine?"
+  },
+  {
+   "kind": "p",
+   "text": "An LLM cache does, more than a web cache. Each entry cost a model call to produce, so losing the cache on a restart means paying for those answers again. That is why the default syncs the log on every write."
+  },
+  {
+   "kind": "h3",
+   "text": "What is group commit in a write-ahead log?"
+  },
+  {
+   "kind": "p",
+   "text": "Group commit batches the disk sync for many writes into one. Crowkis does it on a timer set by `CROWKIS_WAL_SYNC_INTERVAL_MS`. Throughput rises sharply, and writes acknowledged since the last sync can be lost if the machine loses power."
+  },
+  {
+   "kind": "h3",
+   "text": "Can I tune compaction in Crowkis?"
+  },
+  {
+   "kind": "p",
+   "text": "The documentation lists no compaction settings. The storage settings it does document are the WAL sync interval, `CROWKIS_BLOCK_CACHE_BYTES`, `CROWKIS_MEMORY_LIMIT` and `CROWKIS_MAX_CONNECTIONS`. More engineering posts are under [engineering](/blog/topic/engineering/), and the product page is [Crowkis](/crowkis/)."
+  }
+ ]
+}

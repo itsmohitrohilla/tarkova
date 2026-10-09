@@ -1,0 +1,264 @@
+{
+ "slug": "crowkis-vs-openai-prompt-caching",
+ "title": "Prompt caching vs semantic caching: what each one saves",
+ "summary": "Provider prompt caching discounts a repeated prompt prefix. Semantic caching skips the call. OpenAI, Anthropic, Gemini and Bedrock compared fairly.",
+ "keywords": [
+  "prompt caching vs semantic caching",
+  "OpenAI prompt caching",
+  "Anthropic prompt caching",
+  "Gemini context caching",
+  "Bedrock prompt caching",
+  "semantic caching",
+  "vLLM prefix caching"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/METRICS_API.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "Prompt caching and semantic caching work at two different layers. Prompt caching is a provider feature: when a request starts with the same long prefix as a recent one, the provider reuses its work on that prefix and bills those input tokens at a lower rate, and the model still writes the answer. Semantic caching stores finished answers and skips the call when a question repeats."
+  },
+  {
+   "kind": "h2",
+   "text": "How does provider prompt caching work?"
+  },
+  {
+   "kind": "p",
+   "text": "Every provider's version follows the same pattern. The cache key is the start of the prompt, token for token. A request whose prefix matches a recent one reuses the provider's processing of those tokens. The entry lives for minutes to hours. The benefit is a lower price and less latency for the input side. The model then generates the output as usual, and you pay for the output as usual. The details differ by provider, and each paragraph below is taken from that provider's own documentation."
+  },
+  {
+   "kind": "p",
+   "text": "**OpenAI.** [Prompt caching](https://platform.openai.com/docs/guides/prompt-caching) is enabled by default for supported models, with no code change. Reuse requires the entire rendered prefix to match, and on the newest models the minimum cacheable prompt is 1,024 tokens. A cached prefix stays eligible for 30 minutes after its last write or reuse on those models; older ones keep entries for roughly 5 to 10 minutes of inactivity, or up to 24 hours with extended retention. Reused tokens are billed at the model's reduced cached-input rate. The guide states that prompt caching does not change how the model generates output tokens, and that caches are not shared across organizations."
+  },
+  {
+   "kind": "p",
+   "text": "**Anthropic.** [Prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is something you mark: put `cache_control` on a content block, or set it once at the top of the request and let the system place the breakpoint. The prefix covers `tools`, `system` and `messages` in that order, and a hit requires identical prompt segments up to the breakpoint. The default lifetime is 5 minutes, refreshed for free on each use, with a 1-hour option at a higher write price. Writing to the cache is billed above the base input price and reading from it far below. The documentation says caching has no effect on output token generation: the response is identical to what you would get without it."
+  },
+  {
+   "kind": "p",
+   "text": "**Google Gemini.** The [context caching guide](https://ai.google.dev/gemini-api/docs/caching) describes implicit caching, which is on by default for Gemini 2.5 and newer models and passes on the saving when a request happens to hit. The [explicit caching guide](https://ai.google.dev/gemini-api/docs/generate-content/caching) covers the other mode: you pass content to the model once, cache the input tokens, and refer to them in later requests. The cached content is a prefix to the prompt. The lifetime defaults to 1 hour if you do not set one. You are billed for cached tokens at a reduced rate when they are used, and for storage according to the lifetime you chose."
+  },
+  {
+   "kind": "p",
+   "text": "**Amazon Bedrock.** [Prompt caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html) is an optional feature for supported models, meant to reduce inference latency and input token costs. It has an implicit type, which tries to reuse eligible prefixes automatically and does not guarantee a hit, and an explicit type, where you place cache checkpoints. A checkpoint needs a minimum prefix of 512 to 4,096 tokens depending on the model. The lifetime resets on every hit; many models support 5 minutes and some support 1 hour. Tokens read from cache are billed at the model's cache-read rate, and tokens written can be billed above the standard input rate. It is not supported with the batch inference API."
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Provider",
+    "How it is turned on",
+    "Typical lifetime",
+    "What changes on the invoice"
+   ],
+   "rows": [
+    [
+     "OpenAI",
+     "Automatic for supported models",
+     "Minutes, up to 24 hours with extended retention",
+     "Matching input tokens at the cached-input rate"
+    ],
+    [
+     "Anthropic",
+     "A `cache_control` marker",
+     "5 minutes, or 1 hour",
+     "Cache writes priced above input, cache reads far below"
+    ],
+    [
+     "Google Gemini",
+     "Implicit by default, or an explicit cache object",
+     "1 hour by default for explicit caches",
+     "Cached tokens at a reduced rate, plus storage for explicit caches"
+    ],
+    [
+     "Amazon Bedrock",
+     "Implicit, or explicit cache checkpoints",
+     "5 minutes, or 1 hour on some models",
+     "Cache reads at the cache-read rate; writes can be priced above input"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "If you run your own models, vLLM has the same idea on your own hardware. Its [Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/) caches the KV cache of existing queries so a new query with the same prefix can reuse it. The documentation is clear about the boundary: it only reduces the time of processing the query, and does not reduce the time of generating new tokens."
+  },
+  {
+   "kind": "h2",
+   "text": "How does semantic caching work?"
+  },
+  {
+   "kind": "p",
+   "text": "A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) sits in front of the provider and stores whole answers. A new question is turned into an embedding and compared with the questions already answered. If one has the same meaning and passes the reuse checks, its answer is returned and no request is sent upstream. In Crowkis that is two commands:"
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CGET \"What is the refund process?\" TENANT shop MODEL gpt-4o WITHCONFIDENCE\nCSET \"What is the refund process?\" \"Refunds go back to the original payment method.\" EX 86400 TENANT shop MODEL gpt-4o",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "`CGET` returns null on a miss. Your code then calls the model and stores the reply with `CSET`, where `EX` is the lifetime in seconds. A later \"How do refunds work?\" can hit that entry even though it shares no prefix with the original. If you would sooner not change application code, the [AI gateway](/blog/ai-gateway-openai-compatible/) does the same thing behind an OpenAI-compatible `POST /v1/chat/completions` endpoint: a matching request is served from cache with the header `x-crowkis-cache: hit`, and a miss is forwarded, cached and returned. The gateway is off by default, and it passes `stream:true` requests through without caching them."
+  },
+  {
+   "kind": "h2",
+   "text": "Prompt caching vs semantic caching, side by side"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "",
+    "Provider prompt caching",
+    "Semantic caching"
+   ],
+   "rows": [
+    [
+     "What has to repeat",
+     "The start of the prompt, token for token",
+     "The meaning of the question"
+    ],
+    [
+     "Model call on a hit",
+     "Still happens",
+     "Does not happen"
+    ],
+    [
+     "Output tokens on a hit",
+     "Generated and billed as usual",
+     "None"
+    ],
+    [
+     "Risk of a wrong answer",
+     "None: the model sees the same tokens either way",
+     "Possible if matching is too loose, so it needs checks"
+    ],
+    [
+     "Lifetime",
+     "Minutes to hours, set by the provider",
+     "Your own TTL, on your own disk"
+    ],
+    [
+     "Minimum size",
+     "A prefix of several hundred to several thousand tokens, depending on the model",
+     "None"
+    ],
+    [
+     "Across providers",
+     "No, each provider has its own",
+     "Yes, the cache is in front of all of them"
+    ],
+    [
+     "What you run",
+     "Nothing, or one marker in the request",
+     "A cache service"
+    ]
+   ]
+  },
+  {
+   "kind": "plain",
+   "text": "Prompt caching makes the calls you must make cheaper. Semantic caching removes the calls you did not need to make. They work on different parts of the bill, so most applications that repeat should use both."
+  },
+  {
+   "kind": "p",
+   "text": "Two rows deserve a second look. The risk row favours prompt caching: it cannot change an answer, because the model still reads the same tokens. A semantic cache makes a judgement that two questions are the same, and a bad judgement serves a wrong answer. [A cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/) explains how Crowkis scores that judgement. The minimum size row favours semantic caching: a short question with a short system prompt is below every provider's threshold and gets no prompt caching at all."
+  },
+  {
+   "kind": "h2",
+   "text": "When is provider prompt caching the right choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**A long, stable prefix with a different question each time.** A large system prompt, a set of tool definitions, or a document the user keeps asking about. This is the case the feature was designed for.",
+    "**Agent loops.** Each step re-sends the instructions, tools and history, and only the tail is new. The prefix is long and repeats within minutes.",
+    "**Answers that must be generated fresh.** Personal, creative or stateful replies should not be reused, and prompt caching never reuses them.",
+    "**No room for another service.** It needs no infrastructure, and on some providers no code.",
+    "**No tolerance for a mistaken reuse.** There is no matching decision to get wrong."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "For these workloads prompt caching is the correct tool and a semantic cache would add little. Turn it on wherever your provider offers it."
+  },
+  {
+   "kind": "h2",
+   "text": "When is semantic caching the right choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**The same questions arrive from many users.** Support, FAQ and documentation assistants see one intent phrased many ways, and none of those phrasings share a prefix.",
+    "**Output tokens are the larger part of the call.** Prompt caching does not touch them. A semantic hit has none.",
+    "**Prompts are short.** They fall below the minimum prefix length, so there is nothing for the provider to cache.",
+    "**Latency matters on repeated questions.** A hit returns a stored answer instead of waiting for generation.",
+    "**You use more than one provider or model.** Entries can be scoped with `MODEL` and `MODEL_VERSION`, and the cache does not depend on any one provider's feature."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "It is the wrong choice when requests do not repeat, when every answer depends on private context, or when nobody will own the reuse rules. It also has to be run and watched. [How much semantic caching can cut LLM costs](/blog/cut-llm-api-costs-semantic-caching/) shows how to measure whether your traffic repeats enough to justify it."
+  },
+  {
+   "kind": "h2",
+   "text": "How do you use both together?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "Send the question to the semantic cache with `CGET`.",
+    "On a hit, return the stored answer. The provider is not called.",
+    "On a miss, build the prompt with the stable content first: instructions, tools, reference text. Put the user's question last, so the prefix matches earlier requests.",
+    "Call the provider. Its prompt cache discounts the prefix, and the model generates a new answer.",
+    "Store the answer with `CSET` and an `EX` that fits how quickly it goes stale."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "The semantic cache removes the repeated questions. Prompt caching lowers the price of the prefix on the calls that remain. Check both in your metrics: the provider reports cached tokens in each response's usage, and Crowkis reports hits and misses per tenant from `GET /api/metrics`."
+  },
+  {
+   "kind": "p",
+   "text": "One more approach is sometimes offered as a substitute for both: put the whole knowledge base into a large context window on every call. Prompt caching softens the price of re-sending that context, and the model still reads the question and writes the answer each time. A semantic cache stores the answer once it has been produced. [Freshness for LLM answers](/blog/freshness-hamlet-vs-stock-price/) covers how long to keep it."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "Is prompt caching the same as semantic caching?"
+  },
+  {
+   "kind": "p",
+   "text": "No. Prompt caching reuses the provider's processing of an identical prompt prefix and still generates a new answer. Semantic caching reuses a stored answer when a question has the same meaning, and makes no model call."
+  },
+  {
+   "kind": "h3",
+   "text": "Does prompt caching lower the cost of output tokens?"
+  },
+  {
+   "kind": "p",
+   "text": "No. OpenAI's guide says prompt caching does not change how the model generates output tokens, and Anthropic's says it has no effect on output token generation. Only the matching input tokens are billed at a lower rate."
+  },
+  {
+   "kind": "h3",
+   "text": "Do reworded questions hit a provider's prompt cache?"
+  },
+  {
+   "kind": "p",
+   "text": "Only the shared prefix does. If two requests begin with the same long system prompt, that part can be read from cache whatever the question says. The reworded question itself is processed as new input, and the answer is generated again."
+  },
+  {
+   "kind": "h3",
+   "text": "Can a semantic cache return a wrong answer?"
+  },
+  {
+   "kind": "p",
+   "text": "Yes, if it matches too loosely. That is why Crowkis returns a confidence score with each hit, checks every write, and returns null when nothing passes. Comparisons with other tools are under [vs the field](/blog/topic/vs-the-field/), including [GPTCache](/blog/gptcache-alternative-crowkis-comparison/), and the product page is [Crowkis](/crowkis/)."
+  }
+ ]
+}

@@ -1,0 +1,352 @@
+{
+ "slug": "five-minute-deploy",
+ "title": "Deploying and operating a self-hosted semantic cache",
+ "summary": "Run Crowkis in Docker, set the two keys it needs, wire up health probes and metrics, and know the measured limits before it fronts production traffic.",
+ "keywords": [
+  "self-hosted semantic cache",
+  "deploy semantic cache Docker",
+  "semantic cache Kubernetes",
+  "LLM cache monitoring",
+  "Crowkis deployment",
+  "cache health probes",
+  "Prometheus metrics"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/DOCKER_USER_GUIDE.md",
+  "crowkis.docs/DOCKER_LOCAL_BUILD_TEST.md",
+  "crowkis.docs/DEVELOPER_GUIDE.md",
+  "crowkis.docs/METRICS_API.md",
+  "crowkis.docs/SERVER_LIFECYCLE.md",
+  "crowkis.docs/UPGRADING_TO_0.5.2.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/CUSTOM_EMBEDDER.md",
+  "tarkova:src/site/products.js"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "Deploying a self-hosted semantic cache with Crowkis means running one container with a data volume, setting an admin key and an auth token, and pointing your existing RESP3 clients at the cache port. Operating it comes down to three things: health probes that tolerate a slow start, metrics you scrape, and a restart you have tested."
+  },
+  {
+   "kind": "h2",
+   "text": "What do you need before you start?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Docker**, and the image [crowkis/crowkis](https://hub.docker.com/r/crowkis/crowkis) from Docker Hub.",
+    "**One persistent volume** for `/data`. Docker's documentation describes [volumes](https://docs.docker.com/engine/storage/volumes/) as persistent data stores for containers, whose data survives even if the container is removed. The cache lives there.",
+    "**Two secrets**: an admin key for the dashboard and management API, and an auth token for cache traffic.",
+    "**No model API key.** The embedding model is bundled and runs locally, and the server makes no outbound calls unless you turn on the AI gateway or the decision engine."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Check which version you have before you copy any port number. The listeners moved in 0.5.2:"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Surface",
+    "Before 0.5.2",
+    "0.5.2 and later"
+   ],
+   "rows": [
+    [
+     "Cache protocol (RESP3)",
+     "6379",
+     "6383"
+    ],
+    [
+     "Dashboard and management HTTP",
+     "6380",
+     "6384, loopback only by default"
+    ],
+    [
+     "gRPC",
+     "6381",
+     "6385"
+    ],
+    [
+     "Health probes",
+     "`/health` on the management port",
+     "6386: `/livez` and `/readyz`"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "The management, gRPC and probe ports are derived from the cache port as +1, +2 and +3, so `server --port N` moves all four together. The rest of this page follows the 0.5.2 layout. If your image is older, the [Crowkis Docker page](https://www.crowkis.com/docker) has the matching command with the earlier ports. `CINFO` reports the version of a running server."
+  },
+  {
+   "kind": "h2",
+   "text": "Step 1: run the container"
+  },
+  {
+   "kind": "code",
+   "title": "bash",
+   "code": "docker pull crowkis/crowkis:latest\n\ndocker run -d --name crowkis \\\n  -p 127.0.0.1:6383:6383 \\\n  -p 127.0.0.1:6384:6384 \\\n  -p 127.0.0.1:6386:6386 \\\n  -e CROWKIS_ADMIN_KEY=change-me-admin-key \\\n  -e CROWKIS_AUTH_TOKEN=change-me-resp-grpc-token \\\n  -e CROWKIS_MANAGEMENT_BIND_HOST=0.0.0.0 \\\n  -v crowkis-data:/data \\\n  crowkis/crowkis:latest\n\ndocker logs -f crowkis",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "Look at the tags on Docker Hub before you run it. If the newest tag is below 0.5.2, the container listens on the earlier ports, and the command on the Crowkis Docker page is the one to use. Three details in the command above are easy to miss."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "`CROWKIS_MANAGEMENT_BIND_HOST=0.0.0.0` is not optional if you want the dashboard from the host. Without it the management port binds to loopback inside the container and port 6384 is unreachable from outside.",
+    "The `127.0.0.1:` prefix on each `-p` keeps the published ports on your own machine. Remove it only once the two keys are set to real values.",
+    "Map 6385 as well if you use gRPC."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Avoid `docker compose up` on 0.5.2. The Compose file in that release still publishes the old container ports, which nothing listens on, so it starts a container you cannot reach. Use `docker run` as above, or pass `server --port 6379` so the old ports apply."
+  },
+  {
+   "kind": "h2",
+   "text": "Step 2: set the two keys"
+  },
+  {
+   "kind": "p",
+   "text": "**`CROWKIS_ADMIN_KEY`** protects the dashboard and the management API. From 0.5.2 it is required on every bind address: without an admin key or an RBAC API key, every management call returns 401. A loopback bind is not treated as an access boundary, because every local account on a shared host can reach it and a reverse proxy puts it on the network anyway. `CROWKIS_ALLOW_UNAUTHENTICATED_ADMIN=1` switches the check off for local experiments and logs a security warning at startup."
+  },
+  {
+   "kind": "p",
+   "text": "**`CROWKIS_AUTH_TOKEN`** protects the cache protocol and gRPC. Protected mode is on by default: with no token set, a connection from a non-loopback address is refused with `-DENIED` on every command except `QUIT`. Set the token before you expose the port, and have clients send it with `AUTH`."
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Variable",
+    "Example value",
+    "What it does"
+   ],
+   "rows": [
+    [
+     "`CROWKIS_BIND_ADDR`",
+     "`127.0.0.1`",
+     "Address the published ports bind to"
+    ],
+    [
+     "`CROWKIS_MEMORY_LIMIT`",
+     "`512m`",
+     "Memory ceiling for the cache process"
+    ],
+    [
+     "`CROWKIS_BLOCK_CACHE_BYTES`",
+     "`64m`",
+     "Size of the bounded block cache"
+    ],
+    [
+     "`CROWKIS_MAX_CONNECTIONS`",
+     "`10000`",
+     "Ceiling on concurrent connections"
+    ],
+    [
+     "`CROWKIS_LOG_QUERY_PREVIEWS`",
+     "`0`",
+     "Keeps prompt text out of the logs"
+    ],
+    [
+     "`CROWKIS_SECURITY_MODE`",
+     "strict by default",
+     "How hard the write checks are; `permissive` restores the looser behaviour"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Settings can also come from a file. `CROWKIS_CONFIG_PATH`, by default `/etc/crowkis/crowkis.toml` in the image, is read at boot and takes precedence over the environment. The supported keys include `server.data_dir`, `server.bind_host`, `server.grpc_port` and `license.path`. A key the server does not know stops the boot and is named in the error, so a typo cannot be silently ignored. [Multi-tenant isolation](/blog/tenant-isolation-architecture/) covers the auth surfaces in more depth."
+  },
+  {
+   "kind": "h2",
+   "text": "Step 3: check that it works, including a reworded hit"
+  },
+  {
+   "kind": "code",
+   "title": "bash",
+   "code": "curl -fsS http://127.0.0.1:6386/readyz\ncurl -i http://127.0.0.1:6384/api/metrics\ncurl -H \"x-crowkis-admin-key: change-me-admin-key\" http://127.0.0.1:6384/api/metrics"
+  },
+  {
+   "kind": "p",
+   "text": "The first call answers once the server is ready. The second must be rejected with 401, and the third must return JSON. Then connect any RESP3 client to port 6383, authenticate, and store and read an answer:"
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "PING\nCINFO\nCSET \"How do I reduce LLM spend?\" \"Use caching, batching, routing, and model selection.\" EX 3600 TENANT demo MODEL gpt-4o\nCGET \"How do I reduce LLM spend?\" TENANT demo\nCGET \"How can I lower LLM cost?\" TENANT demo\nCGET \"How do I reduce LLM spend?\" TENANT other\nCVECCOUNT"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "The first `CGET` is an exact hit.",
+    "The second is the one that matters. It asks the same thing in different words, and it must also hit. A miss here means the embedding model did not load. A server in that state otherwise looks healthy: exact reads keep working and `CINFO` reports the same version.",
+    "The third asks as a different tenant and must return null."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "p",
+   "text": "Finish with the restart test. Run `docker restart crowkis`, wait for `/readyz`, and repeat the first `CGET`. The answer must still be there. This is the check that catches durability bugs. [The command reference](/blog/the-crowkis-cli-tour/) lists everything else you can send."
+  },
+  {
+   "kind": "h2",
+   "text": "How should health probes be set up?"
+  },
+  {
+   "kind": "p",
+   "text": "The probe port exists because startup can be slow. Opening the database replays the write-ahead log and loads the vector index, and with a large index that takes long enough for an orchestrator to give up. The probe listener binds before the database opens, and the endpoints answer different questions:"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "`/livez` asks whether the process is wedged. It returns 200 for the whole index load, and 503 only once the database stops answering a real round-trip.",
+    "`/readyz` asks whether the node should get traffic. It returns 503 until the index is loaded.",
+    "`/health` is an alias of `/livez`."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "They take no credential, and disclose only a status of `starting`, `ok` or `degraded`. On Kubernetes, point all three probes at the probe port:"
+  },
+  {
+   "kind": "code",
+   "title": "yaml",
+   "code": "startupProbe:\n  httpGet: { path: /readyz, port: 6386 }\n  periodSeconds: 10\n  failureThreshold: 360          # 1 h of index load; raise for large indexes\nreadinessProbe:\n  httpGet: { path: /readyz, port: 6386 }\n  periodSeconds: 5\n  failureThreshold: 3\nlivenessProbe:\n  httpGet: { path: /livez, port: 6386 }\n  periodSeconds: 10\n  failureThreshold: 3"
+  },
+  {
+   "kind": "p",
+   "text": "The startup probe is the part people leave out. The [Kubernetes probe documentation](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/) says that when a startup probe is configured, liveness and readiness probes do not run until it succeeds. That pause is what stops a long index load from being killed halfway and restarted into the same load. If you install with the Helm chart, take chart 0.2.1 or later, because earlier charts point their probes at a port nothing listens on."
+  },
+  {
+   "kind": "p",
+   "text": "Shutdown matters as much as startup. On SIGTERM the server stops accepting connections and flushes the write-ahead log before it exits, bounded by `CROWKIS_DRAIN_TIMEOUT_MS`, which defaults to 10000. Keep your termination grace period longer than that. One gap is documented: a SIGTERM that lands while a snapshot is being published can force a full index rebuild on the next boot. [The storage engine guide](/blog/why-we-wrote-our-own-lsm-tree/) explains what is replayed and why."
+  },
+  {
+   "kind": "h2",
+   "text": "How do you monitor it?"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Endpoint",
+    "What you get",
+    "Use it for"
+   ],
+   "rows": [
+    [
+     "`GET /api/metrics`",
+     "One JSON snapshot: requests, hits, misses, hit rate, per-tenant rows, budgets, system",
+     "Your own tooling"
+    ],
+    [
+     "`GET /api/metrics/stream?every=2`",
+     "The same JSON as server-sent events, every 1 to 60 seconds",
+     "Live views; polling the snapshot is rate limited"
+    ],
+    [
+     "`GET /metrics`",
+     "Prometheus text exposition",
+     "Scraping into your monitoring stack"
+    ],
+    [
+     "`GET /ws/live`",
+     "A WebSocket of individual lookups: hit, miss, blocked",
+     "A live feed"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "All four are on the management port and accept `X-Crowkis-Admin-Key`, `X-Crowkis-Api-Key` or a bearer token. A reader role is enough, and a key that belongs to one tenant sees only that tenant's rows. `/metrics` uses the [Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/), so an existing Prometheus can scrape it with no adapter."
+  },
+  {
+   "kind": "p",
+   "text": "The dashboard on the same port shows live traffic, hit rate, latency, memory and block-cache use, safety blocks and license state. Logs are structured JSON on stderr, so `docker logs` feeds a log pipeline directly; `CROWKIS_STRUCTURED_LOGS=0` gives readable local logs. From a client, `CINFO` returns the server, cache, savings, security, db and license sections."
+  },
+  {
+   "kind": "p",
+   "text": "Three things are worth an alert: `/readyz` failing, memory near `CROWKIS_MEMORY_LIMIT`, and a sudden drop in `global.hit_rate_pct`. A falling hit rate is not an outage. It means you are paying for calls the cache used to answer."
+  },
+  {
+   "kind": "h2",
+   "text": "How do backups and upgrades work?"
+  },
+  {
+   "kind": "p",
+   "text": "`CSAVE dest` writes a `.crowkbak` snapshot and replies only after it is synced to disk. `CBGSAVE dest` starts the same snapshot in the background and returns at once. Scheduled backups are an Enterprise feature. `CRELOAD` reloads the license file without dropping connections, and a bad license falls back to Community instead of stopping the server."
+  },
+  {
+   "kind": "p",
+   "text": "An upgrade is a new image and a restart, and you should still read the notes first. The move to 0.5.2 changed the ports and five defaults at once: management auth became mandatory, protected mode was turned on, the MCP server began to require `CROWKIS_TENANT`, strict security mode became the real default, and unknown config keys began to stop the boot. Some entries also needed a one-time re-warm, for example those under identifiers longer than 64 characters. No data was corrupted, and an install that upgraded without reading would still have looked broken. After an upgrade, run `crowkis doctor` and repeat the checks from step 3."
+  },
+  {
+   "kind": "p",
+   "text": "For a model change, `CSET` and `CGET` take `MODEL` and `MODEL_VERSION`, so answers from one model are not served for another. The management API also has canary rollout and migration endpoints for model upgrades, and the [AI gateway](/blog/ai-gateway-openai-compatible/) is where upstream providers are configured."
+  },
+  {
+   "kind": "h2",
+   "text": "What are the limits before production?"
+  },
+  {
+   "kind": "p",
+   "text": "Crowkis describes itself as being in a beta-hardening phase, and its measured-capability notes are specific about what has and has not been shown. Every figure below comes from a development laptop and has not been reproduced on server-class hardware."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**A soak test failed.** Under sustained concurrent writes and searches, the worst single request took 1,204 ms against a budget of 1,000 ms. Do not assume tail latency under heavy write load.",
+    "**Semantic reads are bound by embedding.** A cold `CGET` measured about 250 ops/sec. Size the node for your lookup rate; [the throughput ceiling](/blog/the-throughput-ceiling-we-wont-hide/) explains the number.",
+    "**Durable writes are slow by default.** `SET` measured 230 ops/sec with a sync on every write. `CROWKIS_WAL_SYNC_INTERVAL_MS=200` raised that to 70,868 ops/sec and can lose up to 200 ms of acknowledged writes on a power cut.",
+    "**Scale is verified to 1.18M vectors** at dimension 100, and no further.",
+    "**Replicas can disagree.** The adaptive threshold has a known defect: it latches on the first query after boot, so two replicas can answer the same question differently. Pub/sub is per instance as well.",
+    "**Community supports up to 3 tenants.**"
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Plan for the cache being down. It is an optimisation in front of your model, so your client should treat a cache error or timeout as a miss and call the model directly. The worst case is then the bill you had before."
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "Which ports does Crowkis use?"
+  },
+  {
+   "kind": "p",
+   "text": "From 0.5.2: 6383 for the cache protocol, 6384 for the dashboard and management API, 6385 for gRPC and 6386 for health probes. Earlier images listened on 6379, 6380 and 6381. Passing `server --port N` moves the whole set."
+  },
+  {
+   "kind": "h3",
+   "text": "Do I need a GPU or an embedding API key?"
+  },
+  {
+   "kind": "p",
+   "text": "No. The embedding model is bundled in the image and runs locally; `CROWKIS_GPU=off` forces it onto the CPU. Nothing is sent to an outside service unless you enable the gateway or the decision engine."
+  },
+  {
+   "kind": "h3",
+   "text": "Can I run more than one replica?"
+  },
+  {
+   "kind": "p",
+   "text": "The documentation describes a single node with its own data directory. Two behaviours are per instance today: the adaptive threshold can differ between replicas, and pub/sub does not cross nodes. Until those change, scale one node up before you add a second."
+  },
+  {
+   "kind": "h3",
+   "text": "What happens to my application if the cache is unreachable?"
+  },
+  {
+   "kind": "p",
+   "text": "That depends on your client code, so make it explicit: on any cache error, fall through to the model. More operations posts are under [operations](/blog/topic/operations/). The product page is [Crowkis](/crowkis/), and you can [contact us](/contact/) about a deployment."
+  }
+ ]
+}

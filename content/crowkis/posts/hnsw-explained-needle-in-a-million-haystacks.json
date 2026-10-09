@@ -1,0 +1,277 @@
+{
+ "slug": "hnsw-explained-needle-in-a-million-haystacks",
+ "title": "HNSW vector index explained, with measured trade-offs",
+ "summary": "How an HNSW vector index finds nearest neighbours in a layered graph, what M and ef control, and measured recall and latency at 1.18M vectors.",
+ "keywords": [
+  "HNSW",
+  "HNSW vector index",
+  "approximate nearest neighbor search",
+  "HNSW parameters M ef",
+  "vector search recall",
+  "filtered vector search",
+  "in-process vector index"
+ ],
+ "sources": [
+  "README.md",
+  "crowkis.docs/MEASURED_CAPABILITY.md",
+  "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+  "crowkis.docs/COMMANDS.md",
+  "crowkis.docs/SCALE_RECALL_FINDINGS.md",
+  "crowkis.docs/SCOPED_SEARCH_LIMITS.md",
+  "crowkis.docs/CUSTOM_EMBEDDER.md"
+ ],
+ "body": [
+  {
+   "kind": "p",
+   "text": "An HNSW vector index is a layered graph that finds the stored vectors nearest to a query without comparing against every one. Search starts in a sparse top layer, hops greedily toward the query, then drops into denser layers to refine. It gives up a little recall for a large drop in work, and three parameters set that trade."
+  },
+  {
+   "kind": "h2",
+   "text": "What problem does HNSW solve?"
+  },
+  {
+   "kind": "p",
+   "text": "A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) turns every question into an embedding, a vector of a few hundred numbers. To reuse an answer it must find the stored question whose vector is nearest to the new one. The exact way is to measure the distance to every stored vector and keep the smallest. That is correct, and its cost grows in step with the number of vectors, on every single lookup."
+  },
+  {
+   "kind": "p",
+   "text": "HNSW stands for hierarchical navigable small world. It was introduced by Malkov and Yashunin in [Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs](https://arxiv.org/abs/1603.09320). The word approximate matters: [the algorithm](https://en.wikipedia.org/wiki/Hierarchical_navigable_small_world) finds items similar to a query without comparing the query with every item one by one, and in exchange it sometimes misses the true nearest neighbour. How often it finds it is called recall."
+  },
+  {
+   "kind": "h2",
+   "text": "How does HNSW search work, step by step?"
+  },
+  {
+   "kind": "p",
+   "text": "The index is a stack of graphs. Every vector is a node in the bottom layer. Each node is also promoted to higher layers at random, with a probability that falls off exponentially, so each layer up holds far fewer nodes. In the upper layers the nodes are sparse and the links between them span long distances. In the lower layers the nodes are dense and the links are short."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "Start at the entry point in the top layer.",
+    "Look at the current node's neighbours and move to the one closest to the query. Repeat until no neighbour is closer.",
+    "Drop to the next layer down, at the same node, and repeat the greedy walk. Each layer has more nodes, so each walk refines the position.",
+    "In the bottom layer, stop walking a single path. Keep a list of the closest candidates found so far, as wide as the beam width, and keep expanding the nearest unexplored candidate.",
+    "Stop when the list is full and the nearest unexplored candidate is further away than the worst result already held.",
+    "Return the top k results from the list."
+   ],
+   "ordered": true
+  },
+  {
+   "kind": "diagram",
+   "chart": "flowchart TD\n  Q[\"query vector\"] --> E[\"entry point, top layer\"]\n  E -->|\"greedy hops over long links\"| L1[\"closest node in the top layer\"]\n  L1 -->|\"drop a layer\"| L2[\"greedy hops over shorter links\"]\n  L2 -->|\"drop to the bottom layer\"| L3[\"beam search: keep the closest candidates\"]\n  L3 --> R[\"top k nearest neighbours\"]",
+   "title": "How an HNSW search descends the layers",
+   "caption": "Long links in the sparse upper layers get the search into the right region. The dense bottom layer finds the nearest neighbours inside it."
+  },
+  {
+   "kind": "p",
+   "text": "The upper layers work like a motorway network and the bottom layer like local streets. The paper shows that separating links by their length this way gives search cost that grows with the logarithm of the collection size instead of in step with it."
+  },
+  {
+   "kind": "h2",
+   "text": "What do M, ef_construction and the beam width control?"
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Parameter",
+    "What it is",
+    "Raise it and you get"
+   ],
+   "rows": [
+    [
+     "M",
+     "Edges kept per node",
+     "Better recall, more memory, slower build"
+    ],
+    [
+     "ef_construction",
+     "Neighbours considered when inserting a node",
+     "A better graph, slower build"
+    ],
+    [
+     "Beam width, also called ef or ef_search",
+     "Candidates kept during a search",
+     "Better recall, slower queries, no rebuild needed"
+    ]
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Vendors describe them the same way. [Qdrant's indexing documentation](https://qdrant.tech/documentation/concepts/indexing/) defines `m` as the number of edges per node, where a larger value means a more accurate search and more space, and `ef_construct` as the number of neighbours considered during the build, where a larger value means more accuracy and more build time. Its example configuration uses `m` 16 and `ef_construct` 100. The [pgvector README](https://github.com/pgvector/pgvector) sets the search-time knob, `hnsw.ef_search`, to 40 by default."
+  },
+  {
+   "kind": "p",
+   "text": "M and ef_construction are fixed when the graph is built. The beam width is chosen per query. That makes the beam the first thing to tune: you can trade latency for recall without rebuilding anything."
+  },
+  {
+   "kind": "h2",
+   "text": "Measured: recall and latency by beam width"
+  },
+  {
+   "kind": "p",
+   "text": "Numbers make the trade concrete. This is the Crowkis index on `glove-100-angular`, the GloVe set with 100 dimensions from the [ann-benchmarks](https://github.com/erikbern/ann-benchmarks) project, stored as 32-bit floats, built with M=32 in the upper layers, 64 in the bottom layer, and ef_construction=400. Each cell is recall at 10 and median search latency."
+  },
+  {
+   "kind": "table",
+   "head": [
+    "Corpus",
+    "Beam 64",
+    "Beam 256",
+    "Beam 512",
+    "Build",
+    "Memory"
+   ],
+   "rows": [
+    [
+     "100K",
+     "92.25% / 436 µs",
+     "99.14% / 1403 µs",
+     "99.87% / 2661 µs",
+     "98 s",
+     "159 MB"
+    ],
+    [
+     "500K",
+     "87.97% / 555 µs",
+     "96.94% / 1884 µs",
+     "98.94% / 3455 µs",
+     "610 s",
+     "469 MB"
+    ],
+    [
+     "1.18M",
+     "86.49% / 526 µs",
+     "95.58% / 1792 µs",
+     "98.08% / 3309 µs",
+     "1345 s",
+     "1067 MB"
+    ]
+   ],
+   "title": "HNSW recall at 10 and p50 search latency on glove-100-angular"
+  },
+  {
+   "kind": "p",
+   "text": "The figures were taken on a development laptop, an Apple Silicon machine with 16 GB of RAM and 8 cores, while other builds ran on it. Treat them as a floor. They measure the index called in process, and they are not server throughput."
+  },
+  {
+   "kind": "p",
+   "text": "Three things stand out."
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Recall falls as the corpus grows, at a fixed beam.** Beam 64 finds the true neighbours 92.25% of the time at 100K and 86.49% at 1.18M. A graph that was dense enough for a small set is too sparse for a large one.",
+    "**A wider beam buys the recall back and takes time.** At 1.18M, beam 256 reaches 95.58% and takes 1792 µs, more than three times the beam 64 latency.",
+    "**No setting wins both.** No beam width clears recall at or above 95% and p50 under 1 ms at the same time, at 1.18M. Build time at that size is 22.4 minutes."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "An earlier investigation into the recall drop found where the misses come from. When the search found the true neighbour, it ranked it first. When it missed, the true neighbour was never among the candidates at all. So the loss was in reaching the right part of the graph, and the fix is more edges or a wider beam. Re-ranking the candidates more exactly would not have helped. [A million vectors on a laptop](/blog/a-million-vectors-on-a-laptop/) has more of the vector-search numbers."
+  },
+  {
+   "kind": "h2",
+   "text": "Why is filtered search the hard part?"
+  },
+  {
+   "kind": "p",
+   "text": "Real lookups are rarely over the whole index. A cache searches inside one tenant; a document store searches inside one document set. There are two ways to combine a filter with a graph walk, and both have a cost."
+  },
+  {
+   "kind": "p",
+   "text": "Filtering after the search is simple and can return nothing. pgvector says so plainly: with approximate indexes, filtering is applied after the index is scanned, and it offers iterative index scans to look further when too few rows survive. Crowkis had the same defect. A small document set beside a large cache returned the correct answer for 0 of 200 test queries, because the nearest vectors overall all belonged to the cache."
+  },
+  {
+   "kind": "p",
+   "text": "Filtering during the walk fixes that and needs a limit. A sparse scope rarely fills the result list, so the stop condition in step 5 never fires and the search walks the whole graph. Crowkis now filters inside the traversal with a budget of 16,384 node visits, which brought the same test to 200 of 200. The ceiling is stated in its docs: an answer sitting behind more than roughly sixteen thousand nearer out-of-scope vectors can still be missed. Qdrant takes a third route and adds extra edges to the graph based on indexed payload values. [Self-hosted RAG with CDOC](/blog/cdoc-self-hosted-rag/) shows where the scoped search is used."
+  },
+  {
+   "kind": "p",
+   "text": "A second repaired defect shows how much hangs on the entry point. Re-indexing the key that happened to be the entry point cut the graph off from it, and only 4 of 200 queries returned the correct answer until that was fixed."
+  },
+  {
+   "kind": "h2",
+   "text": "Where does the time go in a semantic cache?"
+  },
+  {
+   "kind": "p",
+   "text": "In a cache the index is not the slow part. Crowkis measured vector search at 526 µs at 1.18M vectors, and the end-to-end semantic read, a cold `CGET`, at about 250 ops/sec on the same laptop. The difference is the time to embed the query. The lookup is embedding-bound and not search-bound, so tuning the index further will not speed it up."
+  },
+  {
+   "kind": "p",
+   "text": "Two other numbers are easy to confuse with it. A plain `GET` runs at 103,000 ops/sec at 512 connections, which is a key read that never touches the index. And an exact repeat of a question skips the embedder through a small cache of recent embeddings: in process, on one warm thread, that took an exact-repeat `CGET` from 19.5 ms to 0.16 ms. Neither is the cost of a new, reworded question. [Where the milliseconds go](/blog/latency-profile-where-the-milliseconds-go/) breaks the path down."
+  },
+  {
+   "kind": "h2",
+   "text": "How does Crowkis use HNSW?"
+  },
+  {
+   "kind": "p",
+   "text": "The index is written for Crowkis and lives inside its storage engine, next to [the LSM tree](/blog/why-we-wrote-our-own-lsm-tree/). It supports insert, search, delete and persist, and it is reloaded from disk at start. The default embedder produces 384-dimension vectors. Three commands let you look at it from any RESP3 client:"
+  },
+  {
+   "kind": "code",
+   "title": "text",
+   "code": "CVECCOUNT\nCSIM \"How do refunds work?\" \"What is the refund process?\"\nCGET \"What is the refund process?\" THRESHOLD 0.9 TENANT demo WITHCONFIDENCE",
+   "original": true
+  },
+  {
+   "kind": "p",
+   "text": "`CVECCOUNT` returns the live number of entries in the index. `CSIM` returns the similarity between two queries through the live embedder. `CGET` runs the search and then the checks on the result, and `THRESHOLD` sets the similarity bar for that one call. A near neighbour is only a candidate: [a cache hit is not a correct answer](/blog/a-cache-hit-is-not-a-correct-answer/) covers what happens after the index returns."
+  },
+  {
+   "kind": "p",
+   "text": "On quantization: storing each dimension as an 8-bit integer instead of a 32-bit float takes one byte per dimension instead of four. Crowkis has built its index both ways. In the investigation above the 8-bit version was not the cause of the recall loss, since the missed neighbours were absent from the candidates and not merely ranked wrong."
+  },
+  {
+   "kind": "h2",
+   "text": "When is HNSW the wrong choice?"
+  },
+  {
+   "kind": "list",
+   "items": [
+    "**Small collections.** With a few thousand vectors, comparing against all of them is exact and quick. An approximate index adds build time and a recall question you did not have.",
+    "**Collections larger than memory.** HNSW keeps the graph in RAM. The table above shows 1067 MB at 1.18M vectors of 100 dimensions, and wider embeddings need more. Disk-based indexes exist for that case.",
+    "**Scale beyond what has been verified.** For Crowkis the largest verified scale is 1.18M vectors at dimension 100. A 5M run was attempted and failed at 12% recall, an 8M run ran out of memory on 16 GB, and dimension 1536, the shape many commercial embedding models produce, has never been benchmarked. If your corpus is your product, use a vector database; [semantic cache vs vector database](/blog/semantic-cache-vs-vector-database/) compares the two jobs.",
+    "**Workloads that need exact answers.** If a missed neighbour is unacceptable, an approximate index is the wrong tool at any setting."
+   ]
+  },
+  {
+   "kind": "h2",
+   "text": "Common questions"
+  },
+  {
+   "kind": "h3",
+   "text": "Is HNSW exact?"
+  },
+  {
+   "kind": "p",
+   "text": "No. It is an approximate nearest neighbour index, and its quality is reported as recall: the share of true nearest neighbours it finds, measured against a brute-force search. Recall depends on the graph parameters, the beam width and the size of the collection."
+  },
+  {
+   "kind": "h3",
+   "text": "What are good values for M and ef?"
+  },
+  {
+   "kind": "p",
+   "text": "Start from your library's defaults and measure recall on your own vectors. Raise the beam width first, because it needs no rebuild. Raise M and ef_construction when a wider beam no longer gets you to the recall you need, and accept the extra memory and build time."
+  },
+  {
+   "kind": "h3",
+   "text": "Why does recall drop as the index grows?"
+  },
+  {
+   "kind": "p",
+   "text": "The same number of edges per node has to cover more nodes, so the search is more likely to end in a region that does not contain the true neighbour. More edges or a wider beam restore recall. The measured table above shows the effect from 100K to 1.18M at a fixed beam."
+  },
+  {
+   "kind": "h3",
+   "text": "How many vectors can the Crowkis index hold?"
+  },
+  {
+   "kind": "p",
+   "text": "The largest scale verified on a public dataset is 1.18M vectors at dimension 100. Nothing above that has worked yet, and figures for larger sizes are projections. The product page is [Crowkis](/crowkis/)."
+  }
+ ]
+}
