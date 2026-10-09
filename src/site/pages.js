@@ -450,6 +450,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   const fw = idx.frameworkOf(p)
   const hub = fw && idx.hubs.get(fw)
   const guide = idx.bySlug.get(GUIDE_OF.get(p.slug)) // the full guide that covers this short post, if one does
+  const updated = p.updated_at.toISOString().slice(0, 10) // shown beside the publication date when the post has changed since
   // A framework's hub lists its use-case pages, so every one of them is a click from a real guide.
   const family = hub === p ? posts.filter((q) => q !== p && idx.frameworkOf(q) === fw) : []
   const share = encodeURIComponent(url)
@@ -509,7 +510,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li><li><a href="${topicPath(p.tag)}">${esc(topic)}</a></li></ol></nav>
   <h1>${esc(p.title)}</h1>
   <p class="post-lede">${esc(p.summary)}</p>
-  <p class="post-meta"><span class="by"><span class="by-mark">${MARK}</span>Tarkova</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.minutes} min read</span></p>
+  <p class="post-meta"><span class="by"><span class="by-mark">${MARK}</span>Tarkova</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time>${updated > String(p.published_at).slice(0, 10) ? `<span>Updated <time datetime="${updated}">${fmtDate(updated)}</time></span>` : ''}<span>${p.minutes} min read</span></p>
 </header>
 <div class="post-art">${coverArt(p.slug, p.tag)}</div>
 <div class="post-body">
