@@ -15,7 +15,7 @@ const key = (ip) => createHmac('sha256', dbUrl).update(ip).digest('hex')
 const good = { name: 'Contact check', email: EMAIL, message: 'hello' }
 
 const post = (body, { ip = ips[0], origin = base, type = 'application/json' } = {}) =>
-  fetch(`${base}/api/contact`, {
+  fetch(`${base}/api/contact/`, {
     method: 'POST',
     headers: { 'Content-Type': type, 'X-Forwarded-For': ip, ...(origin ? { Origin: origin } : {}) },
     body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -33,7 +33,7 @@ try {
   await tidy()
 
   // Requests that must never reach the database.
-  assert.equal((await fetch(`${base}/api/contact`)).status, 405, 'GET is refused')
+  assert.equal((await fetch(`${base}/api/contact/`)).status, 405, 'GET is refused')
   assert.equal((await post('name=x', { type: 'application/x-www-form-urlencoded' })).status, 415, 'a plain HTML form post is refused')
   assert.equal((await post(good, { origin: null })).status, 403, 'no Origin is refused')
   assert.equal((await post(good, { origin: 'https://evil.example' })).status, 403, 'another site is refused')

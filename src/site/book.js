@@ -48,7 +48,8 @@ export function mountBook(root) {
     label.textContent = 'Sending…'
     note.className = 'book-note'
     note.textContent = ''
-    const res = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).catch(() => null)
+    // The trailing slash matters: vercel.json's trailingSlash answers /api/contact with a redirect first.
+    const res = await fetch('/api/contact/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).catch(() => null)
     if (res?.ok) {
       form.classList.add('sent') // book.css swaps the letter for the tick
       note.textContent = "Thanks. We'll reply by email."
