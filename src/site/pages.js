@@ -26,6 +26,11 @@ const INDEX_MATRIX_PAGES = false
 // they are rewritten. A post counts as a copy when it shares this much of its 4-word runs with an earlier one.
 const INDEX_NEAR_COPIES = false
 const NEAR_COPY = 0.5
+// And for a post too short to answer the search it is titled for. On 2026-10-09, 230 of the 294 indexed posts were
+// under 300 words; the Crowkis ones were merged into full guides (content/crowkis/), and what is left of them stays
+// readable and linked to its guide, but out of search until it is written out.
+const INDEX_SHORT_POSTS = false
+const SHORT_POST = 300 // words
 const MATRIX = /^Cache (?:the )?(.+?) in your (.+?) with Crowkis$/
 const HUB = /^How to cache (?:the )?(.+?) LLM calls with Crowkis$/
 const MEMORY = /^Give (?:the )?(.+?) agents long-term memory with Crowkis$/
@@ -43,7 +48,13 @@ const EXTERNAL_OK = ['https://docs.tarkova.com/curva/', 'https://itsmohitrohilla
 // The Curva docs moved to docs.tarkova.com with the same page paths; posts written with the old address link to the new one.
 const OLD_CURVA_DOCS = 'https://itsmohitrohilla.github.io/curva-docs/', CURVA_DOCS = 'https://docs.tarkova.com/curva/'
 // `/\host` is read as `//host` by browsers, so a site path may not start with either.
-const okHref = (h) => /^\/(?![/\\])/.test(h) || EXTERNAL_OK.some((u) => h === u || h.startsWith(u.replace(/\/?$/, '/')))
+// The Crowkis guides cite outside sources; those may be on the hosts content/crowkis/pillars.json lists.
+const GUIDES = JSON.parse(readFileSync(new URL('../../content/crowkis/pillars.json', import.meta.url), 'utf8'))
+const CITE_HOSTS = new Set(GUIDES.citeHosts)
+// Each short post a guide absorbed, and the guide it now points readers to.
+const GUIDE_OF = new Map(GUIDES.pillars.flatMap((g) => g.absorbs.map((s) => [s, g.slug])))
+const citeOk = (h) => { try { const u = new URL(h); return u.protocol === 'https:' && CITE_HOSTS.has(u.host) } catch { return false } }
+const okHref = (h) => /^\/(?![/\\])/.test(h) || EXTERNAL_OK.some((u) => h === u || h.startsWith(u.replace(/\/?$/, '/'))) || citeOk(h)
 const isCurva = (p) => /^curva\b/.test(p.tag)
 // Each Curva topic's planned internal links ("related" in the topic map), read at build time by slug.
 const MAP_FILE = new URL('../../content/curva/topic-map.json', import.meta.url)
@@ -290,6 +301,9 @@ function card(p, h = 'h2') {
 </a></li>`
 }
 
+// A topic where most posts are kept out of the index: its page is kept out too, and out of the sitemap and llms.txt.
+const mostlyHidden = (posts) => posts.filter((p) => p.indexable).length * 2 < posts.length
+
 // Page one opens with the newest post large, and the five after it alongside.
 function spread(lead, side) {
   return `<section class="spread" aria-label="Newest articles">
@@ -384,8 +398,8 @@ ${slice.length > side.length ? `<section class="more" aria-labelledby="more-h">
 </section>` : ''}
 ${pager(base, n, total)}
 </div>`
-    // A topic's later pages are mostly lists of posts kept out of the index; they stay crawlable but are not results themselves.
-    out.push([path, { head: head({ site, title, description, path, ld, noindex: Boolean(topic) && n > 1 }), body: page('blog', topics, main) }])
+    // A topic's later pages, and a topic where most posts are kept out of the index, stay crawlable but are not results themselves.
+    out.push([path, { head: head({ site, title, description, path, ld, noindex: Boolean(topic) && (n > 1 || mostlyHidden(posts)) }), body: page('blog', topics, main) }])
   }
   return out
 }
@@ -397,7 +411,7 @@ const org = (site) => ({
   '@type': 'Organization', '@id': `${site}/#org`, name: 'Tarkova', legalName: 'Tarkova Private Limited', url: `${site}/`, logo: `${site}/apple-touch-icon.png`,
   description: ORG_DESC, slogan: 'Building new age products in the AI world',
   founder: TEAM.map((m) => ({ '@type': 'Person', name: m.name, sameAs: [m.linkedin] })),
-  sameAs: ['https://www.linkedin.com/company/tarkova-dev/', CROWKIS],
+  sameAs: ['https://www.linkedin.com/company/tarkova-dev/'],
 })
 const breadcrumbs = (site, items) => ({
   '@type': 'BreadcrumbList',
@@ -435,6 +449,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   const body = p.body.map((b) => block(b, ctx)).join('\n')
   const fw = idx.frameworkOf(p)
   const hub = fw && idx.hubs.get(fw)
+  const guide = idx.bySlug.get(GUIDE_OF.get(p.slug)) // the full guide that covers this short post, if one does
   // A framework's hub lists its use-case pages, so every one of them is a click from a real guide.
   const family = hub === p ? posts.filter((q) => q !== p && idx.frameworkOf(q) === fw) : []
   const share = encodeURIComponent(url)
@@ -498,6 +513,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
 </header>
 <div class="post-art">${coverArt(p.slug, p.tag)}</div>
 <div class="post-body">
+${guide ? `<p class="hub-link">This topic has a full guide: <a href="${postPath(guide)}">${esc(guide.title)}</a>.</p>` : ''}
 <div class="prose">
 ${body}
 </div>
@@ -745,23 +761,29 @@ function notFound(site, topics, latest) {
 
 const xml = (s) => esc(s)
 
+// The day each hand-built page last changed in a way a reader would notice. Move the date when you change the page.
+const CHANGED = { '/crowkis/': '2026-10-09', '/curva/': '2026-10-09', '/products/': '2026-10-09', '/about/': '2026-10-09', '/contact/': '2026-10-09', '/privacy/': '2026-10-09', '/terms/': '2026-09-29' }
+
 function sitemap(site, posts, topics) {
   const url = (path, lastmod, priority) => `<url><loc>${site}${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<priority>${priority}</priority></url>`
-  const newest = posts[0].updated_at.toISOString().slice(0, 10)
+  const day = (p) => p.updated_at.toISOString().slice(0, 10)
+  const newest = day(posts[0])
+  // A topic page changes when one of its posts does.
+  const shown = topics.map(([t]) => [t, posts.filter((p) => p.tag === t)]).filter(([, ps]) => !mostlyHidden(ps))
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${[
     url('/', newest, '1.0'),
-    ...products.map((p) => url(`/${p.id}/`, null, '0.9')),
+    ...products.map((p) => url(`/${p.id}/`, CHANGED[`/${p.id}/`], '0.9')),
     url(VJ_PATH, VJ_UPDATED, '0.8'),
-    url('/products/', null, '0.8'),
-    url('/about/', null, '0.7'),
-    url('/contact/', null, '0.6'),
+    url('/products/', CHANGED['/products/'], '0.8'),
+    url('/about/', CHANGED['/about/'], '0.7'),
+    url('/contact/', CHANGED['/contact/'], '0.6'),
     url('/blog/', newest, '0.9'),
-    ...topics.map(([t]) => url(topicPath(t), null, '0.6')),
-    ...posts.filter((p) => p.indexable).map((p) => url(postPath(p), p.updated_at.toISOString().slice(0, 10), '0.7')),
-    url('/privacy/', null, '0.2'),
-    url('/terms/', null, '0.2'),
+    ...shown.map(([t, ps]) => url(topicPath(t), ps.map(day).sort().pop(), '0.6')),
+    ...posts.filter((p) => p.indexable).map((p) => url(postPath(p), day(p), '0.7')),
+    url('/privacy/', CHANGED['/privacy/'], '0.2'),
+    url('/terms/', CHANGED['/terms/'], '0.2'),
   ].join('\n')}
 </urlset>`
 }
@@ -813,7 +835,7 @@ ${products.map((p) => `- [${p.name} documentation](${p.docs}): How to install, r
 
 ## Blog topics
 
-${topics.filter(([t]) => idx.some((p) => p.tag === t)).map(([t]) => `- [${titleCase(t)}](${site}${topicPath(t)}): ${TOPIC_LEDE[t] || `Articles on ${t}.`}`).join('\n')}
+${topics.filter(([t]) => !mostlyHidden(posts.filter((p) => p.tag === t))).map(([t]) => `- [${titleCase(t)}](${site}${topicPath(t)}): ${TOPIC_LEDE[t] || `Articles on ${t}.`}`).join('\n')}
 
 ## Latest articles
 
@@ -833,7 +855,8 @@ export function buildSite(rows, { site }) {
   // waves go live on their date. ponytail: static site, so that needs a build on or after the day.
   const today = new Date().toISOString().slice(0, 10)
   const posts = rows.filter((p) => String(p.published_at).slice(0, 10) <= today)
-    .map((p) => ({ ...p, indexable: INDEX_MATRIX_PAGES || !MATRIX.test(p.title), words: countWords(p.body) }))
+    .map((p) => ({ ...p, words: countWords(p.body) }))
+    .map((p) => ({ ...p, indexable: (INDEX_MATRIX_PAGES || !MATRIX.test(p.title)) && (INDEX_SHORT_POSTS || p.words >= SHORT_POST) }))
     .map((p) => ({ ...p, minutes: Math.max(1, Math.round(p.words / 220)) }))
   // Oldest first, so the original of a group of near-copies is the one that stays indexed.
   if (!INDEX_NEAR_COPIES) {

@@ -1,0 +1,223 @@
+{
+  "slug": "what-is-a-semantic-cache-for-llms",
+  "title": "What is a semantic cache for LLMs?",
+  "summary": "A semantic cache reuses LLM answers by meaning, not exact text. How it works, where it goes wrong, and how it differs from prompt caching.",
+  "keywords": [
+    "semantic cache",
+    "semantic caching for LLMs",
+    "LLM cache",
+    "exact-match cache",
+    "prompt caching vs semantic caching",
+    "embedding similarity"
+  ],
+  "sources": [
+    "README.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/CUSTOM_EMBEDDER.md",
+    "crowkis.docs/DEVELOPER_GUIDE.md",
+    "crowkis.docs/RELEASE_NOTES_v0.5.2.md",
+    "tarkova:src/site/products.js"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "A semantic cache is a cache for LLM answers that matches questions by meaning instead of by exact text. It turns each incoming question into an embedding, searches for a stored question that means the same thing, and returns the stored answer without calling the model. A reworded question can hit, where an exact-match cache would miss."
+    },
+    {
+      "kind": "plain",
+      "text": "Different words, same question: answer it once, then serve the stored answer. Finding similar questions is the easy part. Deciding when similar is safe to reuse is the hard part."
+    },
+    {
+      "kind": "h2",
+      "text": "Why does exact-match caching fail for LLM traffic?"
+    },
+    {
+      "kind": "p",
+      "text": "An ordinary cache keys on the exact bytes of the request. That works for a database row or an API response, where the same request is literally the same string. People do not ask questions that way. \"How do refunds work?\", \"What's the refund window?\" and \"refund timeline?\" are one intent and three strings, so a key-value cache stores three entries and you pay the model three times."
+    },
+    {
+      "kind": "p",
+      "text": "Provider prompt caching does not close this gap either, because it solves a different problem. OpenAI's documentation says prompt caching [reuses work when requests share the same prompt prefix](https://platform.openai.com/docs/guides/prompt-caching), and Anthropic describes it as [resuming from specific prefixes in your prompts](https://docs.claude.com/en/docs/build-with-claude/prompt-caching). Both make the input you resend cheaper on a call that still happens. Neither skips the call when a user asks an old question in new words. The two approaches stack, and [prompt caching vs semantic caching](/blog/crowkis-vs-openai-prompt-caching/) covers how."
+    },
+    {
+      "kind": "h2",
+      "text": "How does a semantic cache work?"
+    },
+    {
+      "kind": "p",
+      "text": "Every semantic cache runs the same loop on the read path."
+    },
+    {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        "**Embed the question.** An embedding model maps the text to a vector: a point in space, placed so that sentences with similar meaning land near each other. [Sentence-BERT](https://arxiv.org/abs/1908.10084) is the paper that made this practical, producing sentence embeddings that can be compared with cosine similarity.",
+        "**Search for neighbours.** The cache looks up the stored questions nearest to that vector. At any real size this is an approximate nearest neighbour search, usually over an [HNSW graph](https://arxiv.org/abs/1603.09320). [HNSW explained](/blog/hnsw-explained-needle-in-a-million-haystacks/) walks through the index.",
+        "**Decide.** If the nearest stored question is close enough, measured by [cosine similarity](https://en.wikipedia.org/wiki/Cosine_similarity) against a threshold, it is a hit and the stored answer is returned.",
+        "**On a miss, call the model and write.** The new question and its answer are stored, so the next paraphrase can hit."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Steps one, two and four are engineering. Step three decides whether the cache is useful or dangerous, because it is a judgement and not a lookup."
+    },
+    {
+      "kind": "h2",
+      "text": "Why is similarity alone not safe?"
+    },
+    {
+      "kind": "p",
+      "text": "\"Cancel my subscription\" and \"pause my subscription\" sit close together in embedding space. Serving one answer for the other is a customer-facing mistake. So is answering a question about one order with the status of another. A vector match says two sentences are near each other. It does not say one answer is correct for both."
+    },
+    {
+      "kind": "p",
+      "text": "Research says the same. The MeanCache paper finds that existing caching methods produce [unacceptable false hit-and-miss rates](https://arxiv.org/abs/2403.02694). The vCache authors observe that a single static similarity threshold [gives no formal correctness guarantee and results in unexpected error rates](https://arxiv.org/abs/2502.03771)."
+    },
+    {
+      "kind": "p",
+      "text": "The practical answer is to stop treating a vector match as the whole decision. Crowkis is one implementation of that idea. Its `CGET` lookup can return four kinds of hit: exact, vector, structural, or dual. The structural path classifies the question into one of 12 intent classes and matches it against an intent template, alongside the vector search. Before anything is served, the candidate also has to clear a reuse threshold that depends on the intent class, a confidence score computed at read time, freshness rules and tenant isolation. [Semantic cache false positives and confidence scoring](/blog/a-cache-hit-is-not-a-correct-answer/) covers that side in detail."
+    },
+    {
+      "kind": "p",
+      "text": "The write path matters as much as the read path. A semantic cache spreads a bad answer to every nearby question, so Crowkis scores each write through a five-stage pipeline and rejects incoherent pairs. See [LLM cache poisoning and how to prevent it](/blog/cache-poisoning-is-the-whole-problem/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Semantic cache vs exact-match cache, prompt caching and a vector database"
+    },
+    {
+      "kind": "table",
+      "title": "Four things that get called a cache for LLM apps",
+      "head": [
+        "",
+        "Matches on",
+        "On a match",
+        "Gap"
+      ],
+      "rows": [
+        [
+          "Exact-match cache",
+          "Identical request text",
+          "Returns the stored answer",
+          "Misses every rephrasing"
+        ],
+        [
+          "Provider prompt caching",
+          "An identical prompt prefix",
+          "Makes the repeated input cheaper; the model still runs",
+          "Does nothing for a reworded question"
+        ],
+        [
+          "Vector database",
+          "Nearest vectors",
+          "Returns the nearest items; your code decides what to do with them",
+          "No reuse decision, lifetime or write checks of its own"
+        ],
+        [
+          "Semantic cache",
+          "Meaning, then a reuse decision",
+          "Returns the stored answer with no model call",
+          "Must be right about when similar is safe"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A vector database is a building block. A semantic cache is the policy on top of one. [Semantic cache vs vector database](/blog/semantic-cache-vs-vector-database/) goes deeper on where the line sits."
+    },
+    {
+      "kind": "h2",
+      "text": "What does a semantic cache look like in practice?"
+    },
+    {
+      "kind": "p",
+      "text": "Crowkis speaks RESP3, so it is a drop-in for your existing clients, and the cache commands sit beside the usual `GET` and `SET`. Three commands cover the core."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSET \"How do refunds work?\" \"Refunds take 5 to 7 business days.\" EX 86400 TENANT acme MODEL gpt-4o\nCGET \"What is the refund timeline?\" TENANT acme WITHCONFIDENCE\nCSIM \"How do refunds work?\" \"refund process?\""
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`CSET query response [EX secs] [TENANT t] [MODEL m] [MODEL_VERSION v]` stores an answer. `EX` is the time to live in seconds, `TENANT` keeps one customer's answers apart from another's, and `MODEL` records which model produced it.",
+        "`CGET query [THRESHOLD f] [TENANT t] [WITHCONFIDENCE] [WITHROUTE]` is the semantic lookup. It returns null on a miss. `WITHCONFIDENCE` adds the trust signals behind a hit, and `WITHROUTE` adds a routing recommendation (cache, cheap or expensive) derived from the confidence score.",
+        "`CSIM query1 query2` returns the similarity score between two questions through the live embedder. It is the quick way to see why two phrasings did or did not match."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The embedder runs inside the server. The default model, crowsight, is bundled, works offline and produces vectors of dimension 384. You can point `CROWKIS_EMBED_MODEL` at your own ONNX sentence-embedding model instead; [local embeddings with CEMBED](/blog/cembed-free-local-embeddings/) has the details."
+    },
+    {
+      "kind": "p",
+      "text": "If you would rather not touch application code, the opt-in [AI gateway](/blog/ai-gateway-openai-compatible/) puts the cache in front of `POST /v1/chat/completions`. A semantically matching earlier request is served from cache with the header `x-crowkis-cache: hit`. A miss is forwarded, cached and returned. Streaming requests are proxied but not cached yet."
+    },
+    {
+      "kind": "h2",
+      "text": "What does a semantic cache save, and what does it cost?"
+    },
+    {
+      "kind": "p",
+      "text": "A hit means the request never reaches the provider, so you do not pay for it and the user does not wait for generation. That is the whole saving, and it grows with how repetitive your traffic is. A support bot that hears the same questions all day gains a lot. A tool where every prompt is unique gains little. [How much semantic caching can cut LLM costs](/blog/cut-llm-api-costs-semantic-caching/) works through the reasoning."
+    },
+    {
+      "kind": "p",
+      "text": "The cost is that every semantic lookup has to embed the question first. On Crowkis's own measurements, taken on a development laptop, a plain `GET` runs at 103,000 ops/sec at 512 connections, while a cold `CGET` runs at about 250 ops/sec. The gap is the embedding step, not the index search. Plan capacity around the semantic figure, not the key-value one."
+    },
+    {
+      "kind": "h2",
+      "text": "When should you not use a semantic cache?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Every prompt is unique.** Summarising a new document, one-off code generation, anything with no repetition. There is nothing to reuse.",
+        "**The answer depends on who is asking.** Balances, order status, anything personal. Scope those per tenant and user, or do not cache them. [PII in an LLM cache](/blog/cpii-scrub-and-erase/) explains what happens to personal data.",
+        "**The answer changes faster than you can invalidate it.** Prices and live status need a short time to live or an explicit purge. See [cache invalidation and freshness](/blog/freshness-hamlet-vs-stock-price/).",
+        "**The question only makes sense inside a conversation.** \"And the second one?\" has no stable meaning by itself, so it should not be cached as a standalone question.",
+        "**Very long messages.** A long message that contains a short cached question almost word for word can still miss, because the surrounding words dominate the embedding. The Crowkis release notes list this as a known limitation.",
+        "**Very large corpora, today.** Crowkis has verified its vector index up to 1.18M vectors. Nothing above that has been measured successfully."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Is a semantic cache the same as a vector database?"
+    },
+    {
+      "kind": "p",
+      "text": "No. A vector database stores vectors and returns nearest neighbours. A semantic cache uses that search as one step, then decides whether a stored answer is safe to return, and manages lifetimes, tenants and writes. You can build a cache on a vector database, but the search is the easy part."
+    },
+    {
+      "kind": "h3",
+      "text": "Does a semantic cache replace prompt caching?"
+    },
+    {
+      "kind": "p",
+      "text": "No. Use both. Prompt caching lowers the price of a prefix you resend on calls that still happen. A semantic cache removes the call when the question has been answered before. They act on different parts of the same request stream."
+    },
+    {
+      "kind": "h3",
+      "text": "Can a semantic cache return a wrong answer?"
+    },
+    {
+      "kind": "p",
+      "text": "Yes, if it treats similar as identical. That is the false positive problem, and it is why thresholds, confidence scores and write checks exist. A well-built cache prefers a miss over a doubtful hit, because a miss only costs one model call."
+    },
+    {
+      "kind": "h3",
+      "text": "Do I have to change my application?"
+    },
+    {
+      "kind": "p",
+      "text": "Not much. You either call `CGET` before the model and `CSET` after it, from the RESP3 client you already have, or you point an OpenAI-compatible client at the gateway. The [command reference](/blog/the-crowkis-cli-tour/) and the [Crowkis docs](https://www.crowkis.com/docs) list every option, and the [Crowkis product page](/crowkis/) has the install commands."
+    }
+  ]
+}

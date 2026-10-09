@@ -1,0 +1,247 @@
+{
+  "slug": "tenant-isolation-architecture",
+  "title": "Multi-tenant isolation for an LLM cache",
+  "summary": "How to keep one customer's cached LLM answers away from another's: namespaces vs filters, scoped vector search, and where the boundary really sits.",
+  "keywords": [
+    "multi-tenant LLM cache",
+    "tenant isolation",
+    "multi-tenant semantic cache",
+    "scoped vector search",
+    "namespace isolation",
+    "SaaS LLM caching"
+  ],
+  "sources": [
+    "README.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/SCOPED_SEARCH_LIMITS.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "crowkis.docs/SECURITY_AUDIT_2026-07.md",
+    "crowkis.docs/UPGRADING_TO_0.5.2.md",
+    "crowkis.docs/RELEASE_NOTES_v0.5.2.md",
+    "crowkis.docs/METRICS_API.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Multi-tenant isolation for an LLM cache means one customer's cached answers, memories and documents can never be matched, read or purged by another customer, even when both ask the same question. The reliable way to get it is structural: the tenant is part of every key and every search scope, not a filter applied to results afterwards."
+    },
+    {
+      "kind": "h2",
+      "text": "Why is a shared LLM cache a bigger isolation risk than a database?"
+    },
+    {
+      "kind": "p",
+      "text": "In a [multitenant](https://en.wikipedia.org/wiki/Multitenancy) system, one instance of the software serves many customers. A cache in front of an LLM sees every question every one of them asks, and often the private context that came with it."
+    },
+    {
+      "kind": "p",
+      "text": "A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) adds a twist a database does not have. Its job is to return a stored answer to a question that is only similar to the one that produced it. Two customers who ask \"what is our refund policy?\" are asking the same words about different policies. If the lookup can cross the tenant line, the cache does not just leak data. It leaks it in answer to an innocent question."
+    },
+    {
+      "kind": "p",
+      "text": "OWASP names this risk for vector stores in general: in multi-tenant environments where different users or applications share the same vector database, [there is a risk of context leakage between users or queries](https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/)."
+    },
+    {
+      "kind": "h2",
+      "text": "Filter or namespace: what are the options?"
+    },
+    {
+      "kind": "p",
+      "text": "AWS defines tenant isolation as the explicit mechanisms that ensure [each tenant's resources are isolated, even when they run on shared infrastructure](https://docs.aws.amazon.com/whitepapers/latest/saas-architecture-fundamentals/tenant-isolation.html). There are four common ways to build that into a store."
+    },
+    {
+      "kind": "table",
+      "title": "Four ways to separate tenants in one store",
+      "head": [
+        "Approach",
+        "How it separates tenants",
+        "Where it fails"
+      ],
+      "rows": [
+        [
+          "Filter results in application code",
+          "Search everything, then drop rows that belong to someone else",
+          "One code path forgets the filter. A small tenant's results are crowded out before the filter runs."
+        ],
+        [
+          "Policy enforced by the store",
+          "The store applies the tenant predicate to every query",
+          "The policy is misconfigured or bypassed by a privileged role"
+        ],
+        [
+          "Namespace or shard per tenant",
+          "Each tenant has its own keyspace, so a query has nowhere else to look",
+          "More overhead per tenant"
+        ],
+        [
+          "Instance per tenant",
+          "A process and network boundary",
+          "Cost, and no shared operations"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The mainstream stores document these choices in their own words. PostgreSQL offers [row security policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) that restrict which rows a query can return, per user. Pinecone's guide implements multitenancy with [one namespace per tenant](https://docs.pinecone.io/guides/index-data/implement-multitenancy) and offers metadata filtering as an alternative for when tenant isolation is not a strict requirement. Weaviate states that [each tenant is stored on a separate shard](https://weaviate.io/developers/weaviate/manage-data/multi-tenancy). The direction is consistent: the stricter the requirement, the further the tenant moves from a filter towards the structure of the store."
+    },
+    {
+      "kind": "h2",
+      "text": "How does Crowkis isolate tenants?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**The tenant is in the key.** Every cache entry gets per-tenant key namespacing, scope guards and an isolation tag. The cache commands take `TENANT t`: `CSET`, `CGET`, `CSTALE`, `CFLAG`, `CPIN`, `CDOC`, `CTOOLSET`, `CSOURCE`, `CINVALIDATE`, `CNOTICE`, `CPII` and `CFLUSH`.",
+        "**Search is scoped inside the index.** A vector lookup for one tenant applies the tenant predicate during the graph traversal, not to the results afterwards.",
+        "**Writes pass a hard gate.** Tenant isolation is stage four of the five-stage write pipeline, and it is a hard gate: a cross-tenant write is refused before it becomes an entry. See [LLM cache poisoning and how to prevent it](/blog/cache-poisoning-is-the-whole-problem/).",
+        "**Identifiers cannot be forged.** Structural characters are stripped from identifiers, so one cannot be crafted to look like another. Tenant names that contain `:` or `~` are rejected at the wire.",
+        "**Internal keys are unreachable.** `GET`, `SET`, `DEL` and `RENAME` on a `__`-prefixed key are refused with `NOPERM`, and `KEYS` and `SCAN` filter those keys out. The plain key-value commands cannot be used to read around the cache commands.",
+        "**Users are separated inside a tenant.** Agent memory is scoped to an agent and a `USER`, and session turns to a session. Two different `USER` values never see each other's data."
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSET \"What is our refund policy?\" \"Full refunds within 30 days.\" TENANT acme\nCGET \"What is our refund policy?\" TENANT globex\nCGET \"What is our refund policy?\" TENANT acme\nCFLUSH TENANT acme"
+    },
+    {
+      "kind": "p",
+      "text": "The second line is the test that matters. The question is identical, the tenant is different, and the correct reply is null: a miss. The third line hits. The fourth removes one tenant's entries and leaves every other tenant alone."
+    },
+    {
+      "kind": "h2",
+      "text": "What does scoped vector search cost?"
+    },
+    {
+      "kind": "p",
+      "text": "Filtering after the search is the tempting shortcut, and it fails in a specific way. The index returns the globally nearest vectors, the filter throws away everything that belongs to other tenants, and a small tenant beside a large one is left with nothing. The Crowkis docs record this as a defect that was reproduced and fixed: with a small scope beside a large cache, 0 of 200 queries reached their in-scope answer. After the predicate was pushed down into the traversal, 200 of 200 did."
+    },
+    {
+      "kind": "p",
+      "text": "Pushing the predicate down has a price, and that price is capped. A scoped search has a budget of 16,384 node visits. Without a budget, a sparse scope would walk the whole graph, and the cost of a lookup would grow with the size of the index instead of the size of the tenant. With it, there is a stated ceiling: an in-scope answer sitting behind more than roughly sixteen thousand nearer out-of-scope vectors will not be found."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "The budget only binds for a scope evaluated inside one shared index. A fixed, known partition should be its own index, and `crowkis-router` shards by tenant.",
+        "A scope that is a large fraction of the index is unaffected, because the search finishes normally before the budget is reached.",
+        "No fixture in the Crowkis test suite crosses the ceiling, so the limit is stated, not characterised."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "[HNSW explained](/blog/hnsw-explained-needle-in-a-million-haystacks/) covers how the traversal works."
+    },
+    {
+      "kind": "h2",
+      "text": "Where is the tenant boundary actually enforced?"
+    },
+    {
+      "kind": "p",
+      "text": "This is the part most write-ups skip. Namespacing guarantees that a lookup for tenant A cannot return tenant B's entry. It does not decide who is allowed to say \"I am tenant A\". That depends on the surface."
+    },
+    {
+      "kind": "table",
+      "title": "Who asserts the tenant, by surface",
+      "head": [
+        "Surface",
+        "Who names the tenant",
+        "Credential"
+      ],
+      "rows": [
+        [
+          "Cache protocol (RESP3)",
+          "The calling application, per command, with `TENANT`",
+          "One shared `CROWKIS_AUTH_TOKEN`"
+        ],
+        [
+          "Management HTTP API",
+          "The scope of the API key",
+          "Admin key, or a user API key with a role"
+        ],
+        [
+          "MCP server",
+          "The operator, with `CROWKIS_TENANT` in the environment",
+          "Set at start; the server exits if it is missing"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "On the cache protocol the tenant is asserted by the client. The design is explicit about it: the port is a trusted application-tier interface, not a boundary between mutually distrusting tenants. Your application authenticates the customer, maps them to a tenant name and passes it. Never let an end user, a browser or an agent choose the value."
+    },
+    {
+      "kind": "p",
+      "text": "The MCP server shows the same rule from the other side. It requires `CROWKIS_TENANT` and will not accept the tenant from tool arguments, because an agent would choose its own, and that is not an authorisation decision. [MCP server for caching and memory](/blog/mcp-server-feature/) covers the setup."
+    },
+    {
+      "kind": "p",
+      "text": "The management API is where isolation is enforced as a security boundary. A key that belongs to one tenant sees that tenant's rows only, node-wide counters are left out of its replies, and reports that span every tenant need admin scope. The network defaults back this up: with no auth token set, a connection from a non-loopback address is refused with `-DENIED`, and management routes require a key on every bind address."
+    },
+    {
+      "kind": "h2",
+      "text": "What per-tenant controls come with it?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Budgets.** `CBUDGET GET|SET|RESET|ALERTS <tenant>` sets daily and monthly limits per tenant, and the [AI gateway](/blog/ai-gateway-openai-compatible/) enforces them.",
+        "**Rate limits.** `CKEYLIMIT SET|GET|DEL tenant [RPM n] [TPM n]` limits requests and tokens per minute per tenant. This one is Enterprise only.",
+        "**Metrics.** `GET /api/metrics` returns one row per tenant with hits, misses and savings.",
+        "**Privacy.** `CPII REPORT TENANT t` and `CPII ERASE` work per tenant. See [PII in an LLM cache](/blog/cpii-scrub-and-erase/).",
+        "**Tenant count.** The Community edition allows up to three tenants. A flush does not release a slot, and a fourth tenant makes every write fail with a clear error."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "When is one shared instance not enough?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Your tenants can reach the cache port directly.** The tenant argument is supplied by the caller and the token is shared, so put per-tenant credentials in an application tier in front of it, or run one instance per tenant.",
+        "**One tenant is tiny beside a very large one.** If an answer can sit behind more than roughly sixteen thousand nearer vectors from other tenants, give that tenant its own index.",
+        "**Your user ids are not real.** `USER` is supplied by your application. Pass the same value for every human and they are treated as one person.",
+        "**You need separate keys or separate hardware per customer.** Namespacing separates data. It does not separate processes."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Is a tenant filter on a vector search enough?"
+    },
+    {
+      "kind": "p",
+      "text": "Not if it runs after the search. A post-filter depends on every code path remembering it, and it starves small tenants whose results never reach the top of a shared index. Scope the search itself, or give each tenant its own namespace or index."
+    },
+    {
+      "kind": "h3",
+      "text": "Does the same question from two tenants hit the same entry?"
+    },
+    {
+      "kind": "p",
+      "text": "No. The tenant is part of the key and of the search scope, so an identical question under a different tenant is a miss. Each tenant builds its own entries."
+    },
+    {
+      "kind": "h3",
+      "text": "Who decides which tenant a request belongs to?"
+    },
+    {
+      "kind": "p",
+      "text": "Your application does, on the cache protocol. It authenticates the caller and passes `TENANT`. On the management API the key's scope decides, and for the MCP server the operator sets it in the environment."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I test tenant isolation?"
+    },
+    {
+      "kind": "p",
+      "text": "Write an entry under one tenant, read the identical question as another, and expect null. Do the same for memory, documents and pinned answers, then run it in your CI. [84 of 84: correctness and isolation under a hostile harness](/blog/84-of-84-correctness-under-fire/) covers the Crowkis test harness, and the [Crowkis docs](https://www.crowkis.com/docs) have the security model."
+    }
+  ]
+}

@@ -1,0 +1,241 @@
+{
+  "slug": "a-cache-hit-is-not-a-correct-answer",
+  "title": "Semantic cache false positives and confidence scoring",
+  "summary": "A semantic cache hit can be wrong. The kinds of false positive, how per-hit confidence scoring and adaptive thresholds catch them, and the limits.",
+  "keywords": [
+    "semantic cache false positives",
+    "confidence scoring",
+    "similarity threshold",
+    "adaptive thresholds",
+    "cross-encoder reranker",
+    "cache hit accuracy"
+  ],
+  "sources": [
+    "README.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/CUSTOM_EMBEDDER.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "crowkis.docs/METRICS_API.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "A semantic cache false positive is a hit that returns the answer to a different question than the one asked. It happens because similar is not the same as identical. Confidence scoring is the usual fix: each candidate hit gets a score built from several signals, and the cache serves it only above a threshold. Below that, it misses and the model answers."
+    },
+    {
+      "kind": "h2",
+      "text": "Why is a cache hit not the same as a correct answer?"
+    },
+    {
+      "kind": "p",
+      "text": "A traditional cache has two states, hit or miss, and a hit is simply true: the key matched, so the value is the value. A cache of LLM answers has neither property. The match is a similarity judgement, and the stored value was a probabilistic answer that may have gone stale since it was written. A quick, confident, wrong answer is worse than a miss. A miss costs one model call. A wrong hit costs a user's trust, and nobody notices until they complain."
+    },
+    {
+      "kind": "p",
+      "text": "This is a known weakness of the technique, not of one product. The MeanCache paper finds that existing caching methods produce [unacceptable false hit-and-miss rates](https://arxiv.org/abs/2403.02694). The vCache authors observe that systems which apply the same static similarity threshold to every request [get unexpected error rates and suboptimal hit rates](https://arxiv.org/abs/2502.03771). If you are new to the idea, start with [what a semantic cache is](/blog/what-is-a-semantic-cache-for-llms/)."
+    },
+    {
+      "kind": "h2",
+      "text": "What kinds of semantic cache false positives are there?"
+    },
+    {
+      "kind": "p",
+      "text": "\"Wrong hit\" covers several different failures, and each needs its own defence."
+    },
+    {
+      "kind": "table",
+      "title": "False positives and what stops them",
+      "head": [
+        "False positive",
+        "Example",
+        "What stops it in Crowkis"
+      ],
+      "rows": [
+        [
+          "Close wording, different intent",
+          "\"Cancel my subscription\" served for \"pause my subscription\"",
+          "A reuse threshold per intent class, and a cross-encoder check when hit verification is on"
+        ],
+        [
+          "Same question, different person",
+          "One customer's refund status served to another",
+          "Placeholders bound to the value they replace, plus tenant and user scope"
+        ],
+        [
+          "Stale answer",
+          "Last week's price",
+          "Time to live, and the freshness signal in the score"
+        ],
+        [
+          "Another model's answer",
+          "A reply written by a model you have since replaced",
+          "`MODEL` and `MODEL_VERSION` on `CSET` and `CGET`"
+        ],
+        [
+          "Bad answer stored in the first place",
+          "A cached hallucination",
+          "The write pipeline, and the negative cache (`CFLAG`)"
+        ],
+        [
+          "Question that needs its conversation",
+          "\"What about the second one?\"",
+          "The opt-in decision engine, which asks whether the question stands on its own"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The second row is worth a closer look, because it is a false positive that no similarity threshold can catch. The Crowkis docs describe it as a defect that was found and fixed. Personal identifiers are replaced with placeholders before a shared entry is stored. Those placeholders used to be numbered by position, so two questions about two different people scrubbed to identical text and landed on one cache key:"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSET \"refund status for John Smith\" \"John Smith is approved for a $4,200 refund\"\nCGET \"refund status for Jane Doe\"\n  -> \"Jane Doe is approved for a $4,200 refund\"     # wrong answer + intra-tenant leak"
+    },
+    {
+      "kind": "p",
+      "text": "That was an exact-key hit, so it bypassed the cross-encoder and the threshold entirely. The fix was to derive each placeholder from the value it replaces, so two people never share a key. The lesson generalises: check what your cache key is built from before you tune a threshold. [PII in an LLM cache](/blog/cpii-scrub-and-erase/) has the full story."
+    },
+    {
+      "kind": "h2",
+      "text": "How does confidence scoring work?"
+    },
+    {
+      "kind": "p",
+      "text": "In Crowkis the score is computed at read time and returned per hit. It is the geometric mean of five signals: similarity, freshness, trust, validation and domain accuracy. When hit verification is on, a cross-encoder verify term is added."
+    },
+    {
+      "kind": "p",
+      "text": "The [geometric mean](https://en.wikipedia.org/wiki/Geometric_mean) is a deliberate choice. It multiplies the signals instead of adding them, so one signal near zero drags the whole score down. An arithmetic mean would let a perfect similarity hide a stale entry, or a fresh entry hide a low-trust source. With a geometric mean, a strong signal cannot cover for a weak one."
+    },
+    {
+      "kind": "p",
+      "text": "The cross-encoder term is a second opinion. The embedder turns each question into a vector separately and compares the vectors, which is quick but coarse. A cross-encoder reads both questions together. The [Sentence-BERT paper](https://arxiv.org/abs/1908.10084) explains the trade: feeding both sentences into the network gives strong results but causes a massive computational overhead, so you cannot run it over a whole corpus. The usual design is to let the embedder propose a few candidates and let the cross-encoder judge only those. Crowkis bundles a reranker called crowjudge, and `CROWKIS_CROSS_ENCODER_MODEL` points the server at a different ONNX model if you have one."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you read and use the confidence score?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CGET \"what is the refund policy?\" TENANT acme WITHCONFIDENCE\nCGET \"what is the refund policy?\" TENANT acme WITHROUTE\nCGET \"what is the refund policy?\" TENANT acme THRESHOLD 0.9"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`WITHCONFIDENCE` adds the trust signals to the reply, so your code can see why the hit was served.",
+        "`WITHROUTE` adds a cost-routing recommendation derived from the confidence score: cache, cheap or expensive. In practice that means serve the cached answer, send the question to a cheaper model, or send it to a more capable and more expensive one.",
+        "`THRESHOLD f` sets the bar for this one call. Use it where a single endpoint needs to be stricter than the rest.",
+        "A miss is a null reply. Treat null as \"call the model\", then write the new answer with `CSET`."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "A sensible starting policy is to serve factual hits only above a high bar, route borderline hits to a model, and log the signals for anything you refuse. The latest lookups also appear in `recent_log` on `GET /api/metrics`, which helps when someone asks why a particular answer was served."
+    },
+    {
+      "kind": "h2",
+      "text": "Why is one similarity threshold always wrong?"
+    },
+    {
+      "kind": "p",
+      "text": "\"What is two plus two?\" needs a near-exact match before reuse is safe. \"Give me some ideas for a team offsite\" can share an answer with a much looser cousin. One global cutoff is too strict for the second and too loose for the first. Whatever number you pick, it is a compromise that is wrong somewhere."
+    },
+    {
+      "kind": "p",
+      "text": "Crowkis uses three tiers instead of one number:"
+    },
+    {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        "**A base table per intent class.** A factual lookup and an open-ended request start from different bars.",
+        "**A complexity adjustment.** The bar moves with how complex the question is.",
+        "**A feedback loop.** An [exponential moving average](https://en.wikipedia.org/wiki/Exponential_smoothing) over feedback, so recent signal counts for more than old signal and the bar follows your traffic."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The learned thresholds persist across restarts, and the management API exposes threshold and confidence threshold settings if you want to set them by hand."
+    },
+    {
+      "kind": "h2",
+      "text": "What else guards against a wrong hit?"
+    },
+    {
+      "kind": "p",
+      "text": "A score at read time is one layer. Four more sit around it."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Write checks.** Every `CSET` passes a five-stage pipeline, and incoherent pairs are rejected before they can be served. See [LLM cache poisoning](/blog/cache-poisoning-is-the-whole-problem/).",
+        "**A negative cache.** `CFLAG query bad_answer [REASON r] [TENANT t]` records a known-bad answer. `CCHECKBAD query [TENANT t] [THRESHOLD f]` tells you whether a new question matches one, and returns the flagged question, the bad answer and the reason.",
+        "**Pinned answers.** `CPIN` stores a human-approved answer that is served verbatim for any phrasing. For the handful of answers that must be exact, skip scoring altogether. [Cache eviction for LLM answers](/blog/smart-semantic-eviction/) covers pinning.",
+        "**The decision engine (opt-in).** After a write, your own model is asked in the background how long the answer stays correct, whether it contains one caller's data, whether the question stands on its own, and whether the answer is a commitment. While it is on, an answer is not served until the model has vouched for it. `CDECISION query` shows the verdict."
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CFLAG \"is the pro plan free?\" \"Yes, free forever.\" REASON hallucinated TENANT acme\nCCHECKBAD \"does pro cost anything?\" TENANT acme\nCDECISION \"what is the refund policy?\" TENANT acme"
+    },
+    {
+      "kind": "p",
+      "text": "To watch quality over time instead of per request, `CEVAL` runs model-free evaluators such as `relevance` over input and output pairs and tracks them on `/metrics`. [Online evals with CEVAL](/blog/ceval-online-evals/) explains how."
+    },
+    {
+      "kind": "h2",
+      "text": "What are the limits of confidence scoring?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**It is a score, not a guarantee.** Crowkis does not claim a bound on the error rate. On a test of genuine rephrasings against unrelated questions, the bundled embedder measured 100% recall at or under 1% false positive. That is one test set, not your traffic.",
+        "**Freshness decay is the same for every domain.** A table of decay rates per domain exists, but it is not wired in, so a regulatory answer decays exactly as quickly as a historical fact. Set time to live yourself where it matters. See [cache invalidation and freshness](/blog/freshness-hamlet-vs-stock-price/).",
+        "**Adaptive thresholds have a known defect.** The threshold latches on the first query after boot, so two replicas can answer the same question differently.",
+        "**Exact-key hits skip the score.** As the placeholder story shows, a collision in the key is not a similarity problem and no threshold will catch it.",
+        "**The decision engine is not free.** Each judged answer is a small model call, and the text, after PII redaction, is sent to the endpoint you configure."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "What is a good similarity threshold for a semantic cache?"
+    },
+    {
+      "kind": "p",
+      "text": "There is no single good number, which is the point of per-intent thresholds. Start from the defaults, use `CSIM query1 query2` to see how close your real paraphrases and your real near-misses score, and raise the bar for factual or transactional questions first."
+    },
+    {
+      "kind": "h3",
+      "text": "Is a false positive worse than a miss?"
+    },
+    {
+      "kind": "p",
+      "text": "Yes. A miss costs one model call and returns a correct, fresh answer. A false positive returns a wrong answer quickly and silently. Tune for a low false positive rate first and accept the hit rate that follows."
+    },
+    {
+      "kind": "h3",
+      "text": "Does confidence scoring slow down reads?"
+    },
+    {
+      "kind": "p",
+      "text": "The score itself is arithmetic over five signals. The optional cross-encoder term is a second model pass over the candidate, so it costs more. Crowkis publishes no latency figure for either, so measure both on your own traffic."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I find out why a wrong answer was served?"
+    },
+    {
+      "kind": "p",
+      "text": "Repeat the lookup with `WITHCONFIDENCE` to see the signals, and run `CSIM` on the two questions to see their similarity. Then flag the answer with `CFLAG` so paraphrases of the question are caught. If you want a second pair of eyes on your setup, [talk to us](/contact/)."
+    }
+  ]
+}

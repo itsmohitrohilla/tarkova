@@ -1,0 +1,294 @@
+{
+  "slug": "freshness-hamlet-vs-stock-price",
+  "title": "Cache invalidation and freshness for LLM answers",
+  "summary": "Who wrote Hamlet and today's stock price cannot share a TTL. The ways to keep cached LLM answers fresh: TTL, stale reads, source purge, purge by meaning.",
+  "keywords": [
+    "cache invalidation",
+    "LLM cache freshness",
+    "TTL for LLM answers",
+    "stale-while-revalidate",
+    "semantic cache invalidation",
+    "answer lineage"
+  ],
+  "sources": [
+    "README.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/UPGRADING_TO_0.5.2.md",
+    "crowkis.docs/RELEASE_NOTES_v0.5.2.md",
+    "crowkis.docs/METRICS_API.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Cache invalidation for LLM answers is how you stop a cached answer being served after the fact behind it has changed. No single lifetime fits: who wrote Hamlet stays true for centuries, a stock price for seconds. A working setup combines a time to live per answer, purges tied to the source of the answer, and purges by meaning."
+    },
+    {
+      "kind": "h2",
+      "text": "Why can't every cached answer share one TTL?"
+    },
+    {
+      "kind": "p",
+      "text": "Pick one [time to live](https://en.wikipedia.org/wiki/Time_to_live) for the whole cache and you are wrong for most of it. Set it long and you serve last week's price as today's. Set it short and you pay the model to work out again that Shakespeare wrote Hamlet."
+    },
+    {
+      "kind": "p",
+      "text": "HTTP caching has precise words for this. In [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111), a response is fresh while its age has not exceeded its freshness lifetime, and stale after that. On the web, the origin server usually states the lifetime. An LLM answer has no origin server. The model does not tell you how long its answer stays true, so the lifetime has to come from somewhere else: you, the source document, or a second model."
+    },
+    {
+      "kind": "h2",
+      "text": "What are the ways to keep an LLM cache fresh?"
+    },
+    {
+      "kind": "table",
+      "title": "Freshness mechanisms and the Crowkis command for each",
+      "head": [
+        "Mechanism",
+        "Use it when you know",
+        "Command"
+      ],
+      "rows": [
+        [
+          "Time to live",
+          "Roughly how long the answer stays true",
+          "`CSET … EX secs`"
+        ],
+        [
+          "Stale read",
+          "A slightly old answer is fine while you refresh",
+          "`CSTALE`"
+        ],
+        [
+          "Source lineage",
+          "Which document or record the answer was built on",
+          "`CSOURCE LINK`, `CSOURCE PURGE`"
+        ],
+        [
+          "Purge by meaning",
+          "A topic changed, and you can describe it",
+          "`CINVALIDATE`"
+        ],
+        [
+          "Notice",
+          "Something changed today, in one sentence",
+          "`CNOTICE ADD`"
+        ],
+        [
+          "Model-judged lifetime",
+          "Nothing in advance",
+          "The opt-in decision engine"
+        ],
+        [
+          "Flush",
+          "Everything for a tenant has to go",
+          "`CFLUSH TENANT t`"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "They combine. Time to live covers what you cannot know. Lineage and purges cover what you can."
+    },
+    {
+      "kind": "h2",
+      "text": "How long should a cached LLM answer live?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSET \"Who wrote Hamlet?\" \"William Shakespeare.\" EX 31536000 TENANT acme\nCSET \"What is the order cutoff today?\" \"Orders placed before 3pm ship today.\" EX 3600 TENANT acme"
+    },
+    {
+      "kind": "p",
+      "text": "`EX` on `CSET` sets the lifetime in seconds for that entry, and a namespace can carry a default for writes that do not set one. Be clear about one thing: the lifetime does not vary by the type of question by itself. A table of lifetimes per query type exists in the storage layer, but nothing references it. Either your application sets `EX`, or you let a model do it."
+    },
+    {
+      "kind": "p",
+      "text": "Letting a model do it is the decision engine, which is off by default. After `CSET` stores an answer, your own model is asked in the background how long the answer stays correct. Reads are never slowed. The model sorts each answer into one of four classes."
+    },
+    {
+      "kind": "table",
+      "title": "Decision engine lifetime classes and their defaults",
+      "head": [
+        "Class",
+        "Default lifetime",
+        "Our example of the kind"
+      ],
+      "rows": [
+        [
+          "`permanent`",
+          "1 year",
+          "Who wrote Hamlet"
+        ],
+        [
+          "`slow`",
+          "30 days",
+          "How a product feature works"
+        ],
+        [
+          "`operational`",
+          "1 hour",
+          "Today's opening hours"
+        ],
+        [
+          "`live`",
+          "5 minutes",
+          "A price or a status"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The four defaults are set in seconds through `CROWKIS_DECIDE_TTL_PERMANENT`, `_SLOW`, `_OPERATIONAL` and `_LIVE`. While the engine is on, an answer is held back from every read until the model has vouched for it, and `CDECISION query` shows the `lifetime` and `ttl` it was given. The cost is one small model call per judged answer, and the text, after PII redaction, is sent to the endpoint you configure."
+    },
+    {
+      "kind": "h2",
+      "text": "What is stale-while-revalidate, and does it fit LLM answers?"
+    },
+    {
+      "kind": "p",
+      "text": "A hard expiry is a blunt tool. The moment an entry passes its lifetime, the next user waits for a full model call, even if the answer is one second out of date and perfectly usable. The web solved this with [stale-while-revalidate](https://www.rfc-editor.org/rfc/rfc5861), which lets a cache immediately return a stale response while it revalidates it in the background."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSTALE \"What is the order cutoff today?\" TENANT acme"
+    },
+    {
+      "kind": "p",
+      "text": "`CSTALE query [TENANT t]` returns the cached answer even when it is past its lifetime, with a `stale` flag and the remaining lifetime. It returns null when no entry exists, or while the decision engine is holding the answer back. Crowkis does not run the refresh for you. The flag is the signal, and the refresh is your code:"
+    },
+    {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        "Call `CSTALE`. If the reply is not stale, serve it.",
+        "If it is stale and the question can tolerate that, serve it now and start a model call in the background.",
+        "When the model replies, write the new answer with `CSET` and a fresh `EX`.",
+        "If it is stale and the question cannot tolerate that, such as a price or a balance, wait for the model instead."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "That is the fit for LLM answers: a chat reply or a summary can be a little old, and a number someone will act on cannot."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you invalidate answers when the source document changes?"
+    },
+    {
+      "kind": "p",
+      "text": "Most cached answers are derived from something: a help article, a pricing page, a database record. When that source changes, every answer built on it is wrong at once, and a timer cannot know. This is the usual case for answers generated from retrieved documents, as in [self-hosted RAG with CDOC](/blog/cdoc-self-hosted-rag/). Lineage ties answers to their source so they can be removed together."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSOURCE LINK pricing-doc \"How much is the pro plan?\" TENANT acme\nCSOURCE LIST pricing-doc TENANT acme\nCSOURCE PURGE pricing-doc TENANT acme"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`CSOURCE LINK source_id query` ties a cache entry to a source id of your choosing.",
+        "`CSOURCE LIST source_id` shows what is linked to that source.",
+        "`CSOURCE PURGE source_id` removes every linked entry in one cascade. Links are persistent and scoped to the tenant."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "CDN users will recognise the pattern. Cloudflare's [cache-tag purging](https://developers.cloudflare.com/cache/how-to/purge-cache/purge-by-tags/) works the same way: tag assets when you serve them, then purge by tag. Wire `CSOURCE PURGE` into whatever publishes the document, such as a CMS hook or a deploy job."
+    },
+    {
+      "kind": "callout",
+      "title": "Call the command, not the webhook.",
+      "text": "`POST /api/v1/invalidate` records the request, returns `accepted: true` and purges nothing. `PUT /api/v1/version/:source_id` stores a version record that no read path consults. The Crowkis docs list both as inert."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you purge by meaning?"
+    },
+    {
+      "kind": "p",
+      "text": "Sometimes there is no source id, only a description: everything about the old pricing, anything that mentions the discontinued plan. `CINVALIDATE` takes that description in plain English."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CINVALIDATE \"answers about the old pricing\" TENANT acme LIMIT 50\nCINVALIDATE \"answers about the old pricing\" TENANT acme LIMIT 50 COMMIT"
+    },
+    {
+      "kind": "p",
+      "text": "`CINVALIDATE instruction [TENANT t] [THRESHOLD f] [LIMIT n] [COMMIT]` previews by default. The first line lists what would be purged and deletes nothing. Only `COMMIT` purges. Matching by meaning is easy to get slightly wrong, so read the preview, tighten `THRESHOLD` until the list is the set you meant, then commit."
+    },
+    {
+      "kind": "p",
+      "text": "`CNOTICE` is for the operational case, where something is different today and you want to say so in a sentence."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CNOTICE ADD \"We close at 3pm today\" PREVIEW TENANT acme\nCNOTICE ADD \"We close at 3pm today\" TENANT acme\nCNOTICE LIST TENANT acme"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`ADD` looks at up to 32 cached answers within similarity 0.30 of the notice.",
+        "Without the decision engine, answers at similarity 0.55 or above are removed before the reply.",
+        "With the engine on, all of them stop being served at once. Its model then removes the ones the notice makes wrong and puts the rest back, usually within seconds. One still unchecked after 10 minutes expires.",
+        "`PREVIEW` reports `matched` without removing anything, and `truncated` tells you that more answers were near than were looked at.",
+        "A tenant can have at most 8 active notices, of 512 bytes each."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "What does not work yet?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Webhook purge.** As above, the HTTP invalidate endpoint purges nothing.",
+        "**Lifetime by query type.** The policy table has no callers. Lifetime never varies by query type unless you or the decision engine set it.",
+        "**Version-aware recompute.** The stored version record is not read by any lookup.",
+        "**Freshness decay by domain.** Freshness is one of the signals in the confidence score, but every entry decays at the general rate. A regulatory answer decays exactly as quickly as a historical fact. See [false positives and confidence scoring](/blog/a-cache-hit-is-not-a-correct-answer/).",
+        "**Automatic refresh.** `CSTALE` flags a stale answer. It does not regenerate it.",
+        "**Links from before 0.5.2.** Source links are now scoped to the tenant, so links written by an earlier version must be created again before a purge can find them."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "What TTL should I use for LLM answers?"
+    },
+    {
+      "kind": "p",
+      "text": "Match it to the fact, not the cache. As a starting point, borrow the decision engine's four classes: a year for timeless facts, a month for slow-moving product knowledge, an hour for operational details and minutes for live values. Then shorten anything a user would act on."
+    },
+    {
+      "kind": "h3",
+      "text": "Does changing the model invalidate the cache?"
+    },
+    {
+      "kind": "p",
+      "text": "`CSET` and `CGET` both take `MODEL` and `MODEL_VERSION`, so an entry records which model wrote it and a read can ask for a specific one. Changing the embedding model is different: entries embedded by another model are refused on read, so the cache warms again once. [Local embeddings with CEMBED](/blog/cembed-free-local-embeddings/) covers the embedder."
+    },
+    {
+      "kind": "h3",
+      "text": "Is a short TTL enough without invalidation?"
+    },
+    {
+      "kind": "p",
+      "text": "Only for answers where being wrong for the length of the TTL is acceptable. A short lifetime also throws away reuse on answers that never change, which is the saving a cache exists for. Use lineage for answers with a known source and keep TTL as the backstop."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I see why an answer is still being served?"
+    },
+    {
+      "kind": "p",
+      "text": "`CSTALE` shows the remaining lifetime, `CSOURCE LIST` shows what a source is linked to, and `CDECISION` shows the decision engine's verdict. The [command reference](/blog/the-crowkis-cli-tour/) and the [Crowkis docs](https://www.crowkis.com/docs) list the options, and [cache eviction for LLM answers](/blog/smart-semantic-eviction/) covers what leaves the cache and when."
+    }
+  ]
+}

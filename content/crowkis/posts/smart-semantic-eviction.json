@@ -1,0 +1,267 @@
+{
+  "slug": "smart-semantic-eviction",
+  "title": "Cache eviction for LLM answers: what to keep and why",
+  "summary": "LRU is a poor fit for LLM answers because they cost very different amounts to regenerate. How retention scoring, TTL, dedup and pinning decide what stays.",
+  "keywords": [
+    "cache eviction",
+    "LLM cache eviction",
+    "LRU vs cost-aware eviction",
+    "retention score",
+    "golden answer pinning",
+    "semantic dedup"
+  ],
+  "sources": [
+    "README.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/CROWKIS_FEATURES_BUILT.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/DEVELOPER_GUIDE.md",
+    "crowkis.docs/CUSTOM_EMBEDDER.md",
+    "crowkis.docs/METRICS_API.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "Cache eviction for LLM answers is the policy that decides which cached answers to drop when space or freshness requires it. Recency alone is a poor guide, because answers differ hugely in what they cost to regenerate. A sound policy weighs recency, frequency, uniqueness and regeneration cost, and lets you pin the answers that must never leave."
+    },
+    {
+      "kind": "h2",
+      "text": "Why is LRU the wrong default for LLM answers?"
+    },
+    {
+      "kind": "p",
+      "text": "Least recently used is the default in most caches. It [discards the least recently used items first](https://en.wikipedia.org/wiki/Cache_replacement_policies), and it is a fine rule when every entry costs about the same to rebuild. A cache of database rows fits that description. A cache of LLM answers does not."
+    },
+    {
+      "kind": "p",
+      "text": "A one-line factual answer took a few tokens and a moment to generate. A long chain-of-thought analysis took thousands of tokens and several seconds. LRU treats them as the same kind of object. Under pressure it will drop the expensive analysis that is asked for once a week and keep the trivial answer that was asked for a minute ago, which is the reverse of what your invoice would choose."
+    },
+    {
+      "kind": "p",
+      "text": "Cache research saw this long before LLMs. ARC was designed to [balance between the recency and frequency components](https://www.usenix.org/conference/fast-03/arc-self-tuning-low-overhead-replacement-cache) instead of trusting one of them. GreedyDual-Size, written for web proxies, [incorporates locality with cost and size concerns](https://www.usenix.org/legacy/publications/library/proceedings/usits97/cao.html). LLM answers are a strong case for the cost-aware family, because the price of a miss varies so much from entry to entry."
+    },
+    {
+      "kind": "table",
+      "title": "Eviction policies and what each one ignores",
+      "head": [
+        "Policy",
+        "Keeps",
+        "Ignores"
+      ],
+      "rows": [
+        [
+          "LRU",
+          "What was used recently",
+          "Frequency and cost"
+        ],
+        [
+          "LFU",
+          "What is used often",
+          "Recency and cost"
+        ],
+        [
+          "ARC",
+          "A balance of recent and frequent",
+          "Cost"
+        ],
+        [
+          "GreedyDual-Size",
+          "Locality, weighted by cost and size",
+          "Meaning: whether a near-duplicate entry would answer the same question"
+        ],
+        [
+          "Retention score",
+          "Recency, frequency, isolation and cost together",
+          "See the limits below"
+        ]
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "What should an eviction score for LLM answers measure?"
+    },
+    {
+      "kind": "p",
+      "text": "Crowkis defines a composite retention score with four dimensions."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Recency.** How lately the entry was used. Still useful, as one input among four.",
+        "**Frequency.** How often it is used. A popular answer earns its place.",
+        "**Isolation.** How alone the entry is among its neighbours. An answer with several near-duplicates is partly redundant. An answer with no close neighbour is the only copy of that knowledge.",
+        "**Cost.** What it would take to regenerate the answer. This is the dimension that is specific to LLM caches."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The score is not hidden. `CWHYEVICT` explains the retention arithmetic for any entry: its retention score, its pin status and the weight of each component."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CWHYEVICT \"how do refunds work?\" TENANT acme"
+    },
+    {
+      "kind": "h2",
+      "text": "What does Crowkis actually evict today?"
+    },
+    {
+      "kind": "p",
+      "text": "Less than the name suggests, and the docs are direct about it. The four-dimension score exists, but there is no eviction scheduler over cache entries. Cached answers leave by time to live expiry or by explicit delete. The score drives one real sweep, the trim that keeps each agent's memory under its cap. The isolation dimension is a fixed placeholder at every call site and is not yet computed from neighbour distances."
+    },
+    {
+      "kind": "p",
+      "text": "So the honest picture is a set of bounded stores, each with its own rule."
+    },
+    {
+      "kind": "table",
+      "title": "What bounds each store",
+      "head": [
+        "Store",
+        "Bound",
+        "What leaves"
+      ],
+      "rows": [
+        [
+          "Answer cache (`CSET`)",
+          "Time to live per entry",
+          "Expired entries, and anything you delete, purge or flush"
+        ],
+        [
+          "Agent memory (`CMEMSET`)",
+          "`CROWKIS_MEMORY_MAX_PER_USER`, default 500 per agent and user",
+          "Facts past the cap are forgotten automatically. This is the trim the retention score drives."
+        ],
+        [
+          "Sessions (`CSESSION`)",
+          "`CROWKIS_SESSION_MAX_TURNS`, default 500 per session",
+          "The oldest turns drop"
+        ],
+        [
+          "Graph memory (`CMEMLINK`)",
+          "`CROWKIS_GRAPH_MAX_EDGES`, default 512",
+          "Fan-out is bounded"
+        ],
+        [
+          "Reasoning store (`CTHINK`)",
+          "10,000 derivations, global, fair-shared per tenant",
+          "Capped; 612 bytes per entry, 6.1 MB at the cap"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "[Long-term memory for AI agents](/blog/your-ai-agent-has-amnesia/) covers the memory stores, and [caching chain-of-thought reasoning](/blog/reasoning-reuse-chain-of-thought/) covers the reasoning store."
+    },
+    {
+      "kind": "h2",
+      "text": "How do you keep the answer cache small?"
+    },
+    {
+      "kind": "p",
+      "text": "With no background evictor for answers, the size of the cache is something you manage with five tools."
+    },
+    {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        "**Give every write a lifetime.** `CSET … EX secs` sets it per entry, and a namespace can carry a default. An entry with no lifetime stays until someone removes it. [Cache invalidation and freshness](/blog/freshness-hamlet-vs-stock-price/) covers how to choose one.",
+        "**Fold duplicates.** `CDEDUP` runs semantic dedup and reports the clusters it found and the memory it reclaimed. It is an on-demand sweep, not a gate in front of the index, so it lowers steady-state size and leaves peak memory unchanged.",
+        "**Purge what is no longer true.** `CINVALIDATE` removes entries by meaning, with a preview first, and `CSOURCE PURGE` removes everything built on a source.",
+        "**Flush a tenant.** `CFLUSH TENANT t` clears one tenant's semantic cache and leaves the others alone.",
+        "**Bound the process.** `CROWKIS_MEMORY_LIMIT` and `CROWKIS_BLOCK_CACHE_BYTES` are the memory settings, and the block cache is bounded."
+      ]
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CVECCOUNT\nCDEDUP\nCINVALIDATE \"answers about the retired plan\" TENANT acme\nCFLUSH TENANT acme"
+    },
+    {
+      "kind": "p",
+      "text": "`CVECCOUNT` returns the live count of entries in the vector index, and `GET /api/metrics` reports CPU, memory and disk under `system`. Watch both. The Crowkis docs describe the memory limit as a setting; they do not describe eviction that starts when the limit is near, so do not plan on it."
+    },
+    {
+      "kind": "p",
+      "text": "Size the container from measurement. In a container, the kernel enforces a memory limit with out-of-memory kills, and Kubernetes notes that [a container that uses more than its memory limit may be terminated](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/). Crowkis's own figure for index memory is 1067 MB of resident memory at 1.18M vectors, measured on a development laptop with vectors of dimension 100. The bundled embedder produces a higher dimension than that, so treat the figure as a floor and measure with your own data."
+    },
+    {
+      "kind": "h2",
+      "text": "How does pinning protect answers that must never leave?"
+    },
+    {
+      "kind": "p",
+      "text": "Some answers should not be subject to any policy: the exact refund terms, a regulated disclosure, the one approved description of your product. Pinning takes them out of the similarity game altogether."
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CPIN \"what is the refund policy?\" \"Full refunds within 30 days.\" BY legal TENANT acme\nCPINGET \"can I get my money back?\" TENANT acme\nCPINLIST TENANT acme\nCUNPIN \"what is the refund policy?\" TENANT acme"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "`CPIN query answer [BY who] [TENANT t]` stores a human-approved answer, with the name of whoever approved it.",
+        "`CPINGET query [TENANT t] [THRESHOLD f]` asks whether a question matches a pinned answer, and returns the approved answer and who pinned it. The question is matched by meaning, so paraphrases reach the pin. The answer is served verbatim.",
+        "`CPINLIST [TENANT t]` is the audit list: each pinned question and who pinned it.",
+        "`CUNPIN query [TENANT t]` removes a pin."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Your application calls `CPINGET` ahead of generation and serves the result as it is, so a pinned question never reaches the model. Two details matter in practice. `CWHYEVICT` shows pin status alongside the retention score. And a pin is not exempt from privacy requests: `CPII ERASE` covers pinned answers, as [PII in an LLM cache](/blog/cpii-scrub-and-erase/) explains."
+    },
+    {
+      "kind": "h2",
+      "text": "What are the limits?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**No evictor for answers.** If you need the cache to shed low-value answers by itself under memory pressure, Crowkis does not do that today. Plan with lifetimes, dedup and a memory limit.",
+        "**Isolation is a placeholder.** The score has four dimensions on paper and three that vary.",
+        "**No measurement of the benefit.** There is no published figure for what cost-aware retention saves over LRU. The saving depends on how unevenly your answers cost.",
+        "**Dedup figures depend on the corpus.** `CDEDUP` reports what it found on the data it ran on. No general size reduction has been measured.",
+        "**Background work can be felt.** A soak test with concurrent writes, searches and periodic maintenance recorded a worst stall of 1,204 ms against a budget of 1,000 ms, at 25,420 entries. The cause has not been isolated, so there is no claim that maintenance is invisible to users.",
+        "**A small cache does not need any of this.** If your answers fit in memory with room to spare and all carry a lifetime, expiry is the only policy you need."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "What happens when the cache is full?"
+    },
+    {
+      "kind": "p",
+      "text": "The Crowkis docs describe no entry cap on the answer cache and no eviction under memory pressure. Entries leave when their lifetime ends or when you remove them. The process is bounded by the memory limit you set, so capacity planning and lifetimes do the work an evictor would."
+    },
+    {
+      "kind": "h3",
+      "text": "Does Crowkis use LRU?"
+    },
+    {
+      "kind": "p",
+      "text": "No. Its retention score combines recency, frequency, isolation and cost. Today that score drives the agent memory trim and the `CWHYEVICT` explanation, not a sweep over cached answers."
+    },
+    {
+      "kind": "h3",
+      "text": "Should I pin my most expensive answers?"
+    },
+    {
+      "kind": "p",
+      "text": "No. Pinning is for answers a person has approved and that must be served word for word. For answers that are merely expensive, give them a long lifetime and link them to their source so they are removed only when the source changes."
+    },
+    {
+      "kind": "h3",
+      "text": "How do I know which entries are worth keeping?"
+    },
+    {
+      "kind": "p",
+      "text": "Ask `CWHYEVICT` for the entries you care about and compare their scores. For the wider picture, the per-tenant rows in the metrics show hits and misses, and [how much semantic caching can cut LLM costs](/blog/cut-llm-api-costs-semantic-caching/) explains where the value comes from. The [Crowkis docs](https://www.crowkis.com/docs) have the full command list."
+    }
+  ]
+}

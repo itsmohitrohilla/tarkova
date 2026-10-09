@@ -1,0 +1,304 @@
+{
+  "slug": "cpii-scrub-and-erase",
+  "title": "PII in an LLM cache: scrubbing and erasure",
+  "summary": "An LLM cache stores what users type, personal data included. How scrubbing before storage, a PII report and erasure on request work, and what they miss.",
+  "keywords": [
+    "PII in LLM cache",
+    "PII scrubbing",
+    "PII redaction",
+    "right to erasure",
+    "LLM data privacy",
+    "CPII"
+  ],
+  "sources": [
+    "README.md",
+    "crowkis.docs/PII_REDACTION.md",
+    "crowkis.docs/COMMANDS.md",
+    "crowkis.docs/MEASURED_CAPABILITY.md",
+    "crowkis.docs/DEVELOPER_GUIDE.md",
+    "crowkis.docs/METRICS_API.md"
+  ],
+  "body": [
+    {
+      "kind": "p",
+      "text": "PII in an LLM cache is personal data that users typed into prompts, or that a model wrote into an answer, and that now sits in a store other callers can read. Handling it takes three things: scrub identifiers before a shared entry is written, report what is held, and erase one person's data on request. Crowkis does these with always-on redaction and the `CPII` command."
+    },
+    {
+      "kind": "h2",
+      "text": "Why does an LLM cache end up holding personal data?"
+    },
+    {
+      "kind": "p",
+      "text": "Users paste emails, order numbers and account details into anything with a text box. OWASP lists [personal identifiable information among the sensitive data an LLM application risks exposing](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/). A cache in front of the model keeps the question and the answer, so it becomes a store of personal data whether you planned for that or not. The guidance in [NIST SP 800-122](https://csrc.nist.gov/pubs/sp/800/122/final) applies to it like any other system: identify the PII you hold, and protect it from inappropriate access, use and disclosure."
+    },
+    {
+      "kind": "p",
+      "text": "A [semantic cache](/blog/what-is-a-semantic-cache-for-llms/) adds a risk an ordinary database does not have. Its whole purpose is to give one caller's stored answer to another caller who asks something similar. If the stored answer contains the first caller's name or refund amount, reuse is a leak."
+    },
+    {
+      "kind": "h2",
+      "text": "What gets scrubbed, and when?"
+    },
+    {
+      "kind": "p",
+      "text": "Redaction in Crowkis is always on and has no off switch. Where it applies, it runs before anything reaches storage, so the end user's raw question is never stored in the response cache. What decides whether it applies is not the kind of data. It is who can read the data back. Every stored item has a reach (who can retrieve it) and a subject (who it is about), and the rule is one line: redact when the reach exceeds the subject."
+    },
+    {
+      "kind": "table",
+      "title": "Reach decides redaction",
+      "head": [
+        "What is stored",
+        "Who can read it back",
+        "Redacted"
+      ],
+      "rows": [
+        [
+          "Response cache (`CSET`, `CGET`)",
+          "Any caller in the tenant with a similar question",
+          "Yes, always"
+        ],
+        [
+          "Document store (`CDOC`)",
+          "The whole tenant",
+          "Yes, always"
+        ],
+        [
+          "Reasoning, negative, tool and source records",
+          "The whole tenant",
+          "Yes, always"
+        ],
+        [
+          "Agent memory written with `USER`",
+          "That one user",
+          "No"
+        ],
+        [
+          "Session turns",
+          "That one session",
+          "No"
+        ],
+        [
+          "Knowledge graph written with `USER`",
+          "That one user",
+          "No"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "The last three rows are not a loophole. A fact about one user, stored where only that user can reach it, has nobody to be protected from. Redacting it would make the assistant recall a placeholder instead of the address the user just gave it. [Long-term memory for AI agents](/blog/your-ai-agent-has-amnesia/) covers those stores."
+    },
+    {
+      "kind": "p",
+      "text": "There is one exception. `CMEMSET agent fact` with no `USER`, and `CMEMLINK` with no `USER`, land in a bucket shared by every caller of that agent in the tenant. Their reach is tenant-wide, so they are redacted exactly like the response cache. The same holds for a session turn written with an empty session id."
+    },
+    {
+      "kind": "h2",
+      "text": "How do the placeholders work?"
+    },
+    {
+      "kind": "p",
+      "text": "A scrubbed value is replaced by a placeholder derived from the value itself, in the form `pii_email_<digest>`. The digest is SHA-256 truncated to 128 bits, taken over the trimmed, lowercased value. It was not always done this way. Placeholders used to be numbered by position (`pii_person_1`), and because the cache key is built from the scrubbed question, two questions about two different people collapsed onto one key:"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CSET \"refund status for John Smith\" \"John Smith is approved for a $4,200 refund\"\nCGET \"refund status for Jane Doe\"\n  -> \"Jane Doe is approved for a $4,200 refund\"     # wrong answer + intra-tenant leak"
+    },
+    {
+      "kind": "p",
+      "text": "Binding the placeholder to the value fixes the whole class of bug:"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "Two people never share a cache key, because their scrubbed text differs.",
+        "One person always produces the same placeholder, so their own entry still hits after a restart, and erasure can still find them.",
+        "A placeholder can only bind to the one value that produced it. A reader holding a different value finds no binding, and the placeholder is left as it is instead of being filled with someone else's data."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Be clear about what the digest protects. It guarantees the literal value is absent from disk. It is unsalted, so for a low-entropy identifier such as a national ID number or a bare date, anyone who already holds the data directory can brute-force it. Precomputed lookups of this kind are the attack a salt is meant to defeat, as the [rainbow table](https://en.wikipedia.org/wiki/Rainbow_table) article explains. A per-deployment secret does not exist yet."
+    },
+    {
+      "kind": "h2",
+      "text": "What does the PII detector find?"
+    },
+    {
+      "kind": "p",
+      "text": "The detector is a deterministic pattern matcher, not a trained [named-entity recognition](https://en.wikipedia.org/wiki/Named-entity_recognition) model. Every rule is checksum-verified, distinctive in shape, or gated on a nearby cue word."
+    },
+    {
+      "kind": "table",
+      "title": "Detected families",
+      "head": [
+        "Family",
+        "Rule"
+      ],
+      "rows": [
+        [
+          "Email",
+          "`local@domain.tld`, ASCII"
+        ],
+        [
+          "Payment card",
+          "13 to 19 digits that pass the [Luhn check](https://en.wikipedia.org/wiki/Luhn_algorithm); spaces and dashes tolerated"
+        ],
+        [
+          "IBAN",
+          "Country, check digits and the [mod-97 check](https://en.wikipedia.org/wiki/International_Bank_Account_Number), written without spaces"
+        ],
+        [
+          "National ID",
+          "A configurable table of shapes, with a checksum where one is declared"
+        ],
+        [
+          "Phone",
+          "E.164 form, or 10 to 15 digits with grouping punctuation, or after a phone cue"
+        ],
+        [
+          "IPv4 and IPv6",
+          "IPv6 needs `::` or all seven colons, so a clock time is not one"
+        ],
+        [
+          "Date of birth",
+          "A numeric three-part date after a cue such as \"born\" or \"date of birth\""
+        ],
+        [
+          "Passport",
+          "6 to 12 alphanumerics immediately after the word \"passport\""
+        ],
+        [
+          "Person",
+          "Two capitalised ASCII words after a cue, or one after an honorific"
+        ],
+        [
+          "Street address",
+          "Number, capitalised word and a street-type suffix"
+        ]
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "National identifiers are configuration, not code. A shape uses `D` for a digit, `A` for a letter and `X` for either, and you can add a jurisdiction with two environment variables. Both add to the shipped defaults, so coverage cannot shrink by accident."
+    },
+    {
+      "kind": "code",
+      "title": "bash",
+      "code": "CROWKIS_PII_NATIONAL_ID_PATTERNS=\"AAA-DDDD-A, DDD DDD DDD:luhn\"\nCROWKIS_PII_NATIONAL_ID_CUES=\"matrícula, numéro fiscal\""
+    },
+    {
+      "kind": "h2",
+      "text": "What does the detector miss?"
+    },
+    {
+      "kind": "p",
+      "text": "Detection is narrow on purpose. A false positive is not cosmetic: the scrubbed question is what the cache key and the embedding are built from, so a wrong match corrupts the stored answer and splits one cache key into many. Coverage is traded for precision. That means real gaps, and you should know them before you rely on this."
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Bare personal names** with no cue word or honorific, as in \"ask Sarah Chen to review\".",
+        "**Any non-ASCII script.** Cyrillic, Greek, CJK, Devanagari and accented Latin names pass through untouched. The docs name this as the main gap for non-English deployments.",
+        "**Dates** with no date-of-birth cue.",
+        "**Unseparated national IDs** with no cue word, and bare national phone numbers with no `+` or grouping.",
+        "**SWIFT and BIC codes, sort codes and spaced IBANs.**",
+        "**Medical record, policy, member, claim and employee numbers.**",
+        "**Addresses** without number, name and suffix, as well as PO boxes and standalone postcodes.",
+        "**Quasi-identifiers** such as job title plus employer, licence plates and device IDs."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "How do you report and erase PII?"
+    },
+    {
+      "kind": "code",
+      "title": "text",
+      "code": "CPII REPORT TENANT acme\nCPII ERASE jane.doe@example.com TENANT acme\nCPII ERASE jane.doe@example.com TENANT acme COMMIT"
+    },
+    {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+        "**Report.** `CPII REPORT [TENANT t]` returns the number of entries holding personal data and a breakdown by kind. It never emits a value, only counts and kind names.",
+        "**Preview.** `CPII ERASE id (TENANT t|ALL)` resolves the identifier to the entries that hold it and shows what would be removed. Nothing is deleted yet.",
+        "**Erase.** The same command with `COMMIT` removes those entries. Erasure covers pinned answers too."
+      ]
+    },
+    {
+      "kind": "p",
+      "text": "Erasure finds a person in two ways. In shared stores it matches the identifier's digest, which is literally what the placeholder is. In the user-scoped stores it matches the digest or the value itself, whole-word and case-insensitive, so erasing \"Sam\" does not delete an entry that only mentions \"samsung\". The scan reads every entry in the tenant, which is acceptable for a rare operation and not something to put in a request path."
+    },
+    {
+      "kind": "p",
+      "text": "This is what makes a [right to be forgotten](https://en.wikipedia.org/wiki/Right_to_be_forgotten) request something you can carry out and show, instead of waiting for entries to expire. The same report and erasure workflows are available on the management API."
+    },
+    {
+      "kind": "h2",
+      "text": "What else keeps personal data from leaking?"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**Logs.** `CROWKIS_LOG_QUERY_PREVIEWS=0` is the default, which keeps prompt previews out of logs. The traffic recorder stores a SHA-256 of the prompt and response, never the text.",
+        "**Internal keys.** Key-value commands on a `__`-prefixed key are refused with `NOPERM`, and `KEYS` and `SCAN` filter those keys out, so the internal stores cannot be read around the cache commands.",
+        "**Output checks.** `COUTCHECK` scans a model response for leaked PII before you return or store it. See [LLM guardrails at the cache layer](/blog/cguard-input-guardrails/).",
+        "**Tenant walls.** Redaction handles sharing inside a tenant. Sharing between tenants is a separate control, covered in [multi-tenant isolation for an LLM cache](/blog/tenant-isolation-architecture/).",
+        "**Management access.** PII reports and metrics that include query previews sit behind management authentication. Set `CROWKIS_ADMIN_KEY` before the port is reachable."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Limits to state plainly"
+    },
+    {
+      "kind": "list",
+      "items": [
+        "**The report is not complete.** For the response cache, kinds are recorded at write time. For agent memory, sessions and the graph, they are derived by running the detector again at report time, so every detection gap is also a report gap.",
+        "**Counts are entries, not people.** One person across ten memories counts ten times.",
+        "**JSON escaping can hide a value.** An identifier containing a quote or a backslash will not match by raw value inside a session turn or a graph edge.",
+        "**The subject boundary is yours.** `USER` and session ids are supplied by your application. Pass one constant `USER` for every human and you have told the cache those humans are one person.",
+        "**The decision engine sends text out.** If you turn it on, the text after redaction goes to the model endpoint you configured. Redaction can miss things, so treat that endpoint as a processor of your callers' data.",
+        "**Redaction is a control, not a guarantee.** Nothing here should be read as complete coverage."
+      ]
+    },
+    {
+      "kind": "h2",
+      "text": "Common questions"
+    },
+    {
+      "kind": "h3",
+      "text": "Can I turn PII redaction off?"
+    },
+    {
+      "kind": "p",
+      "text": "No. It is always on for every store that more than one caller can read, and there is no switch. In user-scoped memory and sessions nothing is redacted, because only that user can read the data back."
+    },
+    {
+      "kind": "h3",
+      "text": "Does a TTL count as erasure?"
+    },
+    {
+      "kind": "p",
+      "text": "No. Expiry removes an entry on a schedule, not on request, and it cannot tell you which entries held a given person's data. Use `CPII ERASE` for a request, and use time to live as general hygiene."
+    },
+    {
+      "kind": "h3",
+      "text": "Does scrubbing lower the cache hit rate?"
+    },
+    {
+      "kind": "p",
+      "text": "It can, which is why detection is narrow. A false positive splits one cache key into many. A correct match is meant to keep two people on separate keys, so those misses are by design. [False positives and confidence scoring](/blog/a-cache-hit-is-not-a-correct-answer/) explains why that trade is right."
+    },
+    {
+      "kind": "h3",
+      "text": "Is the raw prompt stored anywhere?"
+    },
+    {
+      "kind": "p",
+      "text": "Not in the response cache: the raw question is never stored there. User-scoped memory and session turns keep the text as written, because the person it is about is the only one who can read it. The full detail is in the [Crowkis docs](https://www.crowkis.com/docs)."
+    }
+  ]
+}
