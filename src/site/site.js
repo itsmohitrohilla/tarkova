@@ -3,6 +3,7 @@ import './site.css'
 import './book.css'
 import { mountMusic } from '../music.js'
 import { mountGlass } from '../glass.js'
+import { painted, settled } from '../paint.js'
 
 mountMusic()
 mountGlass(document.querySelector('.pill'))
@@ -30,8 +31,8 @@ if (diagrams.length) {
 }
 
 // Footer: the landing's animated particle wordmark. It sits below the fold, so its 240 KB of script waits
-// until the page has loaded and the browser is idle; that is still well before anyone scrolls to it.
-// Reduced motion keeps the still dotted SVG.
+// until the page has loaded, is on the screen (paint.js) and the browser is idle; that is still well before
+// anyone scrolls to it. Reduced motion keeps the still dotted SVG.
 const wordmark = document.querySelector('.foot-wordmark')
 if (wordmark && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const mount = () => Promise.all([
@@ -46,8 +47,7 @@ if (wordmark && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     createRoot(wordmark).render(createElement(TextAnimationCollection, WORDMARK_PROPS))
   })
   const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1)) // Safari has no requestIdleCallback
-  if (document.readyState === 'complete') idle(mount)
-  else addEventListener('load', () => idle(mount), { once: true })
+  settled.then(() => idle(mount))
 }
 
 // Book a demo and the contact form (book.js), on the pages that end with that section.
@@ -59,8 +59,11 @@ const ck = document.querySelector('[data-ck]')
 if (ck) import('./crowkis/motion.js').then((m) => m.start(ck))
 const cv = document.querySelector('[data-cv]')
 if (cv) import('./curva/motion.js').then((m) => m.start(cv))
+// The About page's engine (51 KB) lets the hero photo arrive first: nothing there moves until someone scrolls,
+// and the photo is the first thing they see. It starts once the photo is on the screen (paint.js), or a second
+// after the first paint on a slow line, whichever comes first.
 const ab = document.querySelector('[data-ab]')
-if (ab) import('./about/motion.js').then((m) => m.start(ab))
+if (ab) Promise.race([settled, painted.then(() => new Promise((done) => setTimeout(done, 1000)))]).then(() => import('./about/motion.js')).then((m) => m.start(ab))
 
 // A post's outline marks the section being read: the last heading or figure to pass the upper
 // fifth of the viewport.

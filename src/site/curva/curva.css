@@ -29,7 +29,7 @@
   --cv-ink: #08061c;
   --cv-paper: #f3f2ec;
   --cv-white: #ffffff;
-  --cv-dim: #6f6c86;
+  --cv-dim: #6a6781; /* 4.8:1 on the paper */
   --cv-sans: 'Funnel Sans', system-ui, sans-serif;
   --cv-pixel: 'Pixelify Sans', ui-monospace, monospace;
   --cv-serif: 'Instrument Serif', Georgia, serif;

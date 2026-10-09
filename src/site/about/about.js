@@ -38,8 +38,8 @@ export function aboutMain({ esc }) {
 </section>
 
 <section class="ab-intro" aria-labelledby="ab-intro-h">
-  <h2 id="ab-intro-h" class="ab-big" data-rise>${rise('Tarkova is a technology company.')}</h2>
-  <p class="ab-kin" data-kin>${kin("We're here to make AI cost less, and to build products that make your work easier.")} <a href="/crowkis/">${kin('Crowkis')}</a> ${kin('and')} <a href="/curva/">${kin('Curva')}</a> ${kin('are the first. More are coming.')}</p>
+  <h2 id="ab-intro-h" class="ab-big" data-rise>${rise('Tarkova is an AI product studio.')}</h2>
+  <p class="ab-kin" data-kin>${kin('Co-founders Mohit Rohilla and Subhraneel Baruah started Tarkova to make AI cost less, and to build products that make your work easier.')} <a href="/crowkis/">${kin('Crowkis')}</a> ${kin('and')} <a href="/curva/">${kin('Curva')}</a> ${kin('are the first. More are coming.')}</p>
 </section>
 
 <section class="ab-story" aria-labelledby="ab-story-h">

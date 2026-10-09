@@ -10,7 +10,7 @@ export const html = ({ p, c, esc }) => {
   return `<section class="ck-scene ck-hero" data-scene="hero">
   <div class="ck-hero-plate" aria-hidden="true"><div class="ck-hero-dusk"></div></div>
   <div class="ck-hero-in">
-    <h1><img src="${p.wordmark[0]}" alt="${esc(p.name)}" width="${p.wordmark[1]}" height="${p.wordmark[2]}"></h1>
+    <h1><img src="${p.wordmark[0]}" alt="${esc(p.name)}, a semantic cache and memory layer for AI apps" width="${p.wordmark[1]}" height="${p.wordmark[2]}"></h1>
     <img class="ck-hero-crow" src="${p.mark[0]}" alt="${esc(p.logoAlt)}" width="${p.mark[1]}" height="${p.mark[2]}">
     <p class="ck-hero-tag">${tag}</p>
     <div class="ck-hero-act">

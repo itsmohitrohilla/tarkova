@@ -1,7 +1,7 @@
 /* scene: voice (red chapter). Static layout is the finished story; html.ck-motion adds the pinned frame. */
 .ck-voice {
   --v-line: rgba(255, 255, 255, 0.3);
-  --v-soft: rgba(255, 255, 255, 0.8);
+  --v-soft: rgba(255, 255, 255, 0.87); /* 4.8:1 on the red; 0.8 fell just short of the 4.5:1 text needs */
   background: var(--ck-red); color: var(--ck-white);
   padding: clamp(96px, 16vh, 200px) var(--ck-gutter) clamp(96px, 14vh, 180px);
 }

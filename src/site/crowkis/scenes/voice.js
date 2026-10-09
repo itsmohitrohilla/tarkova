@@ -91,7 +91,7 @@ const PROOF = [
 export const html = ({ serif }) => `<section class="ck-scene ck-voice" id="voice" data-scene="voice" aria-labelledby="ckv-title">
   <header class="ckv-head">
     <h2 class="ckv-title" id="ckv-title">${serif('Voice agents that answer *instantly*.')}</h2>
-    <p class="ckv-intro">Each caller gets their own details. Your model never hears the repeat.</p>
+    <p class="ckv-intro">Crowkis answers repeat voice questions from cache, with each caller’s own details. Your model never hears the repeat.</p>
   </header>
   <div class="ckv-stage">
     <ol class="ckv-beats">

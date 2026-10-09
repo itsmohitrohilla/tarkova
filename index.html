@@ -9,8 +9,8 @@
     <link rel="alternate" type="application/rss+xml" title="Tarkova Blog" href="/rss.xml" />
     <!-- The headline under the hero is set in this face; fetched early so it is there before anyone scrolls to it. -->
     <link rel="preload" href="/InstrumentSerif-Italic.woff2" as="font" type="font/woff2" crossorigin />
-    <!-- Google tag (gtag.js). Also in shell.html, which every other page is built from. -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-2FYF61BX95"></script>
+    <!-- Google tag (gtag.js). Also in shell.html, which every other page is built from. Its script (177 KB) is added
+         by src/paint.js once the page is on the screen; the page view below waits in dataLayer until then. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
@@ -28,21 +28,23 @@
       .plain { visibility: hidden; } /* unstyled until React replaces it; see #root */
     </style>
     <noscript><style>html::after { display: none; } .plain { visibility: visible; } .hero-line span { animation: none !important; }</style></noscript>
-    <title>Tarkova | Building new age businesses</title>
-    <meta name="description" content="Tarkova is a studio building new age software businesses. Meet Crowkis, the semantic cache for LLMs, and Curva, coming next." />
+    <title>Tarkova | Building new age products in the AI world</title>
+    <meta name="description" content="Tarkova builds AI products: Crowkis, a semantic cache and memory layer for AI apps, and Curva, typed decisions with calibrated probabilities from any LLM." />
     <link rel="canonical" href="https://www.tarkova.com/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta property="og:site_name" content="Tarkova" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Tarkova | Building new age businesses" />
-    <meta property="og:description" content="A studio building new age software businesses: Crowkis, the semantic cache for LLMs, and Curva, coming next." />
+    <meta property="og:title" content="Tarkova | Building new age products in the AI world" />
+    <meta property="og:description" content="Tarkova builds AI products: Crowkis, a semantic cache and memory layer for AI apps, and Curva, typed decisions with calibrated probabilities from any LLM." />
     <meta property="og:url" content="https://www.tarkova.com/" />
     <meta property="og:image" content="https://www.tarkova.com/og.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Tarkova | Building new age businesses" />
-    <meta name="twitter:description" content="A studio building new age software businesses: Crowkis, the semantic cache for LLMs, and Curva, coming next." />
+    <meta name="twitter:title" content="Tarkova | Building new age products in the AI world" />
+    <meta name="twitter:description" content="Tarkova builds AI products: Crowkis, a semantic cache and memory layer for AI apps, and Curva, typed decisions with calibrated probabilities from any LLM." />
     <meta name="twitter:image" content="https://www.tarkova.com/og.jpg" />
+    <!-- ponytail: a hand-written copy of org() in src/site/pages.js; keep the two in step. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -52,9 +54,15 @@
             "@id": "https://www.tarkova.com/#org",
             "name": "Tarkova",
             "url": "https://www.tarkova.com/",
+            "legalName": "Tarkova Private Limited",
             "logo": "https://www.tarkova.com/apple-touch-icon.png",
-            "slogan": "Building new age businesses",
-            "sameAs": ["https://www.crowkis.com/"]
+            "description": "Tarkova is a studio that builds AI products: Crowkis, a semantic cache and memory layer for AI apps, and Curva, typed decisions with calibrated probabilities from any LLM.",
+            "slogan": "Building new age products in the AI world",
+            "founder": [
+              { "@type": "Person", "name": "Mohit Rohilla", "sameAs": ["https://www.linkedin.com/in/itsmohitrohilla/"] },
+              { "@type": "Person", "name": "Subhraneel Baruah", "sameAs": ["https://www.linkedin.com/in/subhraneelbaruah/"] }
+            ],
+            "sameAs": ["https://www.linkedin.com/company/tarkova-dev/", "https://www.crowkis.com/"]
           },
           {
             "@type": "WebSite",

@@ -20,6 +20,12 @@ const CROWKIS = 'https://www.crowkis.com/'
 // domain for it, so they stay live and linked but ask not to be indexed. Flip this
 // once each one carries content unique to its use case.
 const INDEX_MATRIX_PAGES = false
+// The same goes for a post that is mostly the same text as an earlier post under a different title (measured on
+// 2026-10-09: 141 of 422 otherwise indexable posts shared half or more of their wording with another, 75 of them
+// almost all of it). The first post of each such group stays indexed; the later ones are `noindex, follow` until
+// they are rewritten. A post counts as a copy when it shares this much of its 4-word runs with an earlier one.
+const INDEX_NEAR_COPIES = false
+const NEAR_COPY = 0.5
 const MATRIX = /^Cache (?:the )?(.+?) in your (.+?) with Crowkis$/
 const HUB = /^How to cache (?:the )?(.+?) LLM calls with Crowkis$/
 const MEMORY = /^Give (?:the )?(.+?) agents long-term memory with Crowkis$/
@@ -69,6 +75,24 @@ const fmtDate = (d) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { 
 const clip = (s, n) => (s.length <= n ? s : s.slice(0, s.lastIndexOf(' ', n - 1)) + '…')
 const titleCase = (s) => s.replace(/^\w/, (c) => c.toUpperCase()).replace(/\bjev\b/, 'Jev')
 const jsonld = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`
+
+// The words a reader meets in a post: prose, lists, tables, captions and code, but not diagram source or SVG.
+// Reading time comes from this count (220 words a minute), not from a number stored with the post.
+const UNREAD = new Set(['kind', 'chart', 'svg', 'unit'])
+const strings = (v) => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(strings) : v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => (UNREAD.has(k) ? [] : strings(x))) : [])
+const countWords = (body) => strings(body).join(' ').split(/\s+/).filter(Boolean).length
+// Every run of four words in a post, and how much two posts' runs overlap (0 to 1): how alike two posts read.
+const runs = (body) => {
+  const w = strings(body).join(' ').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean), set = new Set()
+  for (let i = 0; i + 4 <= w.length; i++) set.add(w.slice(i, i + 4).join(' '))
+  return set
+}
+const overlap = (a, b) => {
+  const [few, many] = a.size < b.size ? [a, b] : [b, a]
+  let n = 0
+  for (const r of few) if (many.has(r)) n++
+  return n / (a.size + b.size - n || 1)
+}
 
 /* ---------- chrome shared by every static page ---------- */
 
@@ -132,9 +156,10 @@ function linkIndex(posts) {
   return { bySlug, hubs, terms, frameworkOf }
 }
 
-// Escaped text → HTML with authored links, `code` spans and at most a few first-mention links.
+// Escaped text → HTML with authored links, `code` spans, **bold** and at most a few first-mention links.
 // A link to a post that isn't live yet (a later wave) stays plain text until it is.
 function inline(text, ctx) {
+  const codes = []
   let html = esc(text)
     .replace(LINK, (m, label, href) => {
       const slug = href.match(/^\/blog\/([a-z0-9-]+)\/$/)?.[1]
@@ -142,7 +167,10 @@ function inline(text, ctx) {
       if (href.startsWith(OLD_CURVA_DOCS)) href = CURVA_DOCS + href.slice(OLD_CURVA_DOCS.length)
       return `<a href="${href}"${href.startsWith('/') ? '' : ' rel="noopener"'}>${label}</a>`
     })
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // `code` and **bold**. Code spans step aside first, so asterisks inside code stay as typed and bold may hold code.
+    .replace(/`([^`]+)`/g, (m, c) => `\u0000${codes.push(c) - 1}\u0000`)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[i]}</code>`)
   const guarded = /(<code>[\s\S]*?<\/code>|<a [\s\S]*?<\/a>)/
   const tryLink = (re, href, cls) => {
     const parts = html.split(guarded)
@@ -253,7 +281,7 @@ ${col(b.leftItems, 160, 150)}${col(b.rightItems, 480, 150)}${col(overlap, 320, 1
 // Topic, date and read time sit under the title, never above it.
 // "New" marks posts from the last 7 days, as of the build (the site rebuilds when posts are published).
 const isNew = (p) => Date.now() - new Date(`${p.published_at}T00:00:00Z`) < 7 * 864e5
-const metaLine = (p) => `<p class="meta">${isNew(p) ? '<span class="new">New</span>' : ''}<span class="topic" style="--t:${ACCENT[p.tag] || '#161616'}">${esc(titleCase(p.tag))}</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.read_minutes} min read</span></p>`
+const metaLine = (p) => `<p class="meta">${isNew(p) ? '<span class="new">New</span>' : ''}<span class="topic" style="--t:${ACCENT[p.tag] || '#161616'}">${esc(titleCase(p.tag))}</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.minutes} min read</span></p>`
 
 function card(p, h = 'h2') {
   return `<li class="card"><a href="${postPath(p)}">
@@ -321,7 +349,7 @@ function listingPages({ site, posts, topics, base, topic, allCount }) {
     const slice = rest.slice(from, n === 1 ? FIRST : from + PER_PAGE)
     const side = n === 1 ? slice.slice(0, 5) : []
     const name = topic ? `${titleCase(topic)} articles` : 'Blog'
-    const title = `${name}${n > 1 ? ` · page ${n}` : ''} | Tarkova`
+    const title = `${topic ? name : 'Tarkova Blog: semantic caching, agent memory and LLM costs'}${n > 1 ? ` · page ${n}` : ''}${topic ? ' | Tarkova' : ''}`
     const description = topic
       ? `${TOPIC_LEDE[topic] || `Tarkova articles on ${topic}.`} ${posts.length} articles from Tarkova.`
       : 'Practical reads on semantic caching, agent memory, LLM cost and LLM classification with confidence scores, from the team building Crowkis and Curva.'
@@ -329,7 +357,7 @@ function listingPages({ site, posts, topics, base, topic, allCount }) {
     const ld = {
       '@context': 'https://schema.org',
       '@graph': [
-        { '@type': topic ? 'CollectionPage' : 'Blog', '@id': `${site}${base}#blog`, name: `Tarkova ${name}`, url: site + path, description, publisher: { '@id': `${site}/#org` } },
+        { '@type': topic ? 'CollectionPage' : 'Blog', '@id': `${site}${base}#blog`, name: `Tarkova ${name}`, url: site + base, description, publisher: { '@id': `${site}/#org` } },
         breadcrumbs(site, [['Home', '/'], ['Blog', '/blog/'], ...(topic ? [[titleCase(topic), base]] : [])]),
         org(site),
       ],
@@ -356,12 +384,21 @@ ${slice.length > side.length ? `<section class="more" aria-labelledby="more-h">
 </section>` : ''}
 ${pager(base, n, total)}
 </div>`
-    out.push([path, { head: head({ site, title, description, path, ld }), body: page('blog', topics, main) }])
+    // A topic's later pages are mostly lists of posts kept out of the index; they stay crawlable but are not results themselves.
+    out.push([path, { head: head({ site, title, description, path, ld, noindex: Boolean(topic) && n > 1 }), body: page('blog', topics, main) }])
   }
   return out
 }
 
-const org = (site) => ({ '@type': 'Organization', '@id': `${site}/#org`, name: 'Tarkova', url: `${site}/`, logo: `${site}/apple-touch-icon.png`, slogan: 'Building new age businesses', sameAs: [CROWKIS] })
+// One description of the company wherever a machine reads it (structured data, llms.txt), so search and answer
+// engines meet the same entity on every page. index.html carries a hand-written copy of this node.
+const ORG_DESC = 'Tarkova is a studio that builds AI products: Crowkis, a semantic cache and memory layer for AI apps, and Curva, typed decisions with calibrated probabilities from any LLM.'
+const org = (site) => ({
+  '@type': 'Organization', '@id': `${site}/#org`, name: 'Tarkova', legalName: 'Tarkova Private Limited', url: `${site}/`, logo: `${site}/apple-touch-icon.png`,
+  description: ORG_DESC, slogan: 'Building new age products in the AI world',
+  founder: TEAM.map((m) => ({ '@type': 'Person', name: m.name, sameAs: [m.linkedin] })),
+  sameAs: ['https://www.linkedin.com/company/tarkova-dev/', CROWKIS],
+})
 const breadcrumbs = (site, items) => ({
   '@type': 'BreadcrumbList',
   itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: site + path })),
@@ -396,13 +433,13 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   const curva = isCurva(p)
   const ctx = { terms: curva ? [] : idx.terms, live: idx.bySlug, linked: new Set(), self: p.slug, crowkisLinked: false, fig: 0, outline: [] }
   const body = p.body.map((b) => block(b, ctx)).join('\n')
-  const wordCount = p.body.reduce((n, b) => n + String(b.text || b.code || b.items?.join(' ') || '').split(/\s+/).length, 0)
   const fw = idx.frameworkOf(p)
   const hub = fw && idx.hubs.get(fw)
   // A framework's hub lists its use-case pages, so every one of them is a click from a real guide.
   const family = hub === p ? posts.filter((q) => q !== p && idx.frameworkOf(q) === fw) : []
   const share = encodeURIComponent(url)
-  const title = `${p.title} | Tarkova`
+  // A long headline keeps the whole title tag to itself; the site name would only be cut off in results.
+  const title = p.title.length > 50 ? p.title : `${p.title} | Tarkova`
   const description = clip(p.summary, 158)
 
   const ld = {
@@ -413,7 +450,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
         '@id': `${url}#article`,
         headline: clip(p.title, 110),
         description: p.summary,
-        datePublished: p.published_at,
+        datePublished: `${String(p.published_at).slice(0, 10)}T00:00:00Z`,
         dateModified: p.updated_at.toISOString(),
         author: { '@type': 'Organization', name: 'Tarkova', url: `${site}/` },
         publisher: { '@id': `${site}/#org` },
@@ -421,9 +458,9 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
         image: `${site}/og.jpg`,
         articleSection: p.tag,
         keywords: p.keywords?.length ? p.keywords.join(', ') : undefined,
-        wordCount,
+        wordCount: p.words,
         inLanguage: 'en',
-        isPartOf: { '@id': `${site}/blog/#blog` },
+        isPartOf: { '@type': 'Blog', '@id': `${site}/blog/#blog`, name: 'Tarkova Blog', url: `${site}/blog/` },
         mentions: [curva ? { '@id': `${site}/curva/#app` } : { '@type': 'SoftwareApplication', name: 'Crowkis', url: CROWKIS, applicationCategory: 'DeveloperApplication' }],
       },
       breadcrumbs(site, [['Home', '/'], ['Blog', '/blog/'], [titleCase(p.tag), topicPath(p.tag)], [p.title, path]]),
@@ -457,7 +494,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li><li><a href="${topicPath(p.tag)}">${esc(topic)}</a></li></ol></nav>
   <h1>${esc(p.title)}</h1>
   <p class="post-lede">${esc(p.summary)}</p>
-  <p class="post-meta"><span class="by"><span class="by-mark">${MARK}</span>Tarkova</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.read_minutes} min read</span></p>
+  <p class="post-meta"><span class="by"><span class="by-mark">${MARK}</span>Tarkova</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time><span>${p.minutes} min read</span></p>
 </header>
 <div class="post-art">${coverArt(p.slug, p.tag)}</div>
 <div class="post-body">
@@ -496,7 +533,7 @@ ${toc}
 
 function productsPage(site, topics) {
   const title = 'Products: Crowkis and Curva | Tarkova'
-  const description = 'Tarkova builds software businesses. Crowkis is a semantic cache for LLMs; Curva is coming next.'
+  const description = 'Tarkova\'s two AI products: Crowkis, a semantic cache and memory layer for AI apps, and Curva, LLM classification with confidence scores.'
   const live = products.filter((p) => p.url)
   const ld = {
     '@context': 'https://schema.org',
@@ -507,14 +544,14 @@ function productsPage(site, topics) {
           '@type': 'ListItem',
           position: i + 1,
           item: { '@type': 'SoftwareApplication', name: p.name, url: p.url, description: p.summary, applicationCategory: 'DeveloperApplication', operatingSystem: 'Linux, macOS, Windows (Docker)', offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }, publisher: { '@id': `${site}/#org` } },
-        })),
+        })).concat({ '@type': 'ListItem', position: live.length + 1, item: curvaApp(site) }), // Curva's page here is its site
       },
       breadcrumbs(site, [['Home', '/'], ['Products', '/products/']]),
       org(site),
     ],
   }
   const main = `<div class="wrap">
-<header class="blog-hero"><span class="chip chip-soft">Products</span><h1>${riseTitle('Two products. One obsession: *smarter* software.')}</h1><p class="lede">Tarkova builds new age businesses. Here's what's shipping, and what's next.</p></header>
+<header class="blog-hero"><span class="chip chip-soft">Products</span><h1>${riseTitle('Two products. One obsession: *smarter* software.')}</h1><p class="lede">Tarkova is a studio that builds AI products. Here's what's shipping.</p></header>
 ${products.map((p) => `<section class="product" id="${p.id}" style="--brand:${p.color}">
   <div class="product-art"><img src="${p.logo}" alt="${esc(p.logoAlt)}" width="512" height="512" /></div>
   <div class="product-body">
@@ -627,7 +664,7 @@ function vsJevPage(site, topics) {
 function aboutPage(site, topics) {
   const path = '/about/'
   const title = 'About Tarkova: the studio behind Crowkis and Curva'
-  const description = 'Tarkova builds products that make AI work better in the real world. How Crowkis started, why our mark is a single letter, and the founders, Mohit Rohilla and Subhraneel Baruah.'
+  const description = 'Tarkova builds products that make AI work better in the real world. How Crowkis started, and the founders, Mohit Rohilla and Subhraneel Baruah.'
   const ld = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -751,20 +788,40 @@ ${items.map((p) => `<item><title>${xml(p.title)}</title><link>${site}${postPath(
 }
 
 // llms.txt: a plain map of the site for AI answer engines (llmstxt.org).
-function llms(site, posts, topics) {
+// llms.txt (llmstxt.org): a short map of the site for AI assistants. `full` is llms-full.txt, every article by topic.
+function llms(site, posts, topics, full) {
   const idx = posts.filter((p) => p.indexable)
-  return `# Tarkova
+  const post = (p) => `- [${p.title}](${site}${postPath(p)}): ${p.summary}`
+  const top = `# Tarkova\n\n> ${ORG_DESC} Founded by ${TEAM.map((m) => m.name).join(' and ')}.`
+  if (full) return `${top}\n\n${topics.map(([t]) => `## ${titleCase(t)}\n\n${idx.filter((p) => p.tag === t).map(post).join('\n')}`).join('\n\n')}\n`
+  return `${top}
 
-> Tarkova builds new age software businesses. Products: Crowkis (${CROWKIS}), a semantic cache and agent memory layer for LLM workloads, built in Rust; and Curva (${site}/curva/), LLM classification with confidence scores.
+## Products
 
 ${products.map((p) => `- [${p.name}](${site}/${p.id}/): ${p.summary}`).join('\n')}
-${products.map((p) => `- [${p.name} documentation](${p.docs})`).join('\n')}
 - [Curva vs Jev](${site}${VJ_PATH}): ${VJ_META.description}
-- [About Tarkova](${site}/about/)
-- [Products](${site}/products/)
-- [Blog](${site}/blog/)
+- [All products](${site}/products/): Both products side by side, with links to their docs.
 
-${topics.map(([t]) => `## ${titleCase(t)}\n\n${idx.filter((p) => p.tag === t).map((p) => `- [${p.title}](${site}${postPath(p)}): ${p.summary}`).join('\n')}`).join('\n\n')}
+## Docs
+
+${products.map((p) => `- [${p.name} documentation](${p.docs}): How to install, run and use ${p.name}.`).join('\n')}
+
+## Company
+
+- [About Tarkova](${site}/about/): How Tarkova started, and its founders.
+- [Contact](${site}/contact/): Book a 30 minute call with a founder, or send a message.
+
+## Blog topics
+
+${topics.filter(([t]) => idx.some((p) => p.tag === t)).map(([t]) => `- [${titleCase(t)}](${site}${topicPath(t)}): ${TOPIC_LEDE[t] || `Articles on ${t}.`}`).join('\n')}
+
+## Latest articles
+
+${idx.slice(0, 10).map(post).join('\n')}
+
+## Optional
+
+- [Every article](${site}/llms-full.txt): All ${idx.length} articles, grouped by topic, each with a one-line summary.
 `
 }
 
@@ -775,7 +832,19 @@ export function buildSite(rows, { site }) {
   // A published post dated in the future stays out of every page and feed until its day (UTC), so
   // waves go live on their date. ponytail: static site, so that needs a build on or after the day.
   const today = new Date().toISOString().slice(0, 10)
-  const posts = rows.filter((p) => String(p.published_at).slice(0, 10) <= today).map((p) => ({ ...p, indexable: INDEX_MATRIX_PAGES || !MATRIX.test(p.title) }))
+  const posts = rows.filter((p) => String(p.published_at).slice(0, 10) <= today)
+    .map((p) => ({ ...p, indexable: INDEX_MATRIX_PAGES || !MATRIX.test(p.title), words: countWords(p.body) }))
+    .map((p) => ({ ...p, minutes: Math.max(1, Math.round(p.words / 220)) }))
+  // Oldest first, so the original of a group of near-copies is the one that stays indexed.
+  if (!INDEX_NEAR_COPIES) {
+    const kept = []
+    for (const p of [...posts].reverse()) {
+      if (!p.indexable) continue
+      const r = runs(p.body)
+      if (kept.some((k) => overlap(r, k) >= NEAR_COPY)) p.indexable = false
+      else kept.push(r)
+    }
+  }
   const idx = linkIndex(posts)
   const counts = new Map()
   for (const p of posts) counts.set(p.tag, (counts.get(p.tag) || 0) + 1)
@@ -798,12 +867,13 @@ export function buildSite(rows, { site }) {
     notFound(site, topics, indexable.slice(0, 3)),
   ])
 
-  const latest = indexable.slice(0, 3).map((p) => ({ title: p.title, summary: p.summary, tag: p.tag, url: postPath(p), minutes: p.read_minutes, cover: coverArt(p.slug, p.tag) }))
+  const latest = indexable.slice(0, 3).map((p) => ({ title: p.title, summary: p.summary, tag: p.tag, url: postPath(p), minutes: p.minutes, cover: coverArt(p.slug, p.tag) }))
   const files = new Map([
     ['/sitemap.xml', sitemap(site, posts, topics)],
     ['/robots.txt', robots(site)],
     ['/rss.xml', rss(site, posts)],
     ['/llms.txt', llms(site, posts, topics)],
+    ['/llms-full.txt', llms(site, posts, topics, true)],
     ['/blog/latest.json', JSON.stringify({ posts: latest, topics })],
     // Blog search runs in the browser over this small index (title, summary, topic, url), fetched on first focus.
     ['/blog/search.json', JSON.stringify(posts.map((p) => [p.title, p.summary, p.tag, postPath(p)]))],

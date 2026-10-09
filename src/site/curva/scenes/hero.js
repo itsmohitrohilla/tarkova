@@ -41,7 +41,7 @@ export const html = ({ p, esc }) => `<section class="cv-scene cv-hero" data-scen
     <p class="cv-hero-mark"><img src="${p.wordmark[0]}" alt="${esc(p.name)}" width="${p.wordmark[1]}" height="${p.wordmark[2]}"></p>
     <h1 id="cv-hero-h">LLM classification with confidence scores you can trust.</h1>
     <div class="cv-hero-act">
-      <p class="cv-hero-sub">Bring the AI key you already use. Add a few lines of code. Your AI gives one clear answer and how sure it is.</p>
+      <p class="cv-hero-sub">Curva is a decision server that makes your LLM pick one of your options and say how sure it is. Bring the AI key you already use.</p>
       <p class="cv-hero-eg"><span>Which team should handle this email?</span><span class="cv-hero-eg-a"><b>Billing</b>, 97% sure</span></p>
       <div class="cv-hero-cta">
         <a class="cv-hero-btn" href="#start">Get started</a>

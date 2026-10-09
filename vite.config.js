@@ -80,7 +80,7 @@ function tarkovaSite(env) {
     await db.connect()
     try {
       const { rows } = await db.query(
-        `select slug, title, summary, tag, body, keywords, read_minutes, published_at, updated_at
+        `select slug, title, summary, tag, body, keywords, published_at, updated_at
            from posts where status = 'published' order by published_at desc, id desc`,
       )
       const { buildSite } = await import('./src/site/pages.js')

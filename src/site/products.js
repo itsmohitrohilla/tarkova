@@ -14,7 +14,7 @@ export const products = [
     color: '#C41A1A',
     tagline: 'Smarter caching, smaller bills.',
     summary:
-      'A semantic cache and agent memory layer, built in Rust for LLM workloads. It understands what a question means and safely reuses answers, so you stop paying twice for the same answer.',
+      'Crowkis is a semantic cache and memory layer for AI apps, built in Rust. It understands what a question means and safely reuses answers, so you stop paying twice for the same answer.',
     facts: [
       ['0.4 ms', 'per cache hit'],
       ['5', 'safety checks per hit'],
@@ -29,8 +29,8 @@ export const products = [
     page: {
       title: 'Crowkis: the semantic cache for LLMs, built in Rust',
       description:
-        'Crowkis is a semantic cache and agent memory layer for LLM apps. It reuses answers by meaning, checks every hit for safety, and serves it in under a millisecond.',
-      hero: 'A cache for AI apps. When users ask the same thing in different words, Crowkis answers from cache in under a millisecond. You pay your LLM once.',
+        'Crowkis is a semantic cache and memory layer for AI apps. It reuses answers by meaning, checks every hit for safety, and serves it in under a millisecond.',
+      hero: 'Crowkis is a semantic cache and memory layer for AI apps. It answers a reworded question from cache in under a millisecond, so you pay your LLM once.',
       who: {
         title: 'For apps that hear the *same questions*.',
         items: [
@@ -78,7 +78,7 @@ export const products = [
       },
       what: {
         title: 'Meaning, structure, confidence, *trust*.',
-        text: 'It matches what a question means, then checks the answer is safe to reuse.',
+        text: 'Crowkis matches what a question means, then checks the answer is safe to reuse.',
         compare: [
           ['Exact-match cache', 'Identical text only', 'Misses every rephrasing'],
           ['Vector-only cache', 'Anything similar', 'Serves unsafe near-misses'],
@@ -107,23 +107,22 @@ export const products = [
   {
     id: 'curva',
     name: 'Curva',
-    status: 'Coming soon',
+    status: 'Live',
     url: null, // ponytail: no domain yet; set it here and every page picks it up.
     docs: 'https://docs.tarkova.com/curva/',
     logo: '/products/curva.png',
     logoAlt: 'Curva logo: a halftone letter C in white on deep blue',
     wordmark: ['/products/curva-wordmark-white.png', 1200, 305], // white on transparent
     color: '#1800ad',
-    tagline: 'Next from the Tarkova studio.',
-    // TODO(tarkova): replace with Curva's real one-liner once it's announced.
-    summary: 'Curva is the next product from Tarkova. It is in the works now, and details land here first.',
+    // Wording from Curva's own page (curva/page.js) and the home page; Curva copy follows its Content Box.
+    tagline: 'Typed decisions with calibrated probabilities, from any LLM.',
+    summary: 'Bring the AI key you already use. Curva makes your LLM pick one of your options and say how sure it is. Free, and it runs on your servers.',
     facts: [],
     links: [['Read the docs', 'https://docs.tarkova.com/curva/'], ['Curva vs Jev, every number', '/curva/vs-jev/']],
     page: {
-      title: 'Curva: coming soon from Tarkova',
-      description: 'Curva is the next product from Tarkova, the studio behind Crowkis. It is in the works now, and details land here first.',
-      hero: 'Curva is the next product from the Tarkova studio. We are building it now, and this page is where it will be introduced first.',
-      // TODO(tarkova): fill problem / what / how / forYou like Crowkis once Curva is announced.
+      // Curva's page is its own piece (src/site/curva/), with its title and description in curva/page.js.
+      title: 'Curva: LLM classification with confidence scores',
+      description: 'Bring the AI key you already use. Curva makes your LLM pick one of your options and say how sure it is. Free, runs on your servers.',
     },
   },
 ]

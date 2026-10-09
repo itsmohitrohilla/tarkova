@@ -34,7 +34,7 @@ export const html = ({ c, esc, serif }) => {
   return `<section class="ck-scene ck-install" id="get-started" data-scene="install">
   <header class="ck-in-head">
     <h2>${serif('Up and running in *one minute*.')}</h2>
-    <p class="ck-in-lede">One Docker image for the server, one package for your app.</p>
+    <p class="ck-in-lede">Crowkis installs as one Docker image, plus one package for your app.</p>
     <ul class="ck-in-reg" aria-label="Official packages">
       ${[['python', 'Python · PyPI', python.url, pkg(python.cmd)], ['npm', 'Node.js · npm', node.url, pkg(node.cmd)], ['docker', 'Docker Hub', docker.url, pkg(docker.pull)]]
         .map(([k, name, url, id]) => `<li><a href="${esc(url)}" target="_blank" rel="noopener" data-cursor="Open">${logo(k, 36)}<span><b>${name}</b><code>${esc(id)}</code></span><span class="ck-in-arrow" aria-hidden="true">↗</span></a></li>`).join('\n      ')}

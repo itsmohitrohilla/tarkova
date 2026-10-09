@@ -141,9 +141,10 @@ export async function init(el, { gsap }) {
   // --- Beat 1: head lines rise out of masks, scrubbed. Non-pinning, so it's fine to create after the await.
   const { SplitText } = await import('gsap/SplitText')
   gsap.registerPlugin(SplitText)
-  for (const [sel, start, end] of [['.ckp-title', 'top 92%', 'top 30%'], ['.ckp-intro', 'top 95%', 'top 55%']]) {
+  // aria: SplitText labels the element it splits; a label is not allowed on a paragraph, so the intro is left to be read as its lines.
+  for (const [sel, start, end, aria] of [['.ckp-title', 'top 92%', 'top 30%', 'auto'], ['.ckp-intro', 'top 95%', 'top 55%', 'none']]) {
     SplitText.create($(sel), {
-      type: 'lines', mask: 'lines', linesClass: 'ckp-line', autoSplit: true,
+      type: 'lines', mask: 'lines', linesClass: 'ckp-line', autoSplit: true, aria,
       onSplit: (s) => gsap.from(s.lines, { yPercent: 110, stagger: 0.15, ease: 'power2.out', scrollTrigger: { trigger: s.elements[0], start, end, scrub: true } }),
     })
   }

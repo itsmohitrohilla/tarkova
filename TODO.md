@@ -8,9 +8,21 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 - [ ] **Subhraneel's photo.** LinkedIn blocks automated downloads of his profile. Save his portrait as `public/team/subhraneel.jpg` and the About page uses it (in black and white) instead of the "SB" monogram. Mohit's is in place (from his public LinkedIn photo).
 - [ ] **Founder titles.** Cards show each founder's focus from Mohit's post (Product & Engineering / GTM & Growth). Swap in formal titles if you have them (`TEAM` in `src/site/pages.js`).
 - [ ] **Governing law.** The Terms say "laws of India". Confirm, or name the right jurisdiction.
-- [ ] **Home page title and tagline.** The home headline now reads "We build products that make AI more efficient, effective, and affordable." The browser title, search description and social cards still say "Building new age businesses" (`index.html`, and `slogan` in `src/site/pages.js`). Say if they should follow the new line.
 - [ ] **n8n package link.** The post `/blog/n8n-ai-routing/` links to `https://www.npmjs.com/package/n8n-nodes-curva`, and npm has no package by that name (checked 2026-10-07). Publish the package, or change the link in the post (it's database content, so it needs your sign-off).
 - [ ] **Site address.** Canonical URLs, the sitemap and social cards use `https://www.tarkova.com`. Set `SITE_URL` in `.env` if it's different.
+
+## SEO, AEO and GEO audit (2026-10-09): what only you can do
+The code side of the audit is done (see Done). What still holds the content and AI-search scores down is content and facts, in order of impact:
+- [ ] **Rewrite or retire the near-copy posts.** 128 posts are now `noindex` because they share half or more of their text with an earlier post (75 are about 89% the same 160 words under different titles, such as "MCP explained" and "Semantic caching explained"). Each needs its own content before it can rank. To undo the rule: `INDEX_NEAR_COPIES = true` in `src/site/pages.js`.
+- [ ] **Expand the short posts.** Of the 294 posts still indexed, most are under 300 words; pages that win informational searches run 1,500+. Start with `/blog/what-is-a-semantic-cache-for-llms/` (283 words, the page that should own "semantic cache for LLMs").
+- [ ] **Source or remove "up to 60-70%".** It appears in 143 posts with no measurement behind it. Link it to a benchmark post or take it out. (73 posts also repeat "on repetitive workloads" in that sentence.)
+- [ ] **Two posts claim compliance**, against your own rule: `/blog/compliance-modes-explained/` ("HIPAA, SOC2, GDPR-EU, FedRAMP as configuration") and `/blog/healthcare-hipaa-caching/`. Retitle and reword, or unpublish.
+- [ ] **Name the authors.** Every post is signed "Tarkova". Say which founder wrote what, and posts get a person as author (a strong trust signal for Google and for AI answers).
+- [ ] **Founder and company facts for the About page:** founding year, city, and a line or two of real background per founder. Today the bios are about 12 words each.
+- [ ] **Company profiles to link:** the structured data now lists the LinkedIn company page and crowkis.com. Add GitHub, X and any others you have (`org()` in `src/site/pages.js` and the copy in `index.html`).
+- [ ] **Google Search Console and Bing Webmaster Tools:** submit the sitemap and watch coverage. None of the audit could see real rankings or indexing.
+- [ ] **Content Security Policy.** The other security headers are on; a CSP needs testing against the Google tag and the animated wordmark before it can be turned on.
+- [ ] **`updated_at` on posts** was set in bulk (370 posts show 2026-07-19 or 20), so "last modified" dates are not meaningful. Avoid bulk writes that touch it.
 
 ## Crowkis page: open questions
 - [ ] **Voice release.** The voice section says "New · Voice agents". PyPI/npm still show 0.5.0 and Docker Hub 0.5.1; voice landed in 0.5.2. If 0.5.2 isn't published yet, relabel it "Coming in 0.5.2" (`src/site/crowkis/scenes/voice.js`).
@@ -46,13 +58,14 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 
 ## Contact form and Book a demo (added 2026-10-09)
 The section (`src/site/book.js`) is on the home page, `/crowkis/`, `/curva/` (and Curva vs Jev), every blog page, and is the whole of `/contact/`, which the footer's "Contact us" opens. Messages go to the `feedback` table with `source = 'contact'`.
-- [ ] **Check it on the live site after the next deploy.** The form posts to `/api/contact` (`api/contact.js`, a Vercel function), tested locally only. It needs `SUPABASE_DB_URL` available at runtime in Vercel (Production), not just at build. To re-test locally: `node --env-file=.env scripts/contact-check.mjs` with `npm run dev` running.
+- [x] Live and tested on tarkova.com (2026-10-09): a real message saved, and the second one within a minute was refused. To re-test locally: `node --env-file=.env scripts/contact-check.mjs` with `npm run dev` running.
 - [ ] **Get told when a message arrives.** Nothing emails you yet. Options: a Supabase database webhook on `feedback` to email or Slack, or check the table.
 - [ ] **Turn on Vercel's firewall rate limit for `/api/contact`** (Vercel dashboard, Firewall). The form's own limits (1 a minute and 5 a day per visitor, 60 an hour site-wide, in the `contact_rate` table) stop spam reaching the table, but each attempt still opens a database connection; the firewall stops a flood before it gets that far.
 - [ ] **Read the two new privacy policy sentences** (contact form and Cal.com, under "What we collect" in `src/site/pages.js`) and the contact page headline, "Book a call with a founder."
 - [ ] The `ratings` table still has no form on this site.
 
 ## Done
+- [x] SEO/AEO/GEO audit fixes (2026-10-09): Curva shown as live everywhere; one company description, legal name, founders and LinkedIn in structured data; `**bold**` renders in posts; reading time and word count computed from the text; long post titles drop the site-name suffix; blog and home titles; near-copy posts and deep topic pages `noindex`; curated `llms.txt` plus `llms-full.txt`; security headers and a day's caching for fonts and images; three accessibility defects on Crowkis and Curva.
 - [x] Blog from Supabase: index, 10 topic pages, pagination, 980 post pages, generated banner art, diagrams, charts, code blocks.
 - [x] Internal-link hubs, auto-linked glossary terms, Crowkis links, related posts, prev/next, breadcrumbs.
 - [x] SEO: titles, descriptions, canonicals, Open Graph/Twitter cards, structured data (article, breadcrumbs, organisation), sitemap, robots.txt, RSS, llms.txt.

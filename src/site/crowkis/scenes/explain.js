@@ -7,7 +7,7 @@
 export const id = 'explain'
 
 // [group] marks the word groups that turn red as you scroll.
-const SENTENCE = 'A [drop-in] cache, written in [Rust], that [understands] questions and reuses an answer only when it is [safe].'
+const SENTENCE = 'Crowkis is a [drop-in] cache, written in [Rust], that [understands] questions and reuses an answer only when it is [safe].'
 
 // Bento tiles: [key, size (l = hero, s = small, w = full width), title, tag, one plain line].
 const FEATURES = [
@@ -118,7 +118,7 @@ export const html = ({ esc, serif }) => `<section class="ck-scene ck-explain" id
   </div>
 
   <div class="ck-ex-not">
-    <h2 class="ck-ex-h">${serif('What it *doesn’t* do.')}</h2>
+    <h2 class="ck-ex-h">${serif('What Crowkis *doesn’t* do.')}</h2>
     <ul class="ck-ex-nots">
       ${NOT.map(([t, x]) => `<li><span class="ck-ex-x" aria-hidden="true"></span><h3>${esc(t)}</h3><p>${esc(x)}</p></li>`).join('\n      ')}
     </ul>
