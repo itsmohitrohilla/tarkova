@@ -12,6 +12,7 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 - [ ] **Site address.** Canonical URLs, the sitemap and social cards use `https://www.tarkova.com`. Set `SITE_URL` in `.env` if it's different.
 
 ## SEO, AEO and GEO audit (2026-10-09): what only you can do
+**Score: about 66 before, 73 after the code fixes** (independent re-score of the live site, 2026-10-09: Technical 83, Content 47, On-page 76, Schema 85, Performance 94, AI search 66, Images 86). Lighthouse on eight live pages: SEO 100, Best Practices 100, Accessibility 96 to 100, mobile Performance 95 to 100. Everything between 73 and 95 is content, below.
 The code side of the audit is done (see Done). What still holds the content and AI-search scores down is content and facts, in order of impact:
 - [ ] **Rewrite or retire the near-copy posts.** 128 posts are now `noindex` because they share half or more of their text with an earlier post (75 are about 89% the same 160 words under different titles, such as "MCP explained" and "Semantic caching explained"). Each needs its own content before it can rank. To undo the rule: `INDEX_NEAR_COPIES = true` in `src/site/pages.js`.
 - [ ] **Expand the short posts.** Of the 294 posts still indexed, most are under 300 words; pages that win informational searches run 1,500+. Start with `/blog/what-is-a-semantic-cache-for-llms/` (283 words, the page that should own "semantic cache for LLMs").
@@ -23,6 +24,14 @@ The code side of the audit is done (see Done). What still holds the content and 
 - [ ] **Google Search Console and Bing Webmaster Tools:** submit the sitemap and watch coverage. None of the audit could see real rankings or indexing.
 - [ ] **Content Security Policy.** The other security headers are on; a CSP needs testing against the Google tag and the animated wordmark before it can be turned on.
 - [ ] **`updated_at` on posts** was set in bulk (370 posts show 2026-07-19 or 20), so "last modified" dates are not meaningful. Avoid bulk writes that touch it.
+
+## SEO audit: small code items left
+- [ ] `/blog/topic/guides/` page 1 lists only `noindex` posts and says "674 articles" (10 are indexed): noindex it or list the indexed ones first.
+- [ ] `/crowkis/` h1 is the wordmark image (its alt text now carries the headline); a text h1 would score better.
+- [ ] Sitemap `lastmod` is missing on 22 core pages.
+- [ ] Post diagrams ship as Mermaid source and are drawn in the browser; crawlers that don't run scripts read the source as text. Render them to SVG at build.
+- [ ] Per-post social images (every post shares `/og.jpg`).
+- [ ] The orange button on `/products/` is white on `#ff4407` (3.45:1); needs 4.5:1 for small text.
 
 ## Crowkis page: open questions
 - [ ] **Voice release.** The voice section says "New · Voice agents". PyPI/npm still show 0.5.0 and Docker Hub 0.5.1; voice landed in 0.5.2. If 0.5.2 isn't published yet, relabel it "Coming in 0.5.2" (`src/site/crowkis/scenes/voice.js`).
