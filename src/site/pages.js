@@ -308,8 +308,9 @@ function card(p, h = 'h2') {
 </a></li>`
 }
 
-// A topic with fewer than three posts in the index: its page is kept out too, and out of the sitemap and llms.txt.
-const mostlyHidden = (posts) => posts.filter((p) => p.indexable).length < 3
+// A topic page is kept out of the index (and the sitemap, llms.txt and post breadcrumbs) when it would mostly list
+// posts that are: fewer than three indexed posts, and those fewer than half of the topic.
+const mostlyHidden = (posts) => { const n = posts.filter((p) => p.indexable).length; return n < 3 && n * 2 < posts.length }
 
 // Page one opens with the newest post large, and the five after it alongside.
 function spread(lead, side) {
@@ -458,6 +459,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   const hub = fw && idx.hubs.get(fw)
   const guide = idx.bySlug.get(GUIDE_OF.get(p.slug)) // the full guide that covers this short post, if one does
   const updated = p.updated_at.toISOString().slice(0, 10) // shown beside the publication date when the post has changed since
+  const topicShown = !idx.hiddenTopics.has(p.tag) // a topic page kept out of the index is left out of the breadcrumb
   // A framework's hub lists its use-case pages, so every one of them is a click from a real guide.
   const family = hub === p ? posts.filter((q) => q !== p && idx.frameworkOf(q) === fw) : []
   const share = encodeURIComponent(url)
@@ -486,7 +488,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
         isPartOf: { '@type': 'Blog', '@id': `${site}/blog/#blog`, name: 'Tarkova Blog', url: `${site}/blog/` },
         mentions: [curva ? { '@id': `${site}/curva/#app` } : { '@type': 'SoftwareApplication', name: 'Crowkis', url: CROWKIS, applicationCategory: 'DeveloperApplication' }],
       },
-      breadcrumbs(site, [['Home', '/'], ['Blog', '/blog/'], [titleCase(p.tag), topicPath(p.tag)], [p.title, path]]),
+      breadcrumbs(site, [['Home', '/'], ['Blog', '/blog/'], ...(topicShown ? [[titleCase(p.tag), topicPath(p.tag)]] : []), [p.title, path]]),
       ...(curva ? [curvaApp(site)] : []),
       org(site),
     ],
@@ -514,7 +516,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
     : ''
   const main = `<article class="post">
 <header class="post-head">
-  <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li><li><a href="${topicPath(p.tag)}">${esc(topic)}</a></li></ol></nav>
+  <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="/blog/">Blog</a></li>${topicShown ? `<li><a href="${topicPath(p.tag)}">${esc(topic)}</a></li>` : ''}</ol></nav>
   <h1>${esc(p.title)}</h1>
   <p class="post-lede">${esc(p.summary)}</p>
   <p class="post-meta"><span class="by"><span class="by-mark">${MARK}</span>Tarkova</span><time datetime="${p.published_at}">${fmtDate(p.published_at)}</time>${updated > String(p.published_at).slice(0, 10) ? `<span>Updated <time datetime="${updated}">${fmtDate(updated)}</time></span>` : ''}<span>${p.minutes} min read</span></p>
@@ -877,6 +879,7 @@ export function buildSite(rows, { site }) {
     }
   }
   const idx = linkIndex(posts)
+  idx.hiddenTopics = new Set([...new Set(posts.map((p) => p.tag))].filter((t) => mostlyHidden(posts.filter((p) => p.tag === t))))
   const counts = new Map()
   for (const p of posts) counts.set(p.tag, (counts.get(p.tag) || 0) + 1)
   const topics = [...counts].sort((a, b) => b[1] - a[1])
