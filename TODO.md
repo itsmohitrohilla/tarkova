@@ -20,8 +20,8 @@ What was done to the content (the posts table was copied to `posts_backup_202610
 - The savings figure ("up to 60-70%") is out of all 758 posts that had it. No savings percentage anywhere.
 
 Needs you, in order of what it is worth:
-- [ ] **Who wrote the posts?** Every post is signed "Tarkova". A named founder as author (byline, short bio, Person in the structured data) is the largest single gain left, for Google and for AI answers. Say who, and it is a small code change.
-- [ ] **The "0.4 ms per cache hit" figure on the Crowkis page** (stat tile, architecture diagram, pipeline). The Crowkis README says vector search measures 436 to 555 µs, but an end-to-end semantic read is bound by embedding, and `/blog/latency-profile-where-the-milliseconds-go/` reports a CGET hit at p50 114.5 ms. Either relabel the figure ("vector search") or change it. The hero sentence that said "in under a millisecond" is already fixed.
+- [x] **Post author:** decided 2026-10-10 to keep "Tarkova" as the byline (no named person). This leaves the author part of the score where it is.
+- [x] **"0.4 ms" on the Crowkis page** is now labelled "vector search" (decided 2026-10-10), and the sentences that said a match comes back in 0.4 ms say it comes back from cache with no model call.
 - [ ] **Older benchmark posts disagree with each other** on search at a million vectors (`a-million-vectors-on-a-laptop`: 94 ms and 100%; the guide `semantic-cache-vs-vector-database`: 526 µs, from the README). Decide which numbers stand and correct the others.
 - [ ] **Outside sources in the Curva posts.** The 52 Curva posts name datasets, benchmarks and papers but link to none (the Curva validator only allows Curva's own URLs). Allowing links to the sources they already name would lift trust.
 - [ ] **Founder and company facts for the About page:** founding year, city, and real background for each founder. Bios are about 12 words today.

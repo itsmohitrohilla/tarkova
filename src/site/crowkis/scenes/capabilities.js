@@ -25,8 +25,8 @@ const GATES = ['similarity', 'template', 'confidence', 'trust', 'freshness']
 const BENEFITS = [
   [fig(n(1), '1'), 'model call per question',
     bars([['without Crowkis', 1, '×50'], ['with Crowkis', 0.02, '×1', 1]])],
-  [fig(`${n('0.4')}<small>ms</small>`, '0.4 ms'), 'per cache hit',
-    bars([['model round-trip', 1, 'seconds'], ['cache hit', 0.015, '0.4 ms', 1]])],
+  [fig(`${n('0.4')}<small>ms</small>`, '0.4 ms'), 'vector search',
+    bars([['model round-trip', 1, 'seconds'], ['vector search', 0.015, '0.4 ms', 1]])],
   [fig(n(5), '5'), 'gates, every hit, every time',
     `<ol class="ck-cap-gates">${GATES.map((g) => `<li>${g}</li>`).join('')}</ol>`],
   [fig('1', '1'), 'Docker image, every feature in',

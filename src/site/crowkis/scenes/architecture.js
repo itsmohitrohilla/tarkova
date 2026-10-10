@@ -1,13 +1,13 @@
 // Scene "architecture" (WHITE): where Crowkis sits in a stack, as an inline SVG drawn with archify
 // (github.com/tt-a1i/archify, `finalize --quality showcase` passed) and restyled here by class.
-// Facts: products.js (protocols, five checks, 0.4 ms, self-hosted), the pipeline scene (check names), explain scene
+// Facts: products.js (protocols, five checks, self-hosted), the pipeline scene (check names), explain scene
 // (a miss runs your model once), crowkis README (anti-poisoning write pipeline, PII scrubbing, per-tenant isolation).
 // The SVG is archify's output minus its legend, grid, icons and viewer-only attributes.
 export const id = 'architecture'
 
 const SVG = `<svg viewBox="28 2 852 494" role="img" aria-labelledby="ck-ar-title ck-ar-desc">
 <title id="ck-ar-title">How Crowkis fits in your stack</title>
-<desc id="ck-ar-desc">Your app asks Crowkis over RESP3, gRPC, REST or MCP. Crowkis reads the meaning and structure of the question and searches its cached answers. The nearest answer must pass five checks: similarity, template, confidence, trust and freshness. A hit goes back to your app in about 0.4 ms. On a miss your app calls your LLM once and stores the answer, which passes the write checks before Crowkis keeps it.</desc>
+<desc id="ck-ar-desc">Your app asks Crowkis over RESP3, gRPC, REST or MCP. Crowkis reads the meaning and structure of the question and searches its cached answers. The nearest answer must pass five checks: similarity, template, confidence, trust and freshness. A hit goes back to your app from cache, with no model call. On a miss your app calls your LLM once and stores the answer, which passes the write checks before Crowkis keeps it.</desc>
 <defs>
 <marker id="ck-ar-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
 <polygon points="0 0, 10 3.5, 0 7" class="m-default" />
@@ -101,7 +101,7 @@ const SVG = `<svg viewBox="28 2 852 494" role="img" aria-labelledby="ck-ar-title
 </g>
 <g data-detail="context" data-edge-id="hit">
 <rect x="334.2" y="108" width="139.6" height="14" rx="3" class="c-mask"/>
-<text x="404" y="118" class="t-edge-emphasis" font-size="8" text-anchor="middle">hit: answer in about 0.4 ms</text>
+<text x="404" y="118" class="t-edge-emphasis" font-size="8" text-anchor="middle">hit: answer from cache</text>
 </g>
 <g data-detail="context" data-edge-id="miss">
 <rect x="65.80000000000001" y="325" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
@@ -124,7 +124,7 @@ const SVG = `<svg viewBox="28 2 852 494" role="img" aria-labelledby="ck-ar-title
 export const html = () => `<section class="ck-scene ck-arch" data-scene="architecture" aria-labelledby="ck-ar-h">
   <div class="ck-ar-in">
     <h2 id="ck-ar-h">How Crowkis fits in your stack.</h2>
-    <p class="ck-ar-lede">Your app asks Crowkis first. A safe match comes back in about 0.4 ms. Anything else goes to your model once, and the answer is kept for next time.</p>
+    <p class="ck-ar-lede">Your app asks Crowkis first. A safe match comes back from cache, with no model call. Anything else goes to your model once, and the answer is kept for next time.</p>
     <figure class="ck-ar-fig" tabindex="0" aria-label="Crowkis architecture diagram, scrolls sideways on small screens">
 ${SVG}
     </figure>

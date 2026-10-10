@@ -16,7 +16,7 @@ export const products = [
     summary:
       'Crowkis is a semantic cache and memory layer for AI apps, built in Rust. It understands what a question means and safely reuses answers, so you stop paying twice for the same answer.',
     facts: [
-      ['0.4 ms', 'per cache hit'],
+      ['0.4 ms', 'vector search'], // the search step, measured; a whole reworded-question hit also spends time embedding the question
       ['5', 'safety checks per hit'],
       ['4', 'protocols: RESP3, gRPC, REST, MCP'],
       ['Free', 'Community edition'],
@@ -89,11 +89,11 @@ export const products = [
         ['Ask', 'Your app sends a question over RESP3, gRPC, REST or MCP.'],
         ['Understand', 'Crowkis reads what the question means and how it is built, not just its words.'],
         ['Check', 'Five checks decide if a cached answer is safe to reuse.'],
-        ['Answer', 'A safe match returns in about 0.4 ms. A miss calls your model once.'],
+        ['Answer', 'A safe match is answered from cache, with no model call. A miss calls your model once.'],
       ],
       forYou: [
         ['Cut your LLM bill', 'Pay for an answer once, however it is asked.'],
-        ['Answer instantly', 'Under a millisecond, not a multi-second model call.'],
+        ['Answer fast', 'From cache, not from a multi-second model call.'],
         ['Keep answers safe', 'Five checks before any answer is reused.'],
         ['Adopt it in minutes', 'Your existing clients connect unmodified.'],
         ['Run it your way', 'Self-hosted. Community is free.'],

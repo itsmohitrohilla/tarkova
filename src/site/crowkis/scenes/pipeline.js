@@ -2,7 +2,7 @@
 //   1 Ask         a new wording arrives next to one already answered; the transports it can come over
 //   2 Understand  the two wordings side by side, the shared meaning marked; intent + template
 //   3 Check       the five checks as a scorecard, ticks landing in turn (example values, labelled)
-//   4 Answer      the cached answer back in 0.4 ms; the miss path, dimmed
+//   4 Answer      the cached answer, found by a 0.4 ms vector search; the miss path, dimmed
 // Each panel has draw(k), k in 0..1. Desktop pins one viewport (headline top-left, copy bottom-left, art right 60%)
 // and crossfades the panels with scroll; mobile scrubs each stacked panel on its own. Static (reduced motion) is
 // every panel at k = 1, which is the server markup. Then the "Try it" panel.
@@ -42,7 +42,7 @@ const ART = [
         <p class="ck-pl-pass"><b>5 of 5 passed.</b> Reuse the cached answer.</p>
       </div>`,
   `<div class="ck-pl-art ck-pl-ans">
-        <p class="ck-pl-lbl">Served from cache in</p>
+        <p class="ck-pl-lbl">Found by vector search in</p>
         <p class="ck-pl-ms"><span><b>0.4</b> ms</span></p>
         <p class="ck-pl-reply">“${ANSWER}”</p>
         <p class="ck-pl-free"><b>$0</b>, no model call</p>
