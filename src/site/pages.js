@@ -84,6 +84,12 @@ const topicPath = (t) => `/blog/topic/${topicSlug(t)}/`
 const postPath = (p) => `/blog/${p.slug}/`
 const fmtDate = (d) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 const clip = (s, n) => (s.length <= n ? s : s.slice(0, s.lastIndexOf(' ', n - 1)) + '…')
+// A meta description: the summary, cut at the end of its last whole sentence when it is too long for a result.
+const describe = (s, n = 158) => {
+  if (s.length <= n) return s
+  const end = Math.max(...['. ', '? ', '! '].map((stop) => s.lastIndexOf(stop, n - 1)))
+  return end >= 90 ? s.slice(0, end + 1) : clip(s, n)
+}
 const titleCase = (s) => s.replace(/^\w/, (c) => c.toUpperCase()).replace(/\bjev\b/, 'Jev')
 const jsonld = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`
 
@@ -160,9 +166,9 @@ function linkIndex(posts) {
     if (m) hubs.set(m[1], p)
   }
   const terms = [
-    ...GLOSSARY.filter(([s]) => bySlug.has(s)).map(([s, re]) => ({ re, to: bySlug.get(s) })),
+    ...GLOSSARY.map(([s, re]) => ({ re, to: bySlug.get(GUIDE_OF.get(s) || s) })),
     ...[...hubs].map(([fw, p]) => ({ re: new RegExp(`(?<![\\w.])${escRe(fw)}(?![\\w]|\\.\\w)`), to: p })),
-  ]
+  ].filter((t) => t.to?.indexable) // a glossary term whose post was absorbed links to the guide; nothing links to a page kept out of search
   const frameworkOf = (p) => (p.title.match(MATRIX) || p.title.match(HUB) || p.title.match(MEMORY) || [])[1]
   return { bySlug, hubs, terms, frameworkOf }
 }
@@ -173,7 +179,8 @@ function inline(text, ctx) {
   const codes = []
   let html = esc(text)
     .replace(LINK, (m, label, href) => {
-      const slug = href.match(/^\/blog\/([a-z0-9-]+)\/$/)?.[1]
+      let slug = href.match(/^\/blog\/([a-z0-9-]+)\/$/)?.[1]
+      if (GUIDE_OF.has(slug)) href = `/blog/${(slug = GUIDE_OF.get(slug))}/` // a link to a post a guide absorbed goes to the guide
       if (!okHref(href) || (slug && !ctx.live.has(slug))) return label
       if (href.startsWith(OLD_CURVA_DOCS)) href = CURVA_DOCS + href.slice(OLD_CURVA_DOCS.length)
       return `<a href="${href}"${href.startsWith('/') ? '' : ' rel="noopener"'}>${label}</a>`
@@ -301,8 +308,8 @@ function card(p, h = 'h2') {
 </a></li>`
 }
 
-// A topic where most posts are kept out of the index: its page is kept out too, and out of the sitemap and llms.txt.
-const mostlyHidden = (posts) => posts.filter((p) => p.indexable).length * 2 < posts.length
+// A topic with fewer than three posts in the index: its page is kept out too, and out of the sitemap and llms.txt.
+const mostlyHidden = (posts) => posts.filter((p) => p.indexable).length < 3
 
 // Page one opens with the newest post large, and the five after it alongside.
 function spread(lead, side) {
@@ -351,7 +358,7 @@ const TOPIC_LEDE = {
 }
 
 function listingPages({ site, posts, topics, base, topic, allCount }) {
-  const lead = posts[0] // strictly newest first, everywhere
+  const lead = posts[0] // newest first, everywhere (on a topic page: the newest full article)
   const rest = posts.filter((p) => p !== lead)
   // Page one also carries the five "Also new" entries beside the lead, so its grid keeps rows of three.
   const FIRST = PER_PAGE + 2
@@ -456,7 +463,7 @@ function postPage({ site, p, posts, idx, topics, prev, next }) {
   const share = encodeURIComponent(url)
   // A long headline keeps the whole title tag to itself; the site name would only be cut off in results.
   const title = p.title.length > 50 ? p.title : `${p.title} | Tarkova`
-  const description = clip(p.summary, 158)
+  const description = describe(p.summary)
 
   const ld = {
     '@context': 'https://schema.org',
@@ -857,7 +864,7 @@ export function buildSite(rows, { site }) {
   const today = new Date().toISOString().slice(0, 10)
   const posts = rows.filter((p) => String(p.published_at).slice(0, 10) <= today)
     .map((p) => ({ ...p, words: countWords(p.body) }))
-    .map((p) => ({ ...p, indexable: (INDEX_MATRIX_PAGES || !MATRIX.test(p.title)) && (INDEX_SHORT_POSTS || p.words >= SHORT_POST) }))
+    .map((p) => ({ ...p, indexable: (INDEX_MATRIX_PAGES || !MATRIX.test(p.title)) && (INDEX_SHORT_POSTS || (p.words >= SHORT_POST && !GUIDE_OF.has(p.slug))) }))
     .map((p) => ({ ...p, minutes: Math.max(1, Math.round(p.words / 220)) }))
   // Oldest first, so the original of a group of near-copies is the one that stays indexed.
   if (!INDEX_NEAR_COPIES) {
@@ -878,7 +885,8 @@ export function buildSite(rows, { site }) {
   const pages = new Map([
     // The main listing shows the hand-written posts; topic pages list everything.
     ...listingPages({ site, posts: indexable, topics, base: '/blog/', allCount: posts.length }),
-    ...topics.flatMap(([t]) => listingPages({ site, posts: posts.filter((p) => p.tag === t), topics, base: topicPath(t), topic: t, allCount: posts.length })),
+    // A topic page leads with its full articles (newest first), then the short posts kept out of search (newest first).
+    ...topics.flatMap(([t]) => listingPages({ site, posts: posts.filter((p) => p.tag === t).sort((a, b) => b.indexable - a.indexable), topics, base: topicPath(t), topic: t, allCount: posts.length })),
     ...posts.map((p, i) => postPage({ site, p, posts, idx, topics, prev: posts[i + 1], next: posts[i - 1] })),
     productsPage(site, topics),
     aboutPage(site, topics),

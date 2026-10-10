@@ -29,8 +29,8 @@ export const products = [
     page: {
       title: 'Crowkis: the semantic cache for LLMs, built in Rust',
       description:
-        'Crowkis is a semantic cache and memory layer for AI apps. It reuses answers by meaning, checks every hit for safety, and serves it in under a millisecond.',
-      hero: 'Crowkis is a semantic cache and memory layer for AI apps. It answers a reworded question from cache in under a millisecond, so you pay your LLM once.',
+        'Crowkis is a semantic cache and memory layer for AI apps. It reuses answers by meaning, checks every hit for safety, and serves it without calling your model.',
+      hero: 'Crowkis is a semantic cache and memory layer for AI apps. It answers a reworded question from cache instead of calling your model, so you pay your LLM once.',
       who: {
         title: 'For apps that hear the *same questions*.',
         items: [

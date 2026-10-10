@@ -301,7 +301,7 @@
    "kind": "list",
    "items": [
     "**A soak test failed.** Under sustained concurrent writes and searches, the worst single request took 1,204 ms against a budget of 1,000 ms. Do not assume tail latency under heavy write load.",
-    "**Semantic reads are bound by embedding.** A cold `CGET` measured about 250 ops/sec. Size the node for your lookup rate; [the throughput ceiling](/blog/the-throughput-ceiling-we-wont-hide/) explains the number.",
+    "**Semantic reads are bound by embedding.** A cold `CGET` measured about 250 ops/sec. Size the node for your lookup rate; [the throughput ceiling](/blog/the-throughput-ceiling-we-wont-hide/) covers the limits we found under concurrent load.",
     "**Durable writes are slow by default.** `SET` measured 230 ops/sec with a sync on every write. `CROWKIS_WAL_SYNC_INTERVAL_MS=200` raised that to 70,868 ops/sec and can lose up to 200 ms of acknowledged writes on a power cut.",
     "**Scale is verified to 1.18M vectors** at dimension 100, and no further.",
     "**Replicas can disagree.** The adaptive threshold has a known defect: it latches on the first query after boot, so two replicas can answer the same question differently. Pub/sub is per instance as well.",
