@@ -12,7 +12,7 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 - [ ] **Site address.** Canonical URLs, the sitemap and social cards use `https://www.tarkova.com`. Set `SITE_URL` in `.env` if it's different.
 
 ## SEO, AEO and GEO: where it stands (2026-10-10)
-**Overall score: about 66 at the first audit, 73 after the code fixes, 84 after the content round** (independent re-scores of the live site; the last one, taken before the round-three fixes: Technical 90, Content 72, On-page 88, Schema 88, Performance 95, AI search 76, Images 85). Lighthouse on the live pages: SEO 100, Best Practices 100, Accessibility 96 to 100, mobile Performance 95 to 100.
+**Overall score: about 66 at the first audit, 73 after the code fixes, 84 after the content round, 86 at the last independent re-score of the live site** (2026-10-10: Technical 92, Content 74, On-page 91, Schema 89, Performance 95, AI search 77, Images 85). Lighthouse on the live pages: SEO 100, Best Practices 100, Accessibility 96 to 100, mobile Performance 95 to 100. What is left between 86 and 95 is in the list below; none of it is a code fix.
 
 What was done to the content (the posts table was copied to `posts_backup_20261009` first):
 - 24 full Crowkis guides (1,300 to 2,100 words, sourced from the Crowkis repo docs, with outside citations) replace clusters of short posts at the same URLs. They live in `content/crowkis/posts/`; `scripts/crowkis-posts.mjs` validates and applies them.
@@ -23,6 +23,7 @@ Needs you, in order of what it is worth:
 - [x] **Post author:** decided 2026-10-10 to keep "Tarkova" as the byline (no named person). This leaves the author part of the score where it is.
 - [x] **"0.4 ms" on the Crowkis page** is now labelled "vector search" (decided 2026-10-10), and the sentences that said a match comes back in 0.4 ms say it comes back from cache with no model call.
 - [ ] **Older benchmark posts disagree with each other** on search at a million vectors (`a-million-vectors-on-a-laptop`: 94 ms and 100%; the guide `semantic-cache-vs-vector-database`: 526 µs, from the README). Decide which numbers stand and correct the others.
+- [ ] **Seven indexed posts are still short** (303 to 526 words: the benchmark posts and two engineering posts). Expanding them is worth about a point.
 - [ ] **Outside sources in the Curva posts.** The 52 Curva posts name datasets, benchmarks and papers but link to none (the Curva validator only allows Curva's own URLs). Allowing links to the sources they already name would lift trust.
 - [ ] **Founder and company facts for the About page:** founding year, city, and real background for each founder. Bios are about 12 words today.
 - [ ] **Company profiles to link:** only the LinkedIn company page is listed. Add GitHub, X and any others (`org()` in `src/site/pages.js` and the copy in `index.html`).
