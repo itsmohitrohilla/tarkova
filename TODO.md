@@ -11,27 +11,27 @@ Everything still open for the landing page, blog and SEO work. Tick items off as
 - [ ] **n8n package link.** The post `/blog/n8n-ai-routing/` links to `https://www.npmjs.com/package/n8n-nodes-curva`, and npm has no package by that name (checked 2026-10-07). Publish the package, or change the link in the post (it's database content, so it needs your sign-off).
 - [ ] **Site address.** Canonical URLs, the sitemap and social cards use `https://www.tarkova.com`. Set `SITE_URL` in `.env` if it's different.
 
-## SEO, AEO and GEO audit (2026-10-09): what only you can do
-**Score: about 66 before, 73 after the code fixes** (independent re-score of the live site, 2026-10-09: Technical 83, Content 47, On-page 76, Schema 85, Performance 94, AI search 66, Images 86). Lighthouse on eight live pages: SEO 100, Best Practices 100, Accessibility 96 to 100, mobile Performance 95 to 100. Everything between 73 and 95 is content, below.
-The code side of the audit is done (see Done). What still holds the content and AI-search scores down is content and facts, in order of impact:
-- [ ] **Rewrite or retire the near-copy posts.** 128 posts are now `noindex` because they share half or more of their text with an earlier post (75 are about 89% the same 160 words under different titles, such as "MCP explained" and "Semantic caching explained"). Each needs its own content before it can rank. To undo the rule: `INDEX_NEAR_COPIES = true` in `src/site/pages.js`.
-- [ ] **Expand the short posts.** Of the 294 posts still indexed, most are under 300 words; pages that win informational searches run 1,500+. Start with `/blog/what-is-a-semantic-cache-for-llms/` (283 words, the page that should own "semantic cache for LLMs").
-- [ ] **Source or remove "up to 60-70%".** It appears in 143 posts with no measurement behind it. Link it to a benchmark post or take it out. (73 posts also repeat "on repetitive workloads" in that sentence.)
-- [ ] **Two posts claim compliance**, against your own rule: `/blog/compliance-modes-explained/` ("HIPAA, SOC2, GDPR-EU, FedRAMP as configuration") and `/blog/healthcare-hipaa-caching/`. Retitle and reword, or unpublish.
-- [ ] **Name the authors.** Every post is signed "Tarkova". Say which founder wrote what, and posts get a person as author (a strong trust signal for Google and for AI answers).
-- [ ] **Founder and company facts for the About page:** founding year, city, and a line or two of real background per founder. Today the bios are about 12 words each.
-- [ ] **Company profiles to link:** the structured data now lists the LinkedIn company page and crowkis.com. Add GitHub, X and any others you have (`org()` in `src/site/pages.js` and the copy in `index.html`).
-- [ ] **Google Search Console and Bing Webmaster Tools:** submit the sitemap and watch coverage. None of the audit could see real rankings or indexing.
-- [ ] **Content Security Policy.** The other security headers are on; a CSP needs testing against the Google tag and the animated wordmark before it can be turned on.
-- [ ] **`updated_at` on posts** was set in bulk (370 posts show 2026-07-19 or 20), so "last modified" dates are not meaningful. Avoid bulk writes that touch it.
+## SEO, AEO and GEO: where it stands (2026-10-10)
+**Overall score: about 66 at the first audit, 73 after the code fixes, 84 after the content round** (independent re-scores of the live site; the last one, taken before the round-three fixes: Technical 90, Content 72, On-page 88, Schema 88, Performance 95, AI search 76, Images 85). Lighthouse on the live pages: SEO 100, Best Practices 100, Accessibility 96 to 100, mobile Performance 95 to 100.
 
-## SEO audit: small code items left
-- [ ] `/blog/topic/guides/` page 1 lists only `noindex` posts and says "674 articles" (10 are indexed): noindex it or list the indexed ones first.
-- [ ] `/crowkis/` h1 is the wordmark image (its alt text now carries the headline); a text h1 would score better.
-- [ ] Sitemap `lastmod` is missing on 22 core pages.
-- [ ] Post diagrams ship as Mermaid source and are drawn in the browser; crawlers that don't run scripts read the source as text. Render them to SVG at build.
-- [ ] Per-post social images (every post shares `/og.jpg`).
-- [ ] The orange button on `/products/` is white on `#ff4407` (3.45:1); needs 4.5:1 for small text.
+What was done to the content (the posts table was copied to `posts_backup_20261009` first):
+- 24 full Crowkis guides (1,300 to 2,100 words, sourced from the Crowkis repo docs, with outside citations) replace clusters of short posts at the same URLs. They live in `content/crowkis/posts/`; `scripts/crowkis-posts.mjs` validates and applies them.
+- Posts under 300 words, near-copies, and posts a guide absorbed are `noindex` and link to their guide. The indexed blog is 83 posts with a median of 1,200 words (it was 294 with a median of 212). Flags to undo: `INDEX_SHORT_POSTS`, `INDEX_NEAR_COPIES` in `src/site/pages.js`.
+- The savings figure ("up to 60-70%") is out of all 758 posts that had it. No savings percentage anywhere.
+
+Needs you, in order of what it is worth:
+- [ ] **Who wrote the posts?** Every post is signed "Tarkova". A named founder as author (byline, short bio, Person in the structured data) is the largest single gain left, for Google and for AI answers. Say who, and it is a small code change.
+- [ ] **The "0.4 ms per cache hit" figure on the Crowkis page** (stat tile, architecture diagram, pipeline). The Crowkis README says vector search measures 436 to 555 µs, but an end-to-end semantic read is bound by embedding, and `/blog/latency-profile-where-the-milliseconds-go/` reports a CGET hit at p50 114.5 ms. Either relabel the figure ("vector search") or change it. The hero sentence that said "in under a millisecond" is already fixed.
+- [ ] **Older benchmark posts disagree with each other** on search at a million vectors (`a-million-vectors-on-a-laptop`: 94 ms and 100%; the guide `semantic-cache-vs-vector-database`: 526 µs, from the README). Decide which numbers stand and correct the others.
+- [ ] **Outside sources in the Curva posts.** The 52 Curva posts name datasets, benchmarks and papers but link to none (the Curva validator only allows Curva's own URLs). Allowing links to the sources they already name would lift trust.
+- [ ] **Founder and company facts for the About page:** founding year, city, and real background for each founder. Bios are about 12 words today.
+- [ ] **Company profiles to link:** only the LinkedIn company page is listed. Add GitHub, X and any others (`org()` in `src/site/pages.js` and the copy in `index.html`).
+- [ ] **"Redis" in posts.** It is no longer in any indexed title; one indexed post body and nine hidden titles still use it.
+- [ ] **Docker Hub is behind the docs:** `crowkis/crowkis:latest` is 0.5.1 (ports 6379 to 6381); the docs and the deploy guide describe 0.5.2 (6383 to 6386). The guide shows both and tells readers to check the tag.
+- [ ] **Google Search Console and Bing Webmaster Tools:** submit the sitemap and watch coverage. Nothing here can see real rankings.
+- [ ] **Per-post social images** (every page shares `/og.jpg`) and **diagrams drawn at build time** (21 indexed posts ship Mermaid source that only a browser draws).
+- [ ] **Content Security Policy:** needs testing against the Google tag and the animated wordmark before it is switched on.
+- [ ] **The hidden posts (about 950):** still online and readable. Rewrite them into guides over time, or unpublish the ones no guide needs.
 
 ## Crowkis page: open questions
 - [ ] **Voice release.** The voice section says "New · Voice agents". PyPI/npm still show 0.5.0 and Docker Hub 0.5.1; voice landed in 0.5.2. If 0.5.2 isn't published yet, relabel it "Coming in 0.5.2" (`src/site/crowkis/scenes/voice.js`).
