@@ -113,6 +113,11 @@ function tarkovaSite(env) {
 
       // The contact form's endpoint. In production api/contact.js runs as a Vercel function; dev runs the same handler.
       server.middlewares.use('/api/contact', async (req, res) => (await import('./api/contact.js')).contact(env.SUPABASE_DB_URL)(req, res))
+      // Page-view and click counts for the dashboard. In production api/track.js runs as a Vercel function.
+      server.middlewares.use('/api/track', async (req, res) => (await import('./api/track.js')).track(env.SUPABASE_DB_URL)(req, res))
+      // The owner's dashboard, /admin/<ADMIN_KEY>/. In production api/admin.js runs as a Vercel function; dev runs the same
+      // handler, loaded through Vite so an edit to the file shows on the next refresh.
+      server.middlewares.use('/admin', async (req, res, next) => server.ssrLoadModule('/api/admin.js').then((m) => m.admin(env)(req, res), next))
 
       server.middlewares.use(async (req, res, next) => {
         const path = new URL(req.url, 'http://x').pathname

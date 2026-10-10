@@ -74,6 +74,16 @@ The section (`src/site/book.js`) is on the home page, `/crowkis/`, `/curva/` (an
 - [ ] **Read the two new privacy policy sentences** (contact form and Cal.com, under "What we collect" in `src/site/pages.js`) and the contact page headline, "Book a call with a founder."
 - [ ] The `ratings` table still has no form on this site.
 
+## Admin dashboard (added 2026-10-10)
+`/admin/<ADMIN_KEY>/` (`api/admin.js`) shows Tarkova and Crowkis side by side: one database serves both sites. Read-only. A Tarkova | Crowkis switch, a period control (1 week to 5 years), and Messages and Ratings shared by both. Page views, what visitors click, "Pick a time" clicks and time on the page are counted on this site by `api/track.js` (sent from `src/paint.js`) into the shared `events` table under `tarkova_` names, so the Crowkis numbers are untouched. The same numbers are served as JSON (`?format=json`) for the phone app in `app/`. To re-test locally: `node --env-file=.env scripts/admin-check.mjs` with `npm run dev` running.
+- [ ] **Set `ADMIN_KEY`, `ADMIN_USER` and `ADMIN_PASSWORD` in Vercel** for this project (the local `.env` reuses the Crowkis admin's three values). Without them the page is a 404 in production.
+- [ ] **Check the page on a Vercel preview before relying on it.** The `/admin/:key/` rewrite in `vercel.json` and how Vercel hands the function its request were written from the docs and tested only on the local dev server.
+- [ ] **Tarkova's traffic numbers start from the first deploy that includes `api/track.js`.** Only tarkova.com itself is counted, not localhost or preview deploys.
+- [ ] **Add `/api/track` to Vercel's firewall rate limit**, with `/api/contact` (above). The endpoint caps what it stores at 5,000 events an hour, but each attempt still opens a database connection.
+- [ ] **Put it on the iPhone:** once deployed, open `https://www.tarkova.com/admin/<ADMIN_KEY>/` in Safari, sign in, then Share, Add to Home Screen. It opens full screen under the Tarkova icon and stays signed in for 30 days.
+- [ ] **Read the privacy policy's "Cookies and analytics" paragraph** (`src/site/pages.js`): the site now also counts, itself, page views, the words on links and buttons that are clicked, and how long a page stays open (no cookie, no IP address, no visitor id). Add a sentence if you want that said.
+- [ ] Messages sent from this site's form are now saved with `source = 'tarkova'` (it was `'contact'`, the same value the Crowkis contact form writes; the Crowkis admin knows the new value). One older `'contact'` row may be this site's test message: it shows as "Crowkis · Contact form".
+
 ## Done
 - [x] SEO/AEO/GEO audit fixes (2026-10-09): Curva shown as live everywhere; one company description, legal name, founders and LinkedIn in structured data; `**bold**` renders in posts; reading time and word count computed from the text; long post titles drop the site-name suffix; blog and home titles; near-copy posts and deep topic pages `noindex`; curated `llms.txt` plus `llms-full.txt`; security headers and a day's caching for fonts and images; three accessibility defects on Crowkis and Curva.
 - [x] Blog from Supabase: index, 10 topic pages, pagination, 980 post pages, generated banner art, diagrams, charts, code blocks.

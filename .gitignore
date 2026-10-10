@@ -10,3 +10,6 @@ products-assests/
 Crowkis_Final_Identity_*.pdf
 tarkova-bg.png
 tarkova-music-trimmed.mp3
+
+# The iPhone install file (scripts/iphone-profile.mjs): it holds the admin address, key included.
+*.mobileconfig

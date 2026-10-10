@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Tarkova",
+    "slug": "tarkova",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

@@ -48,7 +48,7 @@ try {
   // A real message is saved as text: SQL stays inert, control characters go, the message keeps its line breaks.
   const nasty = { name: "Robert'); drop table feedback;--\r\nBcc: x@y.z", email: EMAIL, message: 'line one\nline two\u0000<script>alert(1)</script>' }
   assert.equal((await post(nasty)).status, 200, 'a valid message is accepted')
-  assert.deepEqual(await saved(), [{ name: "Robert'); drop table feedback;--Bcc: x@y.z", message: 'line one\nline two<script>alert(1)</script>', source: 'contact' }])
+  assert.deepEqual(await saved(), [{ name: "Robert'); drop table feedback;--Bcc: x@y.z", message: 'line one\nline two<script>alert(1)</script>', source: 'tarkova' }])
 
   // Rate limits.
   const again = await post(good)

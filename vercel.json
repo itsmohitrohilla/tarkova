@@ -1,5 +1,15 @@
 {
   "trailingSlash": true,
+  "rewrites": [
+    {
+      "source": "/admin/:key",
+      "destination": "/api/admin?key=:key"
+    },
+    {
+      "source": "/admin/:key/",
+      "destination": "/api/admin?key=:key"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

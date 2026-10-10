@@ -1,5 +1,5 @@
 // POST /api/contact: the "write to us" form (src/site/book.js). Saves to the `feedback` table with source
-// 'contact'. A Vercel function in production; vite.config.js mounts the same handler in dev. Plain Node
+// 'tarkova' (the Crowkis site shares the table and writes 'contact' and 'feedback'). A Vercel function in production; vite.config.js mounts the same handler in dev. Plain Node
 // request/response only, so both run this exact code. The database URL stays on the server.
 //
 // What stands between the open internet and the table, in order:
@@ -62,7 +62,7 @@ async function save(db, key, { name, email, message }) {
       return wait
     }
     await db.query('insert into contact_rate (key) values ($1)', [key])
-    await db.query(`insert into feedback (name, email, message, source) values ($1, $2, $3, 'contact')`, [name, email, message])
+    await db.query(`insert into feedback (name, email, message, source) values ($1, $2, $3, 'tarkova')`, [name, email, message])
     await db.query('commit')
     return 0
   } catch (e) {
